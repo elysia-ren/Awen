@@ -5981,3 +5981,105 @@ fn pipeline_multi_edit_chain_labels_and_refs() -> Result<i32, String> {
     assert(p2.unresolved_refs.len() == 0, f"编辑后引用应完整")
     return Ok(0)
 }
+
+// ── 更多 Label/Ref/Theme/编辑综合管线测试 ────────────────────
+
+@test
+fn pipeline_incremental_multi_edit_preserves_labels_refs() -> Result<i32, String> {
+    // 多轮编辑+多 Label+多 Ref,验证全部保留
+    let src = "# 章 A @[label a]\n见 @[ref a]。\n## 章 B @[label b]\n见 @[ref b]。\n### 章 C @[label c]\n见 @[ref c]。\n"
+    let p1 = pipeline_full(src)
+    assert(p1.labels.len() == 3, f"初始 Label 应为 3,得到 {p1.labels.len()}")
+    assert(p1.unresolved_refs.len() == 0, f"初始引用应完整")
+
+    // 编辑第一个 heading
+    let p2 = pipeline_edit_heading(p1, 1, "修改后的章 A")
+    // Label 应保留
+    var found_all = true
+    for expected in ["a", "b", "c"] {
+        var found = false
+        for l in p2.labels {
+            if l.label == expected { found = true }
+        }
+        if !found { found_all = false }
+    }
+    assert(found_all, f"编辑后 Label 应保留,得到 {p2.labels.len()} 个")
+    // 引用应完整
+    assert(p2.unresolved_refs.len() == 0, f"引用应完整")
+
+    // 编辑第三个 heading
+    let p3 = pipeline_edit_heading(p2, 5, "修改后的章 C")
+    var found_c2 = false
+    for l in p3.labels {
+        if l.label == "c" { found_c2 = true }
+    }
+    assert(found_c2, f"c Label 应保留")
+
+    // 引用应完整
+    assert(p3.unresolved_refs.len() == 0, f"引用应完整")
+    return Ok(0)
+}
+
+@test
+fn pipeline_incremental_edit_render_output_stable() -> Result<i32, String> {
+    // 编辑后渲染输出应包含所有应有内容
+    let src = "# 标题 A\n这是正文。\n@[image hero]\n"
+    let p1 = pipeline_full(src)
+    let p2 = pipeline_edit_heading(p1, 1, "修改后的标题 A")
+
+    // 渲染项应包含
+    var found_heading = false
+    var found_para = false
+    var found_image = false
+    for item in p2.render_items {
+        if item.kind == "heading" && item.text.contains("修改后的标题 A") { found_heading = true }
+        if item.kind == "para" && item.text.contains("这是正文。") { found_para = true }
+        if item.kind == "obj" && item.text.contains("hero") { found_image = true }
+    }
+    assert(found_heading, "应找到修改后的 heading")
+    assert(found_para, "应找到段落")
+    assert(found_image, "应找到图片")
+    return Ok(0)
+}
+
+@test
+fn pipeline_incremental_table_preservation() -> Result<i32, String> {
+    // 编辑 heading 后表格数据应保留
+    let src = "# 数据 @[label data]\n@[table]\n\n| 名 | 值 |\n| --- | --- |\n| x | 42 |\n\n@[/table]\n"
+    let out = lex(src)
+    let pr = parse(out)
+    let state = build_document(pr, src)
+    let r = edit_heading_text(state, 1, "修改后的数据", src)
+    let out2 = lex(r.new_source)
+    let pr2 = parse(out2)
+    let state2 = build_document(pr2, r.new_source)
+    // 表格应保留
+    let tables = doc_count_kind(state2, "table")
+    assert(tables >= 1, f"表格应保留,得到 {tables}")
+    return Ok(0)
+}
+
+@test
+fn pipeline_incremental_raw_preservation() -> Result<i32, String> {
+    // 编辑 heading 后 Raw 块内容应逐字保留
+    let src = "# 代码示例\n@[c py]\nprint('hello')\n@[/c]\n"
+    let out = lex(src)
+    let pr = parse(out)
+    let state = build_document(pr, src)
+    let r = edit_heading_text(state, 1, "修改后的代码示例", src)
+    let out2 = lex(r.new_source)
+    let pr2 = parse(out2)
+    let state2 = build_document(pr2, r.new_source)
+    // Raw 内容应保留
+    for node in state2.nodes {
+        if node.kind == "raw" {
+            assert(node.raw_lines.len() == 1, f"Raw 行数应保留")
+            match node.raw_lang {
+                Some(lang) { assert(lang == "py", f"语言应保留") }
+                None { assert(false, "语言应保留") }
+            }
+            return Ok(0)
+        }
+    }
+    return Err("找不到 Raw 块")
+}
