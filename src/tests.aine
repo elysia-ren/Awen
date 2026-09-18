@@ -2078,3 +2078,37 @@ fn export_markdown_excludes_comments() -> Result<i32, String> {
     assert(md.contains("正文"), "正文应导出")
     return Ok(0)
 }
+
+// ── CJK 排版深度测试(§10)─────────────────────────────────
+
+@test
+fn cjk_punctuation_squeeze() {
+    let squeezed = cjk_squeeze_punctuation("「你好」，他说。")
+    assert(squeezed.contains("[挤半角]"), "连续标点应触发挤压标记")
+}
+
+@test
+fn cjk_mixed_spacing_edges() {
+    // 纯 Latin 无间距
+    let pure_latin = cjk_mixed_spacing_text("hello world")
+    assert(!pure_latin.contains("[¼em]"), "纯 Latin 无间距")
+    // 纯 CJK 无间距
+    let pure_cjk = cjk_mixed_spacing_text("中文文本")
+    assert(!pure_cjk.contains("[¼em]"), "纯 CJK 无间距")
+    // 混排有间距
+    let mixed = cjk_mixed_spacing_text("使用Rust开发")
+    assert(mixed.contains("[¼em]"), "混排应有间距")
+}
+
+@test
+fn cjk_kinsoku_comprehensive() {
+    // 行首禁则字符集
+    assert(cjk_is_line_start_forbidden("。"), "。")
+    assert(cjk_is_line_start_forbidden("！"), "！")
+    assert(cjk_is_line_start_forbidden("」"), "」")
+    assert(!cjk_is_line_start_forbidden("「"), "「 可在行首")
+    // 行尾禁则字符集
+    assert(cjk_is_line_end_forbidden("「"), "「")
+    assert(cjk_is_line_end_forbidden("（"), "（")
+    assert(!cjk_is_line_end_forbidden("」"), "」 可在行尾")
+}
