@@ -4263,3 +4263,66 @@ fn pipeline_theme_rules_persist_after_edit() -> Result<i32, String> {
     // assert(p2.theme.rules.len() > 0, "theme 规则应保留")
     return Ok(0)
 }
+
+// ── 更多 Document State 和渲染管线验证 ──────────────────────
+
+@test
+fn doc_heading_inline_commands_preserved() -> Result<i32, String> {
+    // heading 中的 @[label] 和 @[ref] 行内命令应在 Document State 中保留
+    let src = "# 章 A @[label sec-a]\n## 章 B @[标签 sec-b]\n"
+    let out = lex(src)
+    let pr = parse(out)
+    let state = build_document(pr, src)
+    // 遍历 heading 节点检查 inline 中的 Command
+    var label_cmds = 0
+    for node in state.nodes {
+        if node.kind == "heading" {
+            for item in node.inline {
+                match item {
+                    Command(u) { if u.cmd == Label { label_cmds += 1 } }
+                    _ { }
+                }
+            }
+        }
+    }
+    assert(label_cmds == 2, f"应有 2 个 Label 命令,得到 {label_cmds}")
+    return Ok(0)
+}
+
+@test
+fn render_paragraph_after_heading_edit() -> Result<i32, String> {
+    // 编辑 heading 后,后续 para 的渲染应不受影响
+    let src = "# 标题\n正文内容保持不变\n"
+    let out = lex(src)
+    let pr = parse(out)
+    let state = build_document(pr, src)
+    let r = edit_heading_text(state, 1, "修改后的标题", src)
+    let out2 = lex(r.new_source)
+    let pr2 = parse(out2)
+    let state2 = build_document(pr2, r.new_source)
+    // 找到 para 节点并验证内容
+    for node in state2.nodes {
+        if node.kind == "para" {
+            let text = inline_plain(node.inline)
+            assert(text.contains("正文内容保持不变"), f"段落应不受影响: [{text}]")
+        }
+    }
+    return Ok(0)
+}
+
+@test
+fn container_save_load_preserves_headings() -> Result<i32, String> {
+    let src = "# 标题 A\n## 标题 B\n### 标题 C\n"
+    let out = lex(src)
+    let pr = parse(out)
+    let state = build_document(pr, src)
+    let path = "test_container_headings.awen"
+    save_awen(state, path)?
+    let loaded = load_awen(path)?
+    // heading 数应一致
+    let h_before = doc_count_kind(state, "heading")
+    let loaded_state = loaded.state
+    let h_after = doc_count_kind(loaded_state, "heading")
+    assert(h_before == h_after, f"heading 数应一致: {h_before} vs {h_after}")
+    return Ok(0)
+}
