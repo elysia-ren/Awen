@@ -2866,3 +2866,79 @@ fn render_table_with_cell_commands() -> Result<i32, String> {
     assert(count_errors(out.diags) == 0, "不应有错误")
     return Ok(0)
 }
+
+// ── 更多增量+管线深度测试 ────────────────────────────────────
+
+@test
+fn incr_multi_edit_consistency() -> Result<i32, String> {
+    // 多次编辑后,增量更新的语义应与全量解析一致
+    let src = "# A\ntext 1\n\n## B\ntext 2\n\n# C\ntext 3\n"
+    let out = lex(src)
+    let pr = parse(out)
+    let state = build_document(pr, src)
+
+    // 连续修改 3 个标题
+    let r1 = edit_heading_text(state, 1, "A_v2", src)
+    let r2 = edit_heading_text(r1.new_state, 3, "B_v2", r1.new_source)
+    let r3 = edit_heading_text(r2.new_state, 5, "C_v2", r2.new_source)
+
+    // 全量解析新源码作为参考
+    let full_out = lex(r3.new_source)
+    let full_pr = parse(full_out)
+    let full_state = build_document(full_pr, r3.new_source)
+
+    // 节点数一致
+    assert(r3.new_state.nodes.len() == full_state.nodes.len(), "节点数应一致")
+
+    // 标题数一致
+    assert(doc_count_kind(r3.new_state, "heading") == doc_count_kind(full_state, "heading"), "标题数一致")
+
+    // 所有标题文本应包含 v2
+    for node in r3.new_state.nodes {
+        if node.kind == "heading" {
+            let txt = inline_plain(node.inline)
+            assert(txt.contains("v2"), f"标题 [{txt}] 应包含 v2")
+        }
+    }
+    return Ok(0)
+}
+
+@test
+fn pipeline_multi_edit_with_labels() -> Result<i32, String> {
+    // 多轮编辑,验证 Label 跨编辑保持
+    let src = "# 章 A @[label intro]\n正文。\n# 章 B @[label chap-b]\n见 @[ref intro]。\n"
+    let p1 = pipeline_full(src)
+    assert(p1.labels.len() == 2, f"初始 Label 应为 2")
+
+    // 编辑第一个 heading 的文本(保留 label)
+    let r1 = edit_heading_text(p1.state, 1, "修改后的 A", src)
+    let p2 = pipeline_full(r1.new_source)
+
+    // Label 应保留(§2.5)
+    var found_intro = false
+    var found_chap_b = false
+    for l in p2.labels {
+        if l.label == "intro" { found_intro = true }
+        if l.label == "chap-b" { found_chap_b = true }
+    }
+    assert(found_intro && found_chap_b, f"编辑后两个 Label 应保留")
+
+    // 引用应完整
+    assert(p2.unresolved_refs.len() == 0, f"引用应完整")
+    return Ok(0)
+}
+
+@test
+fn cjk_comprehensive_line_break() -> Result<i32, String> {
+    // 长文本断行 + 禁则修正
+    let text = "这是一段很长的中文文本用于测试断行功能，包含了多个句子。每个句子都应该正确地断行，不应该在标点前面断开。"
+    let lines = cjk_line_break(text, 170.0, 11.0)
+    let fixed = fix_kinsoku(lines)
+    let issues = cjk_validate_line_breaks(fixed)
+    assert(issues.len() == 0, f"修正后不应有禁则违规: {issues}")
+    // 总字符数应保持
+    var total = 0
+    for l in fixed { total += l.len() }
+    assert(total == text.len(), f"断行后总字符数应一致: {total} vs {text.len()}")
+    return Ok(0)
+}
