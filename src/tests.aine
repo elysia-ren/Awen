@@ -1904,3 +1904,25 @@ fn pipeline_edit_with_label_preserved() -> Result<i32, String> {
     assert(curr.render_items.len() > 0, "渲染应正常")
     return Ok(0)
 }
+
+// ── diff 与 Awen 语法集成 ─────────────────────────────────
+
+@test
+fn diff_detects_awen_syntax_changes() -> Result<i32, String> {
+    let old = "# 旧标题\n@[image hero]\n"
+    let new = "# 新标题\n@[image hero]\n@[image extra]\n"
+    let d = diff_text(old, new)
+    assert(has_changes(d), "应检测到语法变化")
+    assert(d.added > 0 && d.deleted > 0, "应检测到增删")
+    return Ok(0)
+}
+
+@test
+fn diff_ignores_whitespace_only_changes_in_raw() -> Result<i32, String> {
+    // Raw 块内容变化应被检测(§6.7 逐字保留)
+    let old = "@[c py]\ncode v1\n@[/c]\n"
+    let new = "@[c py]\ncode v2\n@[/c]\n"
+    let d = diff_text(old, new)
+    assert(has_changes(d), "Raw 内容变化应被检测")
+    return Ok(0)
+}
