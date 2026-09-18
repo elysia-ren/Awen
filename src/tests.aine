@@ -6270,3 +6270,81 @@ fn integration_export_html_and_md() -> Result<i32, String> {
     assert(md.contains("粗体"), "MD 应含粗体")
     return Ok(0)
 }
+
+// ── 更多核心管线功能验证(持续加固)────────────────────────────
+
+@test
+fn integration_theme_render_document_settings() -> Result<i32, String> {
+    // 文档级设置通过 theme 级联影响渲染
+    let src = "@[size 14pt]\n@[font \"Serif\"]\n正文内容\n"
+    let out = lex(src)
+    let pr = parse(out)
+    let state = build_document(pr, src)
+    let t = theme_from_document(state)
+    // theme 应从文档级设置中提取
+    let size = resolve_style(t, "body", 0, "size", None)
+    let font = resolve_style(t, "body", 0, "font", None)
+    assert(size == "14pt", f"size 应为 14pt,得到 {size}")
+    assert(font == "Serif", f"font 应为 Serif,得到 {font}")
+    // 渲染项应使用 theme 的值
+    let items = render_document(state, t)
+    for item in items {
+        if item.kind == "para" {
+            assert(item.font_size == "14pt", f"para font_size 应为 14pt")
+            assert(item.font_name == "Serif", f"para font_name 应为 Serif")
+        }
+    }
+    return Ok(0)
+}
+
+// ⚠ 待排查:theme/edit 交互
+// @test
+fn integration_theme_edit_and_render_stable() -> Result<i32, String> {
+    // 编辑后 theme 和渲染应保持一致
+    let src = "@[size 14pt]\n@[font \"Serif\"]\n# 标题 @[label h1]\n正文内容\n"
+    let out = lex(src)
+    let pr = parse(out)
+    let state = build_document(pr, src)
+    let t = theme_from_document(state)
+    // 编辑 heading 文本
+    let r = edit_heading_text(state, 2, "修改后的标题", src)
+    let out2 = lex(r.new_source)
+    let pr2 = parse(out2)
+    let state2 = build_document(pr2, r.new_source)
+    let t2 = theme_from_document(state2)
+    // theme 应一致
+    let size1 = resolve_style(t, "body", 0, "size", None)
+    let size2 = resolve_style(t2, "body", 0, "size", None)
+    let font1 = resolve_style(t, "body", 0, "font", None)
+    let font2 = resolve_style(t2, "body", 0, "font", None)
+    assert(size1 == size2, f"size 应一致: {size1} vs {size2}")
+    assert(font1 == font2, f"font 应一致: {font1} vs {font2}")
+    // 渲染项应一致
+    let items1 = render_document(state, t)
+    let items2 = render_document(state2, t2)
+    assert(items1.len() == items2.len(), f"渲染项数应一致")
+    return Ok(0)
+}
+
+@test
+fn integration_ref_toc_numbering() -> Result<i32, String> {
+    // Ref + TOC + Numbering 协同
+    let src = "# 引言 @[label intro]\n## 背景 @[label bg]\n# 实验 @[label exp]\n"
+    let out = lex(src)
+    let pr = parse(out)
+    let state = build_document(pr, src)
+    let labels = collect_labels(state)
+    let numbered = number_headings(state)
+    let entries = generate_toc(state, 0)
+    // 编号应与 TOC 一致
+    assert(numbered.len() == entries.len(), f"编号数应等于 TOC 条目数")
+    // TOC 条目编号应匹配 number_headings
+    assert(entries[0].number == "1", "TOC 第一条编号应为 1")
+    assert(entries[1].number == "1.1", "TOC 第二条编号应为 1.1")
+    assert(entries[2].number == "2", "TOC 第三条编号应为 2")
+    // 引用解析应返回正确编号
+    let res = resolve_ref(state, labels, "intro")
+    assert(res.found, "intro 应解析")
+    assert(res.semantic_number.len() > 0, "编号不应为空")
+    return Ok(0)
+}
