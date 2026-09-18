@@ -4552,3 +4552,79 @@ fn render_list_ordered_and_unordered_separate() -> Result<i32, String> {
     assert(found_unordered && found_ordered, f"应有无序和有序两种列表")
     return Ok(0)
 }
+
+// ── 更多 CJK + 转义 + 管线深度测试 ──────────────────────────
+
+@test
+fn cjk_punct_comprehensive() {
+    // 行首禁则:所有 CJK 闭合标点
+    let line_start_forbidden = ["。", "，", "、", "；", "？", "！", "」", "』", "）", "】"]
+    for c in line_start_forbidden {
+        assert(cjk_is_line_start_forbidden(c), f"[{c}] 应为行首禁则")
+    }
+    // 行尾禁则:CJK 开启标点
+    let line_end_forbidden = ["「", "『", "（", "【"]
+    for c in line_end_forbidden {
+        assert(cjk_is_line_end_forbidden(c), f"[{c}] 应为行尾禁则")
+    }
+    // 非标点字符
+    assert(!cjk_is_line_start_forbidden("中"), "中 非禁则")
+    assert(!cjk_is_line_start_forbidden("a"), "a 非禁则")
+}
+
+@test
+fn escape_all_6_prefixes() -> Result<i32, String> {
+    // 测试所有轻量标记转义
+    assert(escape_scan("@**", 0) != None, "@** 转义")
+    assert(escape_scan("@~~", 0) != None, "@~~ 转义")
+    assert(escape_scan("@#", 0) != None, "@# 转义")
+    assert(escape_scan("@_", 0) != None, "@_ 转义")
+    assert(escape_scan("@-", 0) != None, "@- 转义")
+    assert(escape_scan("@>", 0) != None, "@> 转义")
+    assert(escape_scan("@`", 0) != None, "@` 转义")
+    // 验证转义产物正确
+    let r1 = escape_scan("@#", 0)
+    match r1 {
+        Some(h) { assert(h.text == "#", f"@# 应转义为 #") }
+        None { assert(false, "@# 应转义") }
+    }
+    return Ok(0)
+}
+
+@test
+fn pipeline_incremental_no_drift_after_edit() -> Result<i32, String> {
+    // 多轮 pipeline_edit_heading 后语义不漂移
+    let src = "# 标题\n正文\n## 子标题\n子内容\n"
+    let p1 = pipeline_full(src)
+    let p2 = pipeline_edit_heading(p1, 1, "修改后的标题")
+    let p3 = pipeline_full(p2.source)
+
+    // 标题数应一致
+    let h1 = doc_count_kind(p1.state, "heading")
+    let h3 = doc_count_kind(p3.state, "heading")
+    assert(h1 == h3, f"标题数应一致: {h1} vs {h3}")
+
+    // 渲染项数应一致
+    assert(p1.render_items.len() == p3.render_items.len(), f"渲染项数应一致")
+    return Ok(0)
+}
+
+@test
+fn container_roundtrip_preserves_raw_content() -> Result<i32, String> {
+    let src = "@[c rust]\nfn main() {\n    print(\"hello\");\n}\n@[/c]\n"
+    let out = lex(src)
+    let pr = parse(out)
+    let state = build_document(pr, src)
+    // Raw 内容应保留
+    for node in state.nodes {
+        if node.kind == "raw" {
+            assert(node.raw_lines.len() == 3, f"应有 3 行代码,得到 {node.raw_lines.len()}")
+            match node.raw_lang {
+                Some(lang) { assert(lang == "rust", f"语言应为 rust") }
+                None { assert(false, "应保留语言标注") }
+            }
+            return Ok(0)
+        }
+    }
+    return Err("找不到 Raw 块")
+}
