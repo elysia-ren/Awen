@@ -2495,3 +2495,72 @@ fn integration_full_corpus_stats() -> Result<i32, String> {
     assert(unresolved.len() == 0, f"未解析引用 {unresolved}")
     return Ok(0)
 }
+
+// ── 渲染: 表格对齐 + Raw 语言标注 ────────────────────────────
+
+@test
+fn render_table_with_alignment() -> Result<i32, String> {
+    let src = "@[table]\n\n| 左 | 中 | 右 |\n| :--- | :---: | ---: |\n| a | b | c |\n\n@[/table]\n"
+    let out = lex(src)
+    let pr = parse(out)
+    let state = build_document(pr, src)
+    let tables = doc_count_kind(state, "table")
+    assert(tables == 1, f"应有 1 个表格,得到 {tables}")
+    // 验证表格有分隔行
+    for node in state.nodes {
+        if node.kind == "table" {
+            assert(node.tbl_has_delim, "应检测到分隔行")
+            assert(node.tbl_rows.len() == 1, f"应有 1 个数据行")
+        }
+    }
+    return Ok(0)
+}
+
+@test
+fn render_raw_lang_preserved() -> Result<i32, String> {
+    let src = "@[c python]\nprint(1)\n@[/c]\n"
+    let out = lex(src)
+    let pr = parse(out)
+    let state = build_document(pr, src)
+    for node in state.nodes {
+        if node.kind == "raw" {
+            match node.raw_lang {
+                Some(lang) { assert(lang == "python", f"语言应为 python,得到 {lang}") }
+                None { assert(false, "语言应保留") }
+            }
+            return Ok(0)
+        }
+    }
+    return Err("找不到 Raw 块")
+}
+
+@test
+fn render_obj_types() -> Result<i32, String> {
+    let src = "@[image hero]\n@[toc depth: 3]\n@[footnote 脚注内容]\n"
+    let out = lex(src)
+    let pr = parse(out)
+    let state = build_document(pr, src)
+    var cmds: Vec<ExplicitCommand> = []
+    for node in state.nodes {
+        match node.obj_cu {
+            _ { }
+        }
+        // 通过遍历 nodes 找 obj
+    }
+    // 更直接:检查 blocks
+    var img = false
+    var toc = false
+    var footnote = false
+    for b in out.blocks {
+        match b.block {
+            BlkObject(u) {
+                if u.cmd == Image { img = true }
+                if u.cmd == Toc { toc = true }
+                if u.cmd == Footnote { footnote = true }
+            }
+            _ { }
+        }
+    }
+    assert(img && toc && footnote, "image/toc/footnote 应全部解析")
+    return Ok(0)
+}
