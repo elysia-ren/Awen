@@ -4067,3 +4067,66 @@ fn inline_scope_nested_render() -> Result<i32, String> {
     assert(marked.contains("@[u]"), "内层标记")
     return Ok(0)
 }
+
+// ── 更多 registry/heading/inline 深度测试 ────────────────────
+
+@test
+fn registry_all_doc_level_commands() -> Result<i32, String> {
+    // §11.1:8 个文档级命令全部可查找
+    var cmds: Vec<ExplicitCommand> = []
+    for name in ["page", "margin", "font", "size", "line-spacing", "first-line", "theme", "numbering"] {
+        match lookup(name) {
+            Some(c) { cmds = cmds.push(c) }
+            None { return Err(f"文档级命令 {name} 未注册") }
+        }
+    }
+    assert(cmds.len() == 8, f"应有 8 个文档级命令")
+    return Ok(0)
+}
+
+@test
+fn registry_cn_and_en_variants() -> Result<i32, String> {
+    // 中文别名和英文别名应映射到同一命令
+    assert(lookup("font") == lookup("字体"), "font = 字体")
+    assert(lookup("size") == lookup("大小"), "size = 大小")
+    assert(lookup("image") == lookup("图片"), "image = 图片")
+    assert(lookup("label") == lookup("标签"), "label = 标签")
+    return Ok(0)
+}
+
+@test
+fn heading_all_6_levels_classify() -> Result<i32, String> {
+    // 6 级标题全部正确分类
+    assert(classify("# H1") == LcHeading(1), "H1")
+    assert(classify("## H2") == LcHeading(2), "H2")
+    assert(classify("### H3") == LcHeading(3), "H3")
+    assert(classify("#### H4") == LcHeading(4), "H4")
+    assert(classify("##### H5") == LcHeading(5), "H5")
+    assert(classify("###### H6") == LcHeading(6), "H6")
+    // 7 个 # 不是标题
+    assert(classify("####### H7") == LcText, "7 个 # 是文本")
+    // 无空格不是标题
+    assert(classify("#H1") == LcText, "#H1 是文本")
+    return Ok(0)
+}
+
+@test
+fn inline_bold_italic_crossing_fallback() -> Result<i32, String> {
+    // 交叉标记:整行按字面处理(§6.5)
+    let r = lw_scan_inline("**a _b** c_", 0, [])
+    // 交叉时应产生诊断
+    assert(r.diags.len() > 0, f"交叉应产生诊断,得到 {r.diags.len()}")
+    // 纯文本应保持原样
+    let plain = inline_plain(r.inline)
+    assert(plain == "**a _b** c_", f"字面回退应保持原文: [{plain}]")
+    return Ok(0)
+}
+
+@test
+fn inline_unclosed_produces_warning() -> Result<i32, String> {
+    // 未闭合标记:按字面 + 警告(§6.5/§5.A)
+    let r = lw_scan_inline("**没有关闭", 0, [])
+    assert(r.diags.len() > 0, "未闭合应产生诊断")
+    assert(inline_plain(r.inline) == "**没有关闭", "字面保持")
+    return Ok(0)
+}
