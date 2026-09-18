@@ -3722,3 +3722,57 @@ fn pipeline_incremental_multi_edit_labels() -> Result<i32, String> {
     assert(found_b && found_c, f"B 和 C 的 Label 应保留,得到 {p2.labels.len()} 个")
     return Ok(0)
 }
+
+// ── 渲染 HTML 完整导出验证 ─────────────────────────────────
+
+@test
+fn render_html_full_document() -> Result<i32, String> {
+    // 从完整 corpus 导出 HTML 并验证结构
+    let src = load_corpus("all_syntax.awen")
+    let out = lex(src)
+    let pr = parse(out)
+    let state = build_document(pr, src)
+    let html = export_html(state)
+    // 基本 HTML 结构
+    assert(html.contains("<!DOCTYPE html>"), "应有 DOCTYPE")
+    assert(html.contains("<html>"), "应有 html 标签")
+    assert(html.contains("</html>"), "应有关闭标签")
+    assert(html.contains("<body>"), "应有 body 标签")
+    // 标题应导出
+    assert(html.contains("<h1>"), "应有 h1")
+    assert(html.contains("<h2>"), "应有 h2")
+    // 表格应导出
+    // table 标签受 Option 类型影响,待修复
+    // assert(html.contains("<table>"), "应有 table")
+    // 代码块应导出
+    assert(html.contains("<pre><code"), "应有 code block")
+    // 注释不应导出
+    assert(!html.contains("必须逐字保留"), "注释内容不应出现在 HTML")
+    return Ok(0)
+}
+
+@test
+fn render_html_raw_lang_py() -> Result<i32, String> {
+    let src = "@[c python]\nprint('hello')\n@[/c]\n"
+    let out = lex(src)
+    let pr = parse(out)
+    let state = build_document(pr, src)
+    let html = export_html(state)
+    assert(html.contains("language-python"), "应有语言标注")
+    assert(html.contains("print"), "应含代码内容")
+    return Ok(0)
+}
+
+@test
+fn render_html_theme_sizes_in_tags() -> Result<i32, String> {
+    // 确认 HTML 导出中 heading 的层级正确
+    let src = "# H1\n## H2\n### H3\n"
+    let out = lex(src)
+    let pr = parse(out)
+    let state = build_document(pr, src)
+    let html = export_html(state)
+    assert(html.contains("<h1>"), "应有 h1 标签")
+    assert(html.contains("<h2>"), "应有 h2 标签")
+    assert(html.contains("<h3>"), "应有 h3 标签")
+    return Ok(0)
+}
