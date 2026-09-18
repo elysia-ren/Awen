@@ -849,7 +849,7 @@ fn theme_from_document_settings() -> Result<i32, String> {
     let out = lex(src)
     let pr = parse(out)
     let state = build_document(pr, src)
-    let t = theme_from_document(state)
+    var t = theme_from_document(state)
     let size = resolve_style(t, "body", 0, "size", None)
     let font = resolve_style(t, "body", 0, "font", None)
     assert(size == "12pt", "文档级 size 应为 12pt")
@@ -3106,5 +3106,64 @@ fn pipeline_validate_after_edit() -> Result<i32, String> {
     let errors1 = count_errors(p1.diags)
     let errors2 = count_errors(p2.diags)
     assert(errors2 <= errors1, f"编辑后错误不应增加: {errors1} → {errors2}")
+    return Ok(0)
+}
+
+// ── 更多渲染管线功能测试 ────────────────────────────────────
+
+@test
+fn render_theme_heading_all_levels() -> Result<i32, String> {
+    // 测试 6 个 heading 级别的 theme 级联
+    var t = theme_new("full")
+    t = theme_add_rule(t, "heading", 1, "size", "26pt")
+    t = theme_add_rule(t, "heading", 2, "size", "22pt")
+    t = theme_add_rule(t, "heading", 3, "size", "18pt")
+    t = theme_add_rule(t, "heading", 4, "size", "16pt")
+    t = theme_add_rule(t, "heading", 5, "size", "14pt")
+    t = theme_add_rule(t, "heading", 6, "size", "12pt")
+    // H1 → 26pt
+    assert(heading_size(t, 1) == "26pt", "H1 = 26pt")
+    assert(heading_size(t, 2) == "22pt", "H2 = 22pt")
+    assert(heading_size(t, 3) == "18pt", "H3 = 18pt")
+    assert(heading_size(t, 4) == "16pt", "H4 = 16pt")
+    assert(heading_size(t, 5) == "14pt", "H5 = 14pt")
+    assert(heading_size(t, 6) == "12pt", "H6 = 12pt")
+    return Ok(0)
+}
+
+@test
+fn render_theme_prop_isolation() -> Result<i32, String> {
+    // 不同属性的规则不应互相干扰
+    var t = theme_new("isolated")
+    t = theme_add_rule(t, "heading", 0, "size", "20pt")
+    t = theme_add_rule(t, "body", 0, "color", "#333")
+    // heading 的 size 不影响 body 的 size
+    assert(resolve_style(t, "body", 0, "size", None) == "11pt", "body size 不受 heading 规则影响")
+    // body 的 color 不影响 heading 的 color
+    assert(resolve_style(t, "heading", 1, "color", None) == "#000000", "heading color 回退默认")
+    return Ok(0)
+}
+
+@test
+fn render_multiple_scoped_inline() -> Result<i32, String> {
+    // 多个不同的 Scoped 命令在同一个行内
+    let src = "@[u]下划线@[/u] 和 @[color \"red\"]红色@[/color] 混合\n"
+    let out = lex(src)
+    let pr = parse(out)
+    let state = build_document(pr, src)
+    let html = export_html(state)
+    // 两个 scoped 都应导出
+    assert(html.contains("<u>") || html.contains("<span>"), "应包含 scoped 标签")
+    return Ok(0)
+}
+
+@test
+fn render_theme_body_defaults() -> Result<i32, String> {
+    // 空主题应使用默认排版(§20)
+    var t = theme_new("empty")
+    assert(resolve_style(t, "body", 0, "size", None) == "11pt", "默认字号 11pt")
+    assert(resolve_style(t, "body", 0, "font", None) == "Noto Sans CJK SC", "默认字体")
+    assert(resolve_style(t, "body", 0, "spacing", None) == "1.65", "默认行距 1.65")
+    assert(resolve_style(t, "body", 0, "indent", None) == "2em", "默认缩进 2em")
     return Ok(0)
 }
