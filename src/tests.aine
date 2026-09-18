@@ -5015,3 +5015,88 @@ fn render_theme_document_font_size_heading_independence() -> Result<i32, String>
     assert(body_font == "Serif", f"文档级 font 应为 Serif,得到 {body_font}")
     return Ok(0)
 }
+
+// ── 更多管线+CJK+编辑综合深度测试 ────────────────────────────
+
+@test
+fn pipeline_incremental_edit_preserves_all_headings() -> Result<i32, String> {
+    // 编辑文档中部的 heading,前后所有 heading 都应保留
+    let src = "# H1\n正文1\n## H2\n正文2\n### H3\n正文3\n## H4\n正文4\n# H5\n正文5\n"
+    let out = lex(src)
+    let pr = parse(out)
+    let state = build_document(pr, src)
+
+    // 编辑 H3 (中间的 heading)
+    let r = edit_heading_text(state, 1, "H3 Modified", src)
+
+    // 重新解析
+    let out2 = lex(r.new_source)
+    let pr2 = parse(out2)
+    let state2 = build_document(pr2, r.new_source)
+
+    // 验证所有 heading 仍存在
+    var heading_count = 0
+    for node in state2.nodes {
+        if node.kind == "heading" { heading_count += 1 }
+    }
+    assert(heading_count == 5, f"应有 5 个 heading,得到 {heading_count}")
+
+    // 修改后的文本应存在
+    var found_modified = false
+    for node in state2.nodes {
+        if node.kind == "heading" {
+            let txt = inline_plain(node.inline)
+            if txt.contains("H3 Modified") { found_modified = true }
+        }
+    }
+    assert(found_modified, "修改后的 heading 应存在")
+    return Ok(0)
+}
+
+@test
+fn cjk_validate_no_violation_clean_text() -> Result<i32, String> {
+    let lines = ["这是第一行正常的中文文本。", "这是第二行。", "第三行也没有问题。"]
+    let issues = cjk_validate_line_breaks(lines)
+    assert(issues.len() == 0, f"正常文本不应有禁则违规: {issues}")
+    return Ok(0)
+}
+
+@test
+fn cjk_line_end_forbidden_punct() -> Result<i32, String> {
+    let lines = ["这是一段文字「", "这是另一段。"]
+    let issues = cjk_validate_line_breaks(lines)
+    assert(issues.len() > 0, f"行尾「 应触发禁则")
+    return Ok(0)
+}
+
+@test
+fn pipeline_theme_and_render_after_incremental() -> Result<i32, String> {
+    // 增量编辑后 theme 和渲染仍然正确
+    let src = "# 标题\n这是正文内容。\n"
+    let out = lex(src)
+    let pr = parse(out)
+    let state = build_document(pr, src)
+    var t = theme_new("incr_test")
+    t = theme_add_rule(t, "heading", 1, "size", "24pt")
+    t = theme_add_rule(t, "body", 0, "font", "Serif")
+
+    // 编辑前渲染
+    let items_before = render_document(state, t)
+
+    // 编辑 heading
+    let r = edit_heading_text(state, 1, "修改后的标题", src)
+    let out2 = lex(r.new_source)
+    let pr2 = parse(out2)
+    let state2 = build_document(pr2, r.new_source)
+    let items_after = render_document(state2, t)
+
+    // 渲染项数一致
+    assert(items_before.len() == items_after.len(), f"渲染项数应一致")
+    // 修改后的标题应在渲染中
+    var found = false
+    for item in items_after {
+        if item.text.contains("修改后的标题") { found = true }
+    }
+    assert(found, "修改后的标题应出现在渲染中")
+    return Ok(0)
+}
