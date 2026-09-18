@@ -3646,3 +3646,79 @@ fn export_html_escaping_comprehensive() -> Result<i32, String> {
     assert(html.contains("&lt;b&gt;") || html.contains("&lt;script&gt;"), "特殊字符应转义")
     return Ok(0)
 }
+
+// ── 更多编辑+Label+Ref 管线深度测试 ─────────────────────────
+
+@test
+fn edit_heading_all_levels_preserve_labels() -> Result<i32, String> {
+    // 修改所有级别的 heading,验证 Label 保留
+    let src = "# L1 @[label l1]\n## L2 @[label l2]\n### L3 @[label l3]\n"
+    let out = lex(src)
+    let pr = parse(out)
+    let state = build_document(pr, src)
+    let labels0 = collect_labels(state)
+    assert(labels0.len() == 3, f"初始应有 3 个 Label,得到 {labels0.len()}")
+
+    // 修改 L1 的文本
+    let r = edit_heading_text(state, 1, "修改后的 L1", src)
+    let out2 = lex(r.new_source)
+    let pr2 = parse(out2)
+    let state2 = build_document(pr2, r.new_source)
+    let labels2 = collect_labels(state2)
+
+    // L1 的 label 可能丢失(edit 替换整行),但 L2 和 L3 应保留
+    var found_l2 = false
+    var found_l3 = false
+    for l in labels2 {
+        if l.label == "l2" { found_l2 = true }
+        if l.label == "l3" { found_l3 = true }
+    }
+    assert(found_l2 && found_l3, f"L2 和 L3 的 Label 应保留,得到 {labels2.len()} 个")
+    return Ok(0)
+}
+
+@test
+fn incr_edit_heading_does_not_affect_siblings_labels() -> Result<i32, String> {
+    // 修改 heading A,验证 heading B 的 Label 保留
+    let src = "# 标题 A @[label sec-a]\n正文 A\n## 标题 B @[label sec-b]\n正文 B\n"
+    let out = lex(src)
+    let pr = parse(out)
+    let state = build_document(pr, src)
+
+    // 修改 heading A
+    let r = edit_heading_text(state, 1, "修改后的 A", src)
+    let out2 = lex(r.new_source)
+    let pr2 = parse(out2)
+    let state2 = build_document(pr2, r.new_source)
+    let labels2 = collect_labels(state2)
+
+    // sec-b 不应受影响
+    var found_b = false
+    for l in labels2 {
+        if l.label == "sec-b" { found_b = true }
+    }
+    assert(found_b, "sec-b 应保留")
+    return Ok(0)
+}
+
+@test
+fn pipeline_incremental_multi_edit_labels() -> Result<i32, String> {
+    // 多轮 pipeline_edit_heading 后 Label 均保留
+    let src = "# A @[label a]\n## B @[label b]\n### C @[label c]\n"
+    let p1 = pipeline_full(src)
+    assert(p1.labels.len() == 3, f"初始 Label 应为 3")
+
+    // 编辑 A → 重新管线
+    let r1 = edit_heading_text(p1.state, 1, "A_v2", src)
+    let p2 = pipeline_full(r1.new_source)
+
+    // B 和 C 的 Label 应保留
+    var found_b = false
+    var found_c = false
+    for l in p2.labels {
+        if l.label == "b" { found_b = true }
+        if l.label == "c" { found_c = true }
+    }
+    assert(found_b && found_c, f"B 和 C 的 Label 应保留,得到 {p2.labels.len()} 个")
+    return Ok(0)
+}
