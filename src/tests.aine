@@ -6083,3 +6083,78 @@ fn pipeline_incremental_raw_preservation() -> Result<i32, String> {
     }
     return Err("找不到 Raw 块")
 }
+
+// ── 更多渲染管线验证(持续加固)────────────────────────────
+
+@test
+fn render_theme_all_heading_levels_correct() -> Result<i32, String> {
+    // 6 级 heading 每级独立的 theme 级联字号
+    let src = "# H1\n## H2\n### H3\n#### H4\n##### H5\n###### H6\n"
+    let out = lex(src)
+    let pr = parse(out)
+    let state = build_document(pr, src)
+    var t = theme_new("all_levels")
+    t = theme_add_rule(t, "heading", 1, "size", "26pt")
+    t = theme_add_rule(t, "heading", 2, "size", "22pt")
+    t = theme_add_rule(t, "heading", 3, "size", "18pt")
+    t = theme_add_rule(t, "heading", 4, "size", "16pt")
+    t = theme_add_rule(t, "heading", 5, "size", "14pt")
+    t = theme_add_rule(t, "heading", 6, "size", "12pt")
+    let items = render_document(state, t)
+    // 验证每个 heading 的 font_size 对应正确
+    var sizes: Vec<String> = []
+    for item in items {
+        if item.kind == "heading" { sizes = sizes.push(item.font_size) }
+    }
+    assert(sizes.len() == 6, f"应有 6 个 heading 渲染项")
+    assert(sizes[0] == "26pt", "H1 = 26pt")
+    assert(sizes[1] == "22pt", "H2 = 22pt")
+    assert(sizes[2] == "18pt", "H3 = 18pt")
+    assert(sizes[3] == "16pt", "H4 = 16pt")
+    assert(sizes[4] == "14pt", "H5 = 14pt")
+    assert(sizes[5] == "12pt", "H6 = 12pt")
+    return Ok(0)
+}
+
+@test
+fn render_theme_body_and_heading_prop_independence() -> Result<i32, String> {
+    var t = theme_new("independence")
+    t = theme_add_rule(t, "heading", 0, "size", "24pt")
+    t = theme_add_rule(t, "body", 0, "font", "Serif")
+    t = theme_add_rule(t, "body", 0, "size", "12pt")
+    // heading 和 body 的 size 独立
+    assert(resolve_style(t, "heading", 1, "size", None) == "24pt", "heading size = 24pt")
+    assert(resolve_style(t, "body", 0, "size", None) == "12pt", "body size = 12pt")
+    // font 独立
+    assert(resolve_style(t, "body", 0, "font", None) == "Serif", "body font = Serif")
+    // heading 的 font 回退默认
+    assert(resolve_style(t, "heading", 1, "font", None) == "Noto Sans CJK SC", "heading font 默认")
+    return Ok(0)
+}
+
+@test
+fn render_theme_color_weight_defaults() {
+    // 默认值
+    var empty = theme_new("empty")
+    assert(resolve_style(empty, "body", 0, "color", None) == "#000000", "默认颜色 #000000")
+    assert(resolve_style(empty, "body", 0, "weight", None) == "normal", "默认字重 normal")
+    // 设置后覆盖
+    var t = theme_new("custom")
+    t = theme_add_rule(t, "body", 0, "color", "#333333")
+    t = theme_add_rule(t, "body", 0, "weight", "bold")
+    assert(resolve_style(t, "body", 0, "color", None) == "#333333", "自定义颜色")
+    assert(resolve_style(t, "body", 0, "weight", None) == "bold", "自定义字重")
+}
+
+@test
+fn render_theme_and_document_settings_independent() -> Result<i32, String> {
+    // 文档级设置和 theme 规则独立生效
+    let src = "@[size 14pt]\n@[font \"Serif\"]\n正文\n"
+    let out = lex(src)
+    let pr = parse(out)
+    let state = build_document(pr, src)
+    var t = theme_from_document(state)
+    assert(resolve_style(t, "body", 0, "size", None) == "14pt", "文档级 size")
+    assert(resolve_style(t, "body", 0, "font", None) == "Serif", "文档级 font")
+    return Ok(0)
+}
