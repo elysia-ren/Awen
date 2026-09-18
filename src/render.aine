@@ -4,20 +4,6 @@
 
 // ── 渲染节点(带样式的输出单元)─────────────────────────
 
-struct RenderItem {
-    node_id: i32
-    kind: String
-    // 格式化后的文本
-    text: String
-    // 级联样式
-    font_size: String
-    font_name: String
-    color: String
-    indent: String
-    line_spacing: String
-    weight: String
-}
-
 // ── 文档渲染 ────────────────────────────────────────────────
 
 // 将 Document State + Theme 渲染为带样式的输出

@@ -3,6 +3,8 @@
 // 1. 文本 patch → 2. 重新解析 → 3. Document State 更新
 // 4. Label 重新收集 → 5. 引用完整性验证 → 6. 诊断输出
 //
+// 注意:此模块由 tests.aine/main.aine 导入,依赖的模块由导入方声明。
+// 不要在此文件中添加 module 声明,否则会导致环路加载错误。
 // 这是"编译器内部吃掉全部迭代"的实现(§7.4/§7.5):
 // 用户只看到最终结果,不需要手动触发重新编译。
 
@@ -19,10 +21,10 @@ struct PipelineResult {
     duplicate_labels: Vec<String>
     // 词法/语法诊断
     diags: Vec<Diagnostic>
-    // 主题(从文档级设置构建)
     theme: Theme
-    // 渲染结果
     render_items: Vec<RenderItem>
+    // 主题(从文档级设置构建)
+    // 渲染结果
 }
 
 // ── 完整管线:源码 → 全部中间表示 ────────────────────────
@@ -36,6 +38,7 @@ fn pipeline_full(src: String) -> PipelineResult {
     let unresolved = validate_refs(state, labels)
     let theme = theme_from_document(state)
     let items = render_document(state, theme)
+
     return PipelineResult {
         source: src,
         state: state,

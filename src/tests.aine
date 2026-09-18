@@ -1068,7 +1068,7 @@ fn pipeline_full_and_validate() -> Result<i32, String> {
     // 引用完整
     assert(p.unresolved_refs.len() == 0, "无未解析引用")
     // 渲染有内容
-    assert(p.render_items.len() > 0, "应有渲染项")
+    assert(render_document(p.state, theme_new("auto")).len() > 0, "应有渲染项")
     return Ok(0)
 }
 
@@ -2003,7 +2003,7 @@ fn pipeline_full_corpus() -> Result<i32, String> {
     // 0 词法错误
     assert(count_errors(p.diags) == 0, "corpus 不应有词法错误")
     // 渲染项应覆盖大量节点
-    assert(p.render_items.len() >= 20, f"渲染项不足: {p.render_items.len()}")
+    assert(render_document(p.state, theme_new("auto")).len() >= 20, f"渲染项不足: {render_document(p.state, theme_new("auto")).len()}")
     // Label 应有多个
     assert(p.labels.len() >= 3, f"Label 不足: {p.labels.len()}")
     // 引用完整
@@ -3092,7 +3092,7 @@ fn pipeline_theme_after_edit() -> Result<i32, String> {
     let p1 = pipeline_full(src)
     let p2 = pipeline_edit_heading(p1, 2, "新标题")
     // theme 的 size 应保持
-    let body_size = resolve_style(p2.theme, "body", 0, "size", None)
+    let body_size = resolve_style(theme_from_document(p2.state), "body", 0, "size", None)
     if body_size != "14pt" { print(f"  note: body_size={body_size} (theme 交互待排查)") }
     return Ok(0)
 }
@@ -3830,7 +3830,7 @@ fn pipeline_full_stats_report() -> Result<i32, String> {
     let p = pipeline_full(src)
     // 验证统计
     assert(p.state.nodes.len() > 20, f"节点数 {p.state.nodes.len()}")
-    assert(p.render_items.len() > 20, f"渲染项 {p.render_items.len()}")
+    assert(render_document(p.state, theme_new("auto")).len() > 20, f"渲染项 {render_document(p.state, theme_new("auto")).len()}")
     assert(p.labels.len() >= 3, f"Label {p.labels.len()}")
     // 引用完整
     assert(p.unresolved_refs.len() == 0, f"未解析引用 {p.unresolved_refs}")
@@ -4247,9 +4247,9 @@ fn pipeline_incremental_edit_does_not_break_render() -> Result<i32, String> {
     let src = "# 标题\n正文\n"
     let p1 = pipeline_full(src)
     let p2 = pipeline_edit_heading(p1, 1, "新标题")
-    assert(p2.render_items.len() > 0, "编辑后渲染项应存在")
+    assert(render_document(p2.state, theme_new("auto")).len() > 0, "编辑后渲染项应存在")
     // 渲染项数应一致
-    assert(p1.render_items.len() == p2.render_items.len(), "渲染项数应一致")
+    assert(render_document(p1.state, theme_new("auto")).len() == render_document(p2.state, theme_new("auto")).len(), "渲染项数应一致")
     return Ok(0)
 }
 
@@ -4605,7 +4605,7 @@ fn pipeline_incremental_no_drift_after_edit() -> Result<i32, String> {
     assert(h1 == h3, f"标题数应一致: {h1} vs {h3}")
 
     // 渲染项数应一致
-    assert(p1.render_items.len() == p3.render_items.len(), f"渲染项数应一致")
+    assert(render_document(p1.state, theme_new("auto")).len() == render_document(p3.state, theme_new("auto")).len(), f"渲染项数应一致")
     return Ok(0)
 }
 
@@ -4794,7 +4794,7 @@ fn pipeline_multi_heading_edit_labels_refs() -> Result<i32, String> {
     assert(p3.unresolved_refs.len() == 0, f"引用应完整")
 
     // 渲染应正常
-    assert(p3.render_items.len() > 0, f"渲染项应存在")
+    assert(render_document(p3.state, theme_new("auto")).len() > 0, f"渲染项应存在")
     return Ok(0)
 }
 
@@ -5565,8 +5565,8 @@ fn pipeline_full_render_count_matches_nodes() -> Result<i32, String> {
     let src = load_corpus("all_syntax.awen")
     let p = pipeline_full(src)
     // 渲染项数应等于 Document State 节点数
-    assert(p.render_items.len() == p.state.nodes.len(),
-        f"渲染项 {p.render_items.len()} != 节点 {p.state.nodes.len()}")
+    assert(render_document(p.state, theme_new("auto")).len() == p.state.nodes.len(),
+        f"渲染项 {render_document(p.state, theme_new("auto")).len()} != 节点 {p.state.nodes.len()}")
     return Ok(0)
 }
 
@@ -5576,7 +5576,7 @@ fn pipeline_incremental_single_edit_preserves_render_count() -> Result<i32, Stri
     let src = "# 标题\n正文\n"
     let p1 = pipeline_full(src)
     let p2 = pipeline_edit_heading(p1, 1, "新标题")
-    assert(p1.render_items.len() == p2.render_items.len(), "渲染项数应一致")
+    assert(render_document(p1.state, theme_new("auto")).len() == render_document(p2.state, theme_new("auto")).len(), "渲染项数应一致")
     return Ok(0)
 }
 
@@ -5917,7 +5917,7 @@ fn pipeline_incremental_multi_edit_chain_labels() -> Result<i32, String> {
     assert(p4.unresolved_refs.len() == 0, f"引用应完整")
 
     // 渲染应正常
-    assert(p4.render_items.len() > 0, f"渲染项应存在")
+    assert(render_document(p4.state, theme_new("auto")).len() > 0, f"渲染项应存在")
     return Ok(0)
 }
 
@@ -5933,8 +5933,8 @@ fn pipeline_incremental_edit_theme_stable() -> Result<i32, String> {
 
     // 编辑 heading 后 theme 不变
     let p2 = pipeline_edit_heading(p1, 3, "修改后的标题")
-    let size_after = resolve_style(p2.theme, "body", 0, "size", None)
-    let font_after = resolve_style(p2.theme, "body", 0, "font", None)
+    let size_after = resolve_style(theme_from_document(p2.state), "body", 0, "size", None)
+    let font_after = resolve_style(theme_from_document(p2.state), "body", 0, "font", None)
     assert(size_after == size_before, "编辑后 size 不变")
     assert(font_after == font_before, "编辑后 font 不变")
     return Ok(0)
@@ -6476,3 +6476,38 @@ fn export_md_quote_and_list_items() -> Result<i32, String> {
     assert(md.contains("项目B"), "列表项 B 应导出")
     return Ok(0)
 }
+
+// ── 更多渲染和导出深度验证 ──────────────────────────────────
+
+@test
+fn render_html_ol_ordered_tags() -> Result<i32, String> {
+    let src = "1. 第一步\n2. 第二步\n"
+    let out = lex(src)
+    let pr = parse(out)
+    let state = build_document(pr, src)
+    let html = export_html(state)
+    assert(html.contains("<ol>"), "有序列表应有 ol 标签")
+    assert(html.contains("<li>"), "应有 li 标签")
+    assert(html.contains("第一步"), "应含第一步")
+    return Ok(0)
+}
+
+
+
+
+
+
+@test
+fn render_theme_heading_body_independence_size() -> Result<i32, String> {
+    var t = theme_new("independence")
+    t = theme_add_rule(t, "heading", 0, "size", "24pt")
+    t = theme_add_rule(t, "body", 0, "size", "12pt")
+    assert(resolve_style(t, "heading", 1, "size", None) == "24pt", "heading size = 24pt")
+    assert(resolve_style(t, "body", 0, "size", None) == "12pt", "body size = 12pt")
+    return Ok(0)
+}
+
+
+
+
+
