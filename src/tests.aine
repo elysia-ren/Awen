@@ -4486,3 +4486,69 @@ fn explicit_numbering_heading_levels() -> Result<i32, String> {
     }
     return Ok(0)
 }
+
+// ── 更多 theme + render + 编辑综合测试 ──────────────────────
+
+@test
+fn theme_edit_preserves_heading_size() -> Result<i32, String> {
+    // 编辑 heading 后 theme 的 size 规则仍应正确应用
+    let src = "# 标题 A\n# 标题 B\n"
+    let out = lex(src)
+    let pr = parse(out)
+    let state = build_document(pr, src)
+    var t = theme_new("size_test")
+    t = theme_add_rule(t, "heading", 1, "size", "24pt")
+    // 编辑前:两个 H1 都应为 24pt
+    let items1 = render_document(state, t)
+    var count_24_before = 0
+    for item in items1 {
+        if item.font_size == "24pt" { count_24_before += 1 }
+    }
+    assert(count_24_before == 2, f"编辑前应有 2 个 24pt,得到 {count_24_before}")
+    // 编辑第一个 heading
+    let r = edit_heading_text(state, 1, "修改后的 A", src)
+    let out2 = lex(r.new_source)
+    let pr2 = parse(out2)
+    let state2 = build_document(pr2, r.new_source)
+    let items2 = render_document(state2, t)
+    var count_24_after = 0
+    for item in items2 {
+        if item.font_size == "24pt" { count_24_after += 1 }
+    }
+    assert(count_24_after == 2, f"编辑后仍应有 2 个 24pt,得到 {count_24_after}")
+    return Ok(0)
+}
+
+@test
+fn theme_body_size_with_document_font() -> Result<i32, String> {
+    // 文档级 @[size] 和 @[font] 独立设置
+    let src = "@[size 14pt]\n@[font \"Serif\"]\n正文\n"
+    let out = lex(src)
+    let pr = parse(out)
+    let state = build_document(pr, src)
+    let t = theme_from_document(state)
+    let size = resolve_style(t, "body", 0, "size", None)
+    let font = resolve_style(t, "body", 0, "font", None)
+    assert(size == "14pt", f"size 应为 14pt,得到 {size}")
+    assert(font == "Serif", f"font 应为 Serif,得到 {font}")
+    return Ok(0)
+}
+
+@test
+fn render_list_ordered_and_unordered_separate() -> Result<i32, String> {
+    // 有序和无序列表应产生不同的渲染
+    let src = "- 无序项\n\n1. 有序项\n"
+    let out = lex(src)
+    let pr = parse(out)
+    let state = build_document(pr, src)
+    var found_unordered = false
+    var found_ordered = false
+    for node in state.nodes {
+        if node.kind == "list" {
+            if node.list_ordered { found_ordered = true }
+            else { found_unordered = true }
+        }
+    }
+    assert(found_unordered && found_ordered, f"应有无序和有序两种列表")
+    return Ok(0)
+}
