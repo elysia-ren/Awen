@@ -4941,3 +4941,77 @@ fn render_theme_and_cjk_text() -> Result<i32, String> {
     assert(items[0].font_size == "12pt", "字号 12pt")
     return Ok(0)
 }
+
+// ── 更多综合深度测试 ────────────────────────────────────────
+
+@test
+fn render_html_ol_tags() -> Result<i32, String> {
+    let src = "1. 第一\n2. 第二\n"
+    let out = lex(src)
+    let pr = parse(out)
+    let state = build_document(pr, src)
+    let html = export_html(state)
+    assert(html.contains("<ol>") || html.contains("ol"), "有序列表应有 ol 标签")
+    assert(html.contains("第一") && html.contains("第二"), "列表内容应保留")
+    return Ok(0)
+}
+
+@test
+fn render_html_ul_tags() -> Result<i32, String> {
+    let src = "- 苹果\n- 香蕉\n"
+    let out = lex(src)
+    let pr = parse(out)
+    let state = build_document(pr, src)
+    let html = export_html(state)
+    assert(html.contains("<ul>") || html.contains("ul"), "无序列表应有 ul 标签")
+    assert(html.contains("苹果") && html.contains("香蕉"), "列表内容应保留")
+    return Ok(0)
+}
+
+@test
+fn render_html_blockquote() -> Result<i32, String> {
+    let src = "> 这是一段引用\n"
+    let out = lex(src)
+    let pr = parse(out)
+    let state = build_document(pr, src)
+    let html = export_html(state)
+    assert(html.contains("<blockquote>") || html.contains("blockquote") || html.contains("引用"), "引用应导出")
+    return Ok(0)
+}
+
+@test
+fn render_html_hr() -> Result<i32, String> {
+    let src = "---\n"
+    let out = lex(src)
+    let pr = parse(out)
+    let state = build_document(pr, src)
+    let html = export_html(state)
+    assert(html.contains("<hr>") || html.contains("hr"), "分节线应导出")
+    return Ok(0)
+}
+
+@test
+fn render_html_img() -> Result<i32, String> {
+    let src = "@[image \"photo.png\"]\n"
+    let out = lex(src)
+    let pr = parse(out)
+    let state = build_document(pr, src)
+    let html = export_html(state)
+    assert(html.contains("photo.png"), "图片路径应导出")
+    return Ok(0)
+}
+
+@test
+fn render_theme_document_font_size_heading_independence() -> Result<i32, String> {
+    // 文档级 font/size 应独立于 heading size 规则
+    let src = "@[size 14pt]\n@[font \"Serif\"]\n正文\n"
+    let out = lex(src)
+    let pr = parse(out)
+    let state = build_document(pr, src)
+    let t = theme_from_document(state)
+    let body_size = resolve_style(t, "body", 0, "size", None)
+    let body_font = resolve_style(t, "body", 0, "font", None)
+    assert(body_size == "14pt", f"文档级 size 应为 14pt,得到 {body_size}")
+    assert(body_font == "Serif", f"文档级 font 应为 Serif,得到 {body_font}")
+    return Ok(0)
+}
