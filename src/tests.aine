@@ -6280,7 +6280,7 @@ fn integration_theme_render_document_settings() -> Result<i32, String> {
     let out = lex(src)
     let pr = parse(out)
     let state = build_document(pr, src)
-    let t = theme_from_document(state)
+    var t = theme_from_document(state)
     // theme 应从文档级设置中提取
     let size = resolve_style(t, "body", 0, "size", None)
     let font = resolve_style(t, "body", 0, "font", None)
@@ -6305,13 +6305,13 @@ fn integration_theme_edit_and_render_stable() -> Result<i32, String> {
     let out = lex(src)
     let pr = parse(out)
     let state = build_document(pr, src)
-    let t = theme_from_document(state)
+    var t = theme_from_document(state)
     // 编辑 heading 文本
     let r = edit_heading_text(state, 2, "修改后的标题", src)
     let out2 = lex(r.new_source)
     let pr2 = parse(out2)
     let state2 = build_document(pr2, r.new_source)
-    let t2 = theme_from_document(state2)
+    var t2 = theme_from_document(state2)
     // theme 应一致
     let size1 = resolve_style(t, "body", 0, "size", None)
     let size2 = resolve_style(t2, "body", 0, "size", None)
@@ -6348,3 +6348,66 @@ fn integration_ref_toc_numbering() -> Result<i32, String> {
     assert(res.semantic_number.len() > 0, "编号不应为空")
     return Ok(0)
 }
+
+// ── 更多渲染和导出深度测试 ──────────────────────────────────
+
+@test
+fn render_theme_body_and_heading_independence() -> Result<i32, String> {
+    // heading 和 body 的属性独立
+    var t = theme_new("independence")
+    t = theme_add_rule(t, "heading", 0, "size", "24pt")
+    t = theme_add_rule(t, "body", 0, "size", "12pt")
+    t = theme_add_rule(t, "body", 0, "font", "Serif")
+    // heading size 不影响 body size
+    assert(resolve_style(t, "heading", 1, "size", None) == "24pt", "heading size = 24pt")
+    assert(resolve_style(t, "body", 0, "size", None) == "12pt", "body size = 12pt")
+    // font 来自 body 规则
+    assert(resolve_style(t, "body", 0, "font", None) == "Serif", "body font = Serif")
+    return Ok(0)
+}
+
+@test
+fn render_theme_color_and_weight_defaults() {
+    // 默认值
+    var empty = theme_new("empty")
+    assert(resolve_style(empty, "body", 0, "color", None) == "#000000", "默认颜色 #000000")
+    assert(resolve_style(empty, "body", 0, "weight", None) == "normal", "默认字重 normal")
+    // 设置后覆盖
+    var t = theme_new("custom")
+    t = theme_add_rule(t, "body", 0, "color", "#333333")
+    t = theme_add_rule(t, "body", 0, "weight", "bold")
+    assert(resolve_style(t, "body", 0, "color", None) == "#333333", "自定义颜色")
+    assert(resolve_style(t, "body", 0, "weight", None) == "bold", "自定义字重")
+}
+
+
+@test
+fn render_export_md_and_html_both() -> Result<i32, String> {
+    // 同一文档的 Markdown 和 HTML 导出都应包含内容
+    let src = "# 引言\n正文内容。\n"
+    let out = lex(src)
+    let pr = parse(out)
+    let state = build_document(pr, src)
+    let html = export_html(state)
+    let md = export_markdown(state)
+    // 两种导出都应包含核心内容
+    assert(html.contains("引言"), "HTML 应含标题")
+    assert(html.contains("正文内容"), "HTML 应含正文")
+    assert(md.contains("# 引言"), "MD 应含标题")
+    assert(md.contains("正文内容"), "MD 应含正文")
+    return Ok(0)
+}
+
+@test
+fn export_md_quote_and_list() -> Result<i32, String> {
+    let src = "> 引用内容\n- 项目A\n- 项目B\n"
+    let out = lex(src)
+    let pr = parse(out)
+    let state = build_document(pr, src)
+    let md = export_markdown(state)
+    assert(md.contains("引用内容"), "引用应导出")
+    assert(md.contains("项目A"), "列表项 A 应导出")
+    assert(md.contains("项目B"), "列表项 B 应导出")
+    return Ok(0)
+}
+
