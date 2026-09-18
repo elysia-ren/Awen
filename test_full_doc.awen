@@ -1,0 +1,20 @@
+# awen v0.4
+# nodes: 6
+# next_id: 7
+# ---
+# 标题 @[label h1]
+正文
+- 项目
+> 引用
+---
+@[c py]
+code
+@[/c]
+@[table]
+
+| a | b |
+| --- | --- |
+| 1 | 2 |
+
+@[/table]
+@[image hero]

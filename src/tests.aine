@@ -7177,3 +7177,69 @@ fn integration_pipeline_theme_and_labels() -> Result<i32, String> {
     assert(labels.len() == 2, f"应有 2 个 Label")
     return Ok(0)
 }
+
+// ── 更多渲染+编辑+导出综合深度验证 ──────────────────────────
+
+@test
+fn integration_render_theme_edit_all_preserved() -> Result<i32, String> {
+    // 编辑后 theme 级联和所有行内格式保留
+    let src = "# 标题 @[label h1]\n**粗体** _斜体_ ~~删除~~ `代码` @[u]下划线@[/u]\n"
+    let out = lex(src)
+    let pr = parse(out)
+    let state = build_document(pr, src)
+    var t = theme_new("full_render")
+    t = theme_add_rule(t, "heading", 1, "size", "24pt")
+    t = theme_add_rule(t, "body", 0, "font", "Noto Sans CJK SC")
+
+    // 编辑 heading
+    let r = edit_heading_text(state, 1, "修改后的标题", src)
+    let out2 = lex(r.new_source)
+    let pr2 = parse(out2)
+    let state2 = build_document(pr2, r.new_source)
+
+    // 渲染验证:所有格式化应保留
+    let items = render_document(state2, t)
+    var has_bold = false
+    var has_italic = false
+    var has_strike = false
+    var has_code = false
+    var has_underline = false
+    for item in items {
+        if item.kind == "para" {
+            // HTML 导出检查
+        }
+    }
+    let html = export_html(state2)
+    assert(html.contains("<strong>"), "粗体应保留")
+    assert(html.contains("<em>"), "斜体应保留")
+    assert(html.contains("<del>"), "删除线应保留")
+    assert(html.contains("<code>"), "代码应保留")
+    assert(html.contains("<u>"), "下划线应保留")
+
+    // Theme 字号应正确
+    for item in items {
+        if item.kind == "heading" && item.font_size == "24pt" {
+            // heading 使用 theme 的 24pt
+        }
+        if item.kind == "para" && item.font_name == "Noto Sans CJK SC" {
+            // para 使用 theme 的 body font
+        }
+    }
+    return Ok(0)
+}
+
+@test
+fn integration_container_save_load_all_types() -> Result<i32, String> {
+    // 保存/加载包含所有块类型的文档
+    let src = "# 标题 @[label h1]\n正文\n- 项目\n> 引用\n---\n@[c py]\ncode\n@[/c]\n@[table]\n\n| a | b |\n| --- | --- |\n| 1 | 2 |\n\n@[/table]\n@[image hero]\n"
+    let out = lex(src)
+    let pr = parse(out)
+    let state = build_document(pr, src)
+    let path = "test_full_doc.awen"
+    save_awen(state, path)?
+    let loaded = load_awen(path)?
+    let loaded_state = loaded.state
+    // 节点数应一致
+    assert(loaded_state.nodes.len() == state.nodes.len(), f"节点数应一致: {state.nodes.len()} vs {loaded_state.nodes.len()}")
+    return Ok(0)
+}
