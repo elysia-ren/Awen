@@ -7486,3 +7486,35 @@ fn integration_export_md_comprehensive() -> Result<i32, String> {
     assert(md.contains("引用"), "MD 应含引用")
     return Ok(0)
 }
+
+// ── 更多渲染+Theme+导出功能测试 ────────────────────────────
+
+@test
+fn render_html_ordered_list() -> Result<i32, String> {
+    let src = "1. 第一步\n2. 第二步\n"
+    let out = lex(src)
+    let pr = parse(out)
+    let state = build_document(pr, src)
+    let html = export_html(state)
+    assert(html.contains("<ol>"), "有序列表应有 ol 标签")
+    assert(html.contains("<li>"), "应有 li 标签")
+    assert(html.contains("第一步"), "应含第一步")
+    return Ok(0)
+}
+
+
+
+
+@test
+fn render_html_raw_code() -> Result<i32, String> {
+    let src = "@[c python]\nprint(42)\n@[/c]\n"
+    let out = lex(src)
+    let pr = parse(out)
+    let state = build_document(pr, src)
+    let html = export_html(state)
+    assert(html.contains("<pre><code"), "应有 pre+code")
+    assert(html.contains("python"), "应有语言标注")
+    assert(html.contains("print(42)"), "应含代码内容")
+    return Ok(0)
+}
+
