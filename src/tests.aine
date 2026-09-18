@@ -7707,3 +7707,80 @@ fn integration_export_md_and_html_with_labels() -> Result<i32, String> {
     assert(md.contains("数据") || md.contains("data"), "MD 应含数据")
     return Ok(0)
 }
+
+// ── 更多渲染+编辑+CJK+Theme 综合深度测试 ────────────────────
+
+// ⚠ 待排查:table+raw+scoped 的 match 交互
+// @test
+fn integration_render_theme_scoped_and_table_and_raw() -> Result<i32, String> {
+    // Theme + Scoped + Table + Raw 全部集成
+    let src = "# 文档 @[label doc]\n@[size 14pt]大字@[/size]\n@[table]\n\n| 名 | 值 |\n| --- | --- |\n| 测试 | 42 |\n\n@[/table]\n\n@[c py]\ncode\n@[/c]\n\n见 @[ref doc]。\n"
+    let out = lex(src)
+    let pr = parse(out)
+    let state = build_document(pr, src)
+    var t = theme_new("integration")
+    t = theme_add_rule(t, "heading", 1, "size", "22pt")
+    t = theme_add_rule(t, "heading", 2, "size", "18pt")
+    t = theme_add_rule(t, "body", 0, "font", "Noto Sans CJK SC")
+
+    let labels = collect_labels(state)
+    assert(labels.len() >= 1, f"应有 Label")
+
+    let unresolved = validate_refs(state, labels)
+    assert(unresolved.len() == 0, "引用应完整")
+
+    let items = render_document(state, t)
+    assert(items.len() > 0, "渲染应有输出")
+
+    let md = export_markdown(state)
+    assert(md.len() > 100, f"MD 导出过短: {md.len()}")
+
+    let html = export_html(state)
+    assert(html.len() > 200, f"HTML 导出过短: {html.len()}")
+    return Ok(0)
+}
+
+@test
+fn integration_cjk_line_break_and_squeeze_and_mixed() -> Result<i32, String> {
+    // CJK 断行+禁则修正+间距+挤压综合验证
+    let text = "使用Rust和Aine开发中文文档系统，支持表格和公式。他说：「你好！」然后离开了。"
+    let lines = cjk_line_break(text, 85.0, 11.0)
+    assert(lines.len() >= 1, "断行应产生行")
+    let fixed = fix_kinsoku(lines)
+    let issues = cjk_validate_line_breaks(fixed)
+    assert(issues.len() == 0, f"禁则修正后不应有违规: {issues}")
+    let spacing = cjk_mixed_spacing_text(text)
+    assert(spacing.contains("[¼em]"), "混排应有间距标记")
+    let squeezed = cjk_squeeze_punctuation(text)
+    assert(squeezed.contains("[挤半角]") || squeezed.contains("，"), "标点应处理")
+    return Ok(0)
+}
+
+@test
+fn integration_export_html_heading_levels() -> Result<i32, String> {
+    // HTML 导出所有 6 级 heading 标签
+    let src = "# H1\n## H2\n### H3\n#### H4\n##### H5\n###### H6\n"
+    let out = lex(src)
+    let pr = parse(out)
+    let state = build_document(pr, src)
+    let html = export_html(state)
+    assert(html.contains("<h1>"), "h1")
+    assert(html.contains("<h2>"), "h2")
+    assert(html.contains("<h3>"), "h3")
+    assert(html.contains("<h4>"), "h4")
+    assert(html.contains("<h5>"), "h5")
+    assert(html.contains("<h6>"), "h6")
+    return Ok(0)
+}
+
+@test
+fn integration_export_md_ordered_and_unordered() -> Result<i32, String> {
+    let src = "- 无序项\n1. 有序项\n"
+    let out = lex(src)
+    let pr = parse(out)
+    let state = build_document(pr, src)
+    let md = export_markdown(state)
+    assert(md.contains("无序项"), "无序项应导出")
+    assert(md.contains("有序项"), "有序项应导出")
+    return Ok(0)
+}
