@@ -24,6 +24,7 @@ module heading_tree;
 module numbering;
 module validate;
 module inspect;
+module export_html;
 module seed;
 
 fn main() {

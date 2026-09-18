@@ -1,0 +1,174 @@
+// awen-proto/src/export_html.aine —— HTML 导出(§8.6 互操作)
+// 将 Document State 导出为 HTML 格式
+// 展示渲染管线的可扩展性(同一 Document State → 多种输出格式)
+
+fn html_escape(s: String) -> String {
+    var out = ""
+    var i = 0
+    while i < s.len() {
+        let c = s[i]
+        if c == "<" { out = out + "&lt;" }
+        else if c == ">" { out = out + "&gt;" }
+        else if c == "&" { out = out + "&amp;" }
+        else { out = out + c }
+        i += 1
+    }
+    return out
+}
+
+fn export_html_inline(items: Vec<Inline>) -> String {
+    var out = ""
+    for it in items {
+        match it {
+            AwTxt(s) { out = out + html_escape(s) }
+            IBold(c) { out = out + "<strong>" + export_html_inline(c) + "</strong>" }
+            Italic(c) { out = out + "<em>" + export_html_inline(c) + "</em>" }
+            Strike(c) { out = out + "<del>" + export_html_inline(c) + "</del>" }
+            CodeSpan(s) { out = out + "<code>" + html_escape(s) + "</code>" }
+            Scoped(cmd, c) {
+                var tag = "span"
+                match cmd {
+                    Bold { tag = "strong" }
+                    U { tag = "u" }
+                    Font { tag = "span" }
+                    Size { tag = "span" }
+                    Color { tag = "span" }
+                    _ { tag = "span" }
+                }
+                out = out + "<" + tag + ">" + export_html_inline(c) + "</" + tag + ">"
+            }
+            Command(u) { out = out + "<!-- " + u.name_raw + " -->" }
+            RawInline(cmd, lang, content) { out = out + html_escape(content) }
+            _ { }
+        }
+    }
+    return out
+}
+
+fn export_html_heading(node: SemNode) -> String {
+    let tag = "h" + f"{node.level}"
+    let content = export_html_inline(node.inline)
+    return f"<{tag}>{content}</{tag}>"
+}
+
+fn export_html_paragraph(node: SemNode) -> String {
+    return "<p>" + export_html_inline(node.inline) + "</p>"
+}
+
+fn export_html_list(node: SemNode) -> String {
+    var tag = "ul"
+    if node.list_ordered { tag = "ol" }
+    var out = f"<{tag}>\n"
+    for item in node.list_items {
+        out = out + "  <li>" + export_html_inline(item) + "</li>\n"
+    }
+    out = out + f"</{tag}>\n"
+    return out
+}
+
+fn export_html_quote(node: SemNode) -> String {
+    var prefix = ""
+    var i = 0
+    while i < node.quote_depth {
+        prefix = prefix + ">"
+        i += 1
+    }
+    // 简化:所有深度的引用都导出为 <blockquote>
+    var content = export_html_inline(node.inline)
+    var nested = "<blockquote>\n  <p>" + content + "</p>\n</blockquote>\n"
+    return nested
+}
+
+fn export_html_raw(node: SemNode) -> String {
+    var lang = ""
+    match node.raw_lang {
+        Some(l) { lang = l }
+        None { }
+    }
+    var cls = "language-" + lang
+    if lang.len() == 0 { cls = "" }
+
+    var out = "<pre><code"
+    if cls.len() > 0 { out = out + f" class=\"{cls}\"" }
+    out = out + ">"
+    for line in node.raw_lines {
+        out = out + html_escape(line) + "\n"
+    }
+    out = out + "</code></pre>\n"
+    return out
+}
+
+fn export_html_table(node: SemNode) -> String {
+    var out = "<table>\n"
+    if node.tbl_header.len() > 0 {
+        out = out + "  <thead>\n  <tr>\n"
+        for cell in node.tbl_header[0] {
+            out = out + "    <th>" + export_html_inline([cell]) + "</th>\n"
+        }
+        out = out + "  </tr>\n  </thead>\n"
+    }
+    if node.tbl_rows.len() > 0 {
+        out = out + "  <tbody>\n"
+        for row in node.tbl_rows {
+            out = out + "  <tr>\n"
+            for cell in row {
+                out = out + "    <td>" + export_html_inline([cell]) + "</td>\n"
+            }
+            out = out + "  </tr>\n"
+        }
+        out = out + "  </tbody>\n"
+    }
+    out = out + "</table>\n"
+    return out
+}
+
+// ── 完整 HTML 导出 ──────────────────────────────────────────
+
+fn export_html(state: DocState) -> String {
+    var out = "<!DOCTYPE html>\n<html>\n<head>\n<meta charset=\"utf-8\">\n"
+    out = out + "<title>Awen Document</title>\n"
+    out = out + "</head>\n<body>\n"
+
+    for node in state.nodes {
+        if node.kind == "heading" {
+            out = out + export_html_heading(node)
+        } else if node.kind == "para" {
+            out = out + export_html_paragraph(node)
+        } else if node.kind == "list" {
+            out = out + export_html_list(node)
+        } else if node.kind == "quote" {
+            out = out + export_html_quote(node)
+        } else if node.kind == "hr" {
+            out = out + "<hr>\n"
+        } else if node.kind == "raw" {
+            out = out + export_html_raw(node)
+        } else if node.kind == "table" {
+            out = out + export_html_table(node)
+        } else if node.kind == "obj" {
+            let cmd = node.obj_cu.cmd
+            if cmd == Comment {
+                // 注释不导出(§11.3)
+            } else if cmd == Image {
+                var path = ""
+                if node.obj_cu.args.len() > 0 {
+                    path = arg_plain(node.obj_cu.args[0])
+                }
+                out = out + f"<img src=\"{path}\" alt=\"{path}\">\n"
+            } else if cmd == Toc {
+                out = out + "<nav id=\"toc\"><!-- TOC --></nav>\n"
+            } else if cmd == Footnote {
+                var content = ""
+                match node.obj_cu.content {
+                    Some(c) { content = c }
+                    None { }
+                }
+                out = out + f"<span class=\"footnote\">[{html_escape(content)}]</span>\n"
+            } else {
+                out = out + f"<!-- {node.obj_cu.name_raw} -->\n"
+            }
+        }
+    }
+
+    out = out + "</body>\n</html>\n"
+    return out
+}
