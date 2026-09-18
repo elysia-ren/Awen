@@ -7100,3 +7100,80 @@ fn integration_pipeline_edit_labels_refs_comprehensive() -> Result<i32, String> 
     assert(unresolved.len() == 0, f"不应有未解析引用")
     return Ok(0)
 }
+
+// ── 更多渲染+导出+编辑综合测试(持续加固)────────────────────
+
+@test
+fn integration_render_marked_roundtrip_html() -> Result<i32, String> {
+    // inline_render_marked 输出再解析再导出 HTML 应包含标记
+    let src = "**粗体** 和 _斜体_ 和 @[u]下划线@[/u]"
+    let out = lex(src)
+    let pr = parse(out)
+    let state = build_document(pr, src)
+    let html = export_html(state)
+    assert(html.contains("<strong>"), "HTML 应有 strong")
+    assert(html.contains("<em>"), "HTML 应有 em")
+    assert(html.contains("<u>"), "HTML 应有 u")
+    return Ok(0)
+}
+
+@test
+fn integration_render_all_formatting() -> Result<i32, String> {
+    // 所有格式化类型的渲染
+    let src = "**粗体** _斜体_ ~~删除~~ `代码` @[u]下划线@[/u]\n"
+    let out = lex(src)
+    let pr = parse(out)
+    let state = build_document(pr, src)
+    let html = export_html(state)
+    assert(html.contains("<strong>"), "粗体")
+    assert(html.contains("<em>"), "斜体")
+    assert(html.contains("<del>"), "删除线")
+    assert(html.contains("<code>"), "代码")
+    assert(html.contains("<u>"), "下划线")
+    return Ok(0)
+}
+
+@test
+fn integration_export_md_heading_levels() -> Result<i32, String> {
+    // 所有 6 级 heading 的 MD 导出
+    let src = "# H1\n## H2\n### H3\n#### H4\n##### H5\n###### H6\n"
+    let out = lex(src)
+    let pr = parse(out)
+    let state = build_document(pr, src)
+    let md = export_markdown(state)
+    assert(md.contains("# H1"), "H1")
+    assert(md.contains("## H2"), "H2")
+    assert(md.contains("### H3"), "H3")
+    assert(md.contains("#### H4"), "H4")
+    assert(md.contains("##### H5"), "H5")
+    assert(md.contains("###### H6"), "H6")
+    return Ok(0)
+}
+
+@test
+fn integration_pipeline_theme_and_labels() -> Result<i32, String> {
+    // Theme 和 Label 在 pipeline 中协同
+    let src = "# 标题 A @[label h1]\n正文\n## 标题 B @[label h2]\n"
+    let out = lex(src)
+    let pr = parse(out)
+    let state = build_document(pr, src)
+    var t = theme_new("combined_test")
+    t = theme_add_rule(t, "heading", 1, "size", "22pt")
+    t = theme_add_rule(t, "heading", 2, "size", "18pt")
+    let items = render_document(state, t)
+    // H1 应有 22pt,H2 应有 18pt
+    for item in items {
+        if item.kind == "heading" {
+            if item.text.contains("标题 A") {
+                assert(item.font_size == "22pt", f"H1 font_size 应为 22pt")
+            }
+            if item.text.contains("标题 B") {
+                assert(item.font_size == "18pt", f"H2 font_size 应为 18pt")
+            }
+        }
+    }
+    // Label 应保留
+    let labels = collect_labels(state)
+    assert(labels.len() == 2, f"应有 2 个 Label")
+    return Ok(0)
+}
