@@ -1872,3 +1872,35 @@ fn fmt_idempotent() -> Result<i32, String> {
     assert(pass1 == pass2, f"fmt 应幂等")
     return Ok(0)
 }
+
+// ── 编辑保留行内命令(§87 修复验证)────────────────────────
+
+@test
+fn edit_heading_preserves_label() -> Result<i32, String> {
+    // §87:修改 heading 文本不应删除 @[label]
+    let src = "# 旧标题 @[label h1]\n正文\n"
+    let out = lex(src)
+    let pr = parse(out)
+    let state = build_document(pr, src)
+    let r = edit_heading_text(state, 1, "新标题", src)
+    assert(r.new_source.contains("@[label h1]"), f"Label 应保留: [{r.new_source}]")
+    assert(r.new_source.contains("新标题"), "新文本应存在")
+    assert(!r.new_source.contains("旧标题"), "旧文本应清除")
+    return Ok(0)
+}
+
+@test
+fn pipeline_edit_with_label_preserved() -> Result<i32, String> {
+    let src = "# 旧标题 @[label h1]\n见 @[ref h1]。\n"
+    let prev = pipeline_full(src)
+    assert(prev.labels.len() == 1, f"编辑前 Label = {prev.labels.len()}")
+    let curr = pipeline_edit_heading(prev, 1, "新标题")
+    // Label 应保留
+    assert(curr.labels.len() == 1, f"编辑后 Label = {curr.labels.len()}")
+    assert(curr.labels[0].label == "h1", "Label 值不变")
+    // 引用应完整
+    assert(curr.unresolved_refs.len() == 0, "引用应完整")
+    // 渲染应正常
+    assert(curr.render_items.len() > 0, "渲染应正常")
+    return Ok(0)
+}
