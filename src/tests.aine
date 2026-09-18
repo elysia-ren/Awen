@@ -24,6 +24,7 @@ module validate;
 module toc;
 module diff;
 module inspect;
+module export_html;
 module heading_tree;
 module numbering;
 module container;
@@ -2698,5 +2699,58 @@ fn lex_inline_scoped_nested() -> Result<i32, String> {
     let src = "@[b]外层 @[u]内层@[/u] 外层@[/b]\n"
     let out = lex(src)
     assert(count_errors(out.diags) == 0, "不应有错误")
+    return Ok(0)
+}
+
+// ── HTML 导出 ────────────────────────────────────────────────
+
+@test
+fn export_html_basic() -> Result<i32, String> {
+    let src = "# 标题\n正文\n"
+    let out = lex(src)
+    let pr = parse(out)
+    let state = build_document(pr, src)
+    let html = export_html(state)
+    assert(html.contains("<h1>"), "应有 h1 标签")
+    assert(html.contains("标题"), "应含标题文本")
+    assert(html.contains("<p>"), "应有 p 标签")
+    assert(html.contains("正文"), "应含正文")
+    return Ok(0)
+}
+
+@test
+fn export_html_escapes_special_chars() -> Result<i32, String> {
+    let src = "包含 <tag> 和 & 符号\n"
+    let out = lex(src)
+    let pr = parse(out)
+    let state = build_document(pr, src)
+    let html = export_html(state)
+    assert(html.contains("&lt;tag&gt;"), "应转义 <tag>")
+    assert(html.contains("&amp;"), "应转义 &")
+    return Ok(0)
+}
+
+@test
+fn test_export_html_table() -> Result<i32, String> {
+    let src = "@[table]\n\n| a | b |\n| --- | --- |\n| 1 | 2 |\n\n@[/table]\n"
+    let out = lex(src)
+    let pr = parse(out)
+    let state = build_document(pr, src)
+    let html = export_html(state)
+    assert(html.contains("<table>"), "应有 table 标签")
+    assert(html.contains("<td>") || html.contains("<th>"), "应有表格单元格")
+    return Ok(0)
+}
+
+@test
+fn export_html_raw_block() -> Result<i32, String> {
+    let src = "@[c py]\nprint(1)\n@[/c]\n"
+    let out = lex(src)
+    let pr = parse(out)
+    let state = build_document(pr, src)
+    let html = export_html(state)
+    assert(html.contains("<pre><code"), "应有 pre+code 标签")
+    assert(html.contains("language-py"), "应有语言标注")
+    assert(html.contains("print(1)"), "应含代码内容")
     return Ok(0)
 }
