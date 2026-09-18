@@ -83,3 +83,45 @@ fn pipeline_validate(prev: PipelineResult, curr: PipelineResult) -> Result<i32, 
     }
     return Ok(0)
 }
+
+// ── aine check 底层:运行词法+语法+验证,返回全部诊断 ──────
+
+struct CheckResult {
+    ok: bool
+    state: DocState
+    labels: Vec<LabelEntry>
+    lex_errors: i32
+    lex_warnings: i32
+    validation_issues: Vec<ValidationIssue>
+}
+
+fn pipeline_check(src: String) -> CheckResult {
+    let out = lex(src)
+    var lex_errors = 0
+    var lex_warnings = 0
+    for d in out.diags {
+        if d.severity == SevError { lex_errors += 1 }
+        else { lex_warnings += 1 }
+    }
+
+    let pr = parse(out)
+    let state = build_document(pr, src)
+    let labels = collect_labels(state)
+    let issues = validate_document(state, labels)
+
+    var ok = lex_errors == 0
+    if ok {
+        for i in issues {
+            if i.severity == SevError { ok = false }
+        }
+    }
+
+    return CheckResult {
+        ok: ok,
+        state: state,
+        labels: labels,
+        lex_errors: lex_errors,
+        lex_warnings: lex_warnings,
+        validation_issues: issues,
+    }
+}
