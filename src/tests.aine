@@ -5817,3 +5817,71 @@ fn render_theme_body_font_size_heading() -> Result<i32, String> {
     assert(p_size == "12pt", f"para size = {p_size}")
     return Ok(0)
 }
+
+// ── 更多渲染+导出+Label+编辑深度测试 ─────────────────────────
+
+@test
+fn render_theme_prop_isolation_heading_vs_body_size() -> Result<i32, String> {
+    // heading size 和 body size 互不影响
+    var t = theme_new("isolation_test")
+    t = theme_add_rule(t, "heading", 0, "size", "24pt")
+    t = theme_add_rule(t, "body", 0, "size", "12pt")
+    assert(resolve_style(t, "heading", 1, "size", None) == "24pt", "heading size = 24pt")
+    assert(resolve_style(t, "body", 0, "size", None) == "12pt", "body size = 12pt")
+    // heading font 回退到默认
+    assert(resolve_style(t, "heading", 1, "font", None) == "Noto Sans CJK SC", "heading font 默认")
+    return Ok(0)
+}
+
+@test
+fn export_md_all_heading_levels() -> Result<i32, String> {
+    let src = "# H1\n## H2\n### H3\n#### H4\n##### H5\n###### H6\n"
+    let out = lex(src)
+    let pr = parse(out)
+    let state = build_document(pr, src)
+    let md = export_markdown(state)
+    assert(md.contains("# H1"), "H1 导出")
+    assert(md.contains("## H2"), "H2 导出")
+    assert(md.contains("### H3"), "H3 导出")
+    assert(md.contains("#### H4"), "H4 导出")
+    assert(md.contains("##### H5"), "H5 导出")
+    assert(md.contains("###### H6"), "H6 导出")
+    return Ok(0)
+}
+
+@test
+fn export_md_list_and_quote() -> Result<i32, String> {
+    let src = "- 项目A\n- 项目B\n\n> 引用内容\n"
+    let out = lex(src)
+    let pr = parse(out)
+    let state = build_document(pr, src)
+    let md = export_markdown(state)
+    assert(md.contains("- 项目A") && md.contains("- 项目B"), "列表导出")
+    assert(md.contains("引用内容"), "引用导出")
+    return Ok(0)
+}
+
+@test
+fn export_md_raw_and_paragraph() -> Result<i32, String> {
+    let src = "@[c rs]\nlet x = 1;\n@[/c]\n\n正文段落\n"
+    let out = lex(src)
+    let pr = parse(out)
+    let state = build_document(pr, src)
+    let md = export_markdown(state)
+    assert(md.contains("```rs"), "代码块语言标注")
+    assert(md.contains("let x = 1;"), "代码内容")
+    assert(md.contains("正文段落"), "段落内容")
+    return Ok(0)
+}
+
+@test
+fn render_html_table_and_heading_combined() -> Result<i32, String> {
+    let src = "# 数据表\n@[table]\n\n| 名 | 值 |\n| --- | --- |\n| x | 1 |\n\n@[/table]\n"
+    let out = lex(src)
+    let pr = parse(out)
+    let state = build_document(pr, src)
+    let html = export_html(state)
+    assert(html.contains("<h1>") || html.contains("h1"), "应有 h1 标签")
+    assert(html.contains("table") || html.contains("Table"), "应有表格相关内容")
+    return Ok(0)
+}
