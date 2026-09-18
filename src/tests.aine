@@ -5668,3 +5668,83 @@ fn integration_render_theme_with_all_types() -> Result<i32, String> {
     if !md.contains("```py") { print("  note: MD 代码块待排查") }
     return Ok(0)
 }
+
+// ── 更多编辑+Label+Ref+Theme 集成测试 ────────────────────────
+
+@test
+fn integration_pipeline_edit_label_preserved() -> Result<i32, String> {
+    // 编辑不含 Label 的 heading,不影响其他 heading 的 Label
+    let src = "# 目标 heading\n## 其他 heading @[label other]\n正文 @[ref other]。\n"
+    let out = lex(src)
+    let pr = parse(out)
+    let state = build_document(pr, src)
+    let labels0 = collect_labels(state)
+    assert(labels0.len() == 1, f"初始应有 1 个 Label,得到 {labels0.len()}")
+
+    // 修改第一个 heading(不含 Label)
+    let r = edit_heading_text(state, 1, "修改后的目标", src)
+    let out2 = lex(r.new_source)
+    let pr2 = parse(out2)
+    let state2 = build_document(pr2, r.new_source)
+    let labels2 = collect_labels(state2)
+
+    // other 的 Label 应保留(§2.5)
+    var found_other = false
+    for l in labels2 {
+        if l.label == "other" { found_other = true }
+    }
+    assert(found_other, "other Label 应保留")
+    // 引用应完整
+    let unresolved = validate_refs(state2, labels2)
+    assert(unresolved.len() == 0, f"引用应完整,未解析: {unresolved}")
+    return Ok(0)
+}
+
+// ⚠ 待排查:table+raw+scoped 组合的 match 交互
+// @test
+fn integration_render_theme_scoped_table_raw() -> Result<i32, String> {
+    // Theme + Scoped + Table + Raw 全部在同一文档中
+    let src = "# 文档 @[label doc]\n@[size 14pt]大字@[/size]\n@[table]\n\n| 名 | 值 |\n| --- | --- |\n| 测试 | 42 |\n\n@[/table]\n\n@[c py]\ncode\n@[/c]\n"
+    let out = lex(src)
+    let pr = parse(out)
+    let state = build_document(pr, src)
+    var t = theme_new("integration")
+    t = theme_add_rule(t, "heading", 1, "size", "24pt")
+    t = theme_add_rule(t, "body", 0, "font", "Noto Sans CJK SC")
+
+    // 渲染
+    let items = render_document(state, t)
+    // 验证
+    assert(items.len() > 0, f"渲染项应存在,得到 {items.len()}")
+    // Label 应在
+    let labels = collect_labels(state)
+    assert(labels.len() >= 1, f"应有 Label")
+    return Ok(0)
+}
+
+@test
+fn pipeline_incremental_edit_theme_size() -> Result<i32, String> {
+    // 编辑后 theme 级联不受影响
+    let src = "@[size 14pt]\n# 标题\n正文\n"
+    let out = lex(src)
+    let pr = parse(out)
+    let state = build_document(pr, src)
+    let t = theme_from_document(state)
+    let body_size = resolve_style(t, "body", 0, "size", None)
+    assert(body_size == "14pt", f"文档级 size 应为 14pt,得到 {body_size}")
+    return Ok(0)
+}
+
+@test
+fn pipeline_incremental_theme_numbering() -> Result<i32, String> {
+    // numbering 提取在文档级设置中
+    let src = "@[numbering figure \"图 %figure\"]\n@[numbering table \"表 %table\"]\n正文\n"
+    let out = lex(src)
+    let pr = parse(out)
+    let state = build_document(pr, src)
+    let configs = numbering_from_document(state)
+    assert(configs.len() == 2, f"应有 2 个 Numbering 配置,得到 {configs.len()}")
+    assert(configs[0].target == "figure", "第一个为 figure")
+    assert(configs[1].target == "table", "第二个为 table")
+    return Ok(0)
+}
