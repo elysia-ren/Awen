@@ -4401,3 +4401,88 @@ fn cjk_ideograph_and_latin_classification() {
     assert(!cjk_is_latin_char("中"), "中 非 Latin")
     assert(!cjk_is_latin_char("。"), "。 非 Latin")
 }
+
+// ── 更多显式命令解析深度测试 ────────────────────────────────
+
+@test
+fn explicit_comment_multiline_content() -> Result<i32, String> {
+    // 块级注释:多行内容应逐字保留
+    let src = "@[comment]\n第一行注释\n第二行 包含特殊字符 !@#$\n@[/comment]\n"
+    let out = lex(src)
+    var found_content = false
+    for b in out.blocks {
+        match b.block {
+            RawLine(content) {
+                if content.contains("特殊字符") { found_content = true }
+            }
+            _ { }
+        }
+    }
+    assert(found_content, "多行注释内容应保留")
+    return Ok(0)
+}
+
+@test
+fn explicit_footnote_inline_in_paragraph() -> Result<i32, String> {
+    // 行内脚注在段落中
+    let src = "正文内容。@[footnote 这是脚注。]\n"
+    let out = lex(src)
+    let pr = parse(out)
+    let state = build_document(pr, src)
+    // 脚注应在段落行内节点中
+    var found_footnote = false
+    for node in state.nodes {
+        if node.kind == "para" {
+            for item in node.inline {
+                match item {
+                    Command(u) { if u.cmd == Footnote { found_footnote = true } }
+                    _ { }
+                }
+            }
+        }
+    }
+    assert(found_footnote, "应找到行内脚注")
+    return Ok(0)
+}
+
+@test
+fn explicit_toc_depth_attr() -> Result<i32, String> {
+    let hp = parse_header("@[toc depth: 3]", 0)
+    match hp {
+        Ok(h) {
+            assert(h.cu.cmd == Toc, "toc 命令")
+            assert(h.cu.attrs.len() == 1, f"应有 1 个属性")
+            assert(h.cu.attrs[0].key == "depth", "属性 key 应为 depth")
+            assert(arg_plain(h.cu.attrs[0].val) == "3", "属性 value 应为 3")
+        }
+        Err(e) { assert(false, f"应解析成功: {e.msg}") }
+    }
+    return Ok(0)
+}
+
+@test
+fn explicit_theme_setting() -> Result<i32, String> {
+    let hp = parse_header("@[theme \"学术论文\"]", 0)
+    match hp {
+        Ok(h) {
+            assert(h.cu.cmd == Theme, "theme 命令")
+            assert(h.cu.args.len() == 1, "应有 1 个参数")
+        }
+        Err(e) { assert(false, f"应解析成功: {e.msg}") }
+    }
+    return Ok(0)
+}
+
+@test
+fn explicit_numbering_heading_levels() -> Result<i32, String> {
+    let hp = parse_header("@[numbering heading level: 2 \"%chapter.%section\"]", 0)
+    match hp {
+        Ok(h) {
+            assert(h.cu.cmd == Numbering, "numbering 命令")
+            assert(h.cu.args.len() >= 1, "至少有目标参数")
+            assert(h.cu.attrs.len() >= 1, "应有 level 属性")
+        }
+        Err(e) { assert(false, f"应解析成功: {e.msg}") }
+    }
+    return Ok(0)
+}
