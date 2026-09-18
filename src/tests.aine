@@ -2793,3 +2793,76 @@ fn render_html_comment_excluded() -> Result<i32, String> {
     assert(html.contains("正文"), "正文应导出")
     return Ok(0)
 }
+
+// ── 更多渲染+Label+Theme 深度测试 ────────────────────────────
+
+@test
+fn render_theme_with_scoped_and_raw() -> Result<i32, String> {
+    // Theme + Scoped + Raw + TOC 全部集成
+    let src = "# 标题 @[label h1]\n@[u]下划线@[/u] 和 @[m]x=y@[/m]\n@[c js]\nconsole.log(1)\n@[/c]\n见 @[ref h1]。\n"
+    let out = lex(src)
+    let pr = parse(out)
+    let state = build_document(pr, src)
+
+    // Label 应找到
+    let labels = collect_labels(state)
+    assert(labels.len() >= 1, f"应有 Label")
+
+    // Raw 块应存在
+    var has_raw_js = false
+    for node in state.nodes {
+        if node.kind == "raw" {
+            match node.raw_lang {
+                Some(lang) { if lang == "js" { has_raw_js = true } }
+                None { }
+            }
+        }
+    }
+    assert(has_raw_js, "应有 JS Raw 块")
+
+    // Scoped U 应在行内
+    for node in state.nodes {
+        if node.kind == "para" {
+            var found_u = false
+            for item in node.inline {
+                match item {
+                    Scoped(cmd, c) { if cmd == U { found_u = true } }
+                    _ { }
+                }
+            }
+            assert(found_u, "应有 Scoped(U) 节点")
+        }
+    }
+
+    // 引用应完整
+    let unresolved = validate_refs(state, labels)
+    assert(unresolved.len() == 0, f"引用应完整")
+
+    // 渲染
+    var t = theme_new("test")
+    t = theme_add_rule(t, "heading", 1, "size", "24pt")
+    let items = render_document(state, t)
+    var h1_rendered = false
+    for item in items {
+        if item.kind == "heading" && item.font_size == "24pt" { h1_rendered = true }
+    }
+    assert(h1_rendered, "H1 应渲染为 24pt")
+    return Ok(0)
+}
+
+@test
+fn render_table_with_cell_commands() -> Result<i32, String> {
+    // 表格单元格包含行内命令
+    let src = "@[table]\n\n| 方法 | 结果 |\n| --- | --- |\n| **好** | @[m]x+y@[/m] |\n\n@[/table]\n"
+    let out = lex(src)
+    let pr = parse(out)
+    let state = build_document(pr, src)
+    // 表格应存在
+    var has_table = false
+    for node in state.nodes {
+        if node.kind == "table" { has_table = true }
+    }
+    assert(has_table, "应有表格节点")
+    assert(count_errors(out.diags) == 0, "不应有错误")
+    return Ok(0)
+}
