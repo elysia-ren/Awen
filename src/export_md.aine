@@ -9,11 +9,11 @@ fn export_md_heading(node: SemNode) -> String {
         hashes = hashes + "#"
         i += 1
     }
-    return hashes + " " + inline_plain(node.inline)
+    return hashes + " " + inline_render_marked(node.inline)
 }
 
 fn export_md_paragraph(node: SemNode) -> String {
-    return inline_plain(node.inline)
+    return inline_render_marked(node.inline)
 }
 
 fn export_md_list(node: SemNode) -> String {
