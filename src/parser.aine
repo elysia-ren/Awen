@@ -66,6 +66,10 @@ fn parse(lex_out: LexOutput) -> ParseResult {
     var list_ordered = false
     var list_items: Vec<Vec<Inline>> = []
 
+    // §14 段落合并:连续 Paragraph(无空行分隔)合并为单个 Para
+    var merged_inline: Vec<Inline> = []
+    var has_pending = false
+
     while i < blocks.len() {
         let blk = blocks[i].block
 
@@ -98,6 +102,17 @@ fn parse(lex_out: LexOutput) -> ParseResult {
             in_list = false
         }
 
+        // §14 段落合并:非 Paragraph 块 → 刷出待定合并段落
+        let cur_is_para = match blk {
+            Paragraph(inline) { true }
+            _ { false }
+        }
+        if !cur_is_para && has_pending {
+            nodes.push(Para(merged_inline))
+            merged_inline = []
+            has_pending = false
+        }
+
         // 引用块
         let is_quote = match blk {
             Quote(depth, inline) { true }
@@ -116,7 +131,11 @@ fn parse(lex_out: LexOutput) -> ParseResult {
                 nodes.push(Section(level, inline, []))
             }
             Paragraph(inline) {
-                nodes.push(Para(inline))
+                // §14: 物理换行不是排版换行 → 合并行内内容
+                for item in inline {
+                    merged_inline.push(item)
+                }
+                has_pending = true
             }
             Divider {
                 nodes.push(HRule)
@@ -223,6 +242,10 @@ fn parse(lex_out: LexOutput) -> ParseResult {
 
     if in_list {
         nodes.push(ListGroup(list_ordered, list_items))
+    }
+    // 刷出末尾未关闭的合并段落
+    if has_pending {
+        nodes.push(Para(merged_inline))
     }
 
     return ParseResult { nodes: nodes, diags: diags }
