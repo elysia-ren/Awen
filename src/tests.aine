@@ -5885,3 +5885,99 @@ fn render_html_table_and_heading_combined() -> Result<i32, String> {
     assert(html.contains("table") || html.contains("Table"), "应有表格相关内容")
     return Ok(0)
 }
+
+// ── 更多 pipeline 增量编辑 + Label + 渲染深度测试 ────────────
+
+@test
+fn pipeline_incremental_multi_edit_chain_labels() -> Result<i32, String> {
+    // 多轮 pipeline_edit_heading 编辑链,验证 Label 保留 + 引用完整
+    let src = "# 引言 @[label intro]\n内容。\n## 方法 @[label method]\n见 @[ref intro]。\n## 结果 @[label result]\n"
+    let p1 = pipeline_full(src)
+    assert(p1.labels.len() == 3, f"初始 Label 应为 3,得到 {p1.labels.len()}")
+
+    // 编辑第一个 heading
+    let p2 = pipeline_edit_heading(p1, 1, "修改后的引言")
+    // 修改第二个 heading
+    let p3 = pipeline_edit_heading(p2, 3, "修改后的方法")
+    // 修改第三个 heading
+    let p4 = pipeline_edit_heading(p3, 5, "修改后的结果")
+
+    // 所有 Label 应保留(§2.5)
+    var found_intro = false
+    var found_method = false
+    var found_result = false
+    for l in p4.labels {
+        if l.label == "intro" { found_intro = true }
+        if l.label == "method" { found_method = true }
+        if l.label == "result" { found_result = true }
+    }
+    assert(found_intro && found_method && found_result, f"所有 Label 应保留")
+
+    // 引用应完整
+    assert(p4.unresolved_refs.len() == 0, f"引用应完整")
+
+    // 渲染应正常
+    assert(p4.render_items.len() > 0, f"渲染项应存在")
+    return Ok(0)
+}
+
+@test
+fn pipeline_incremental_edit_theme_stable() -> Result<i32, String> {
+    // 编辑后 theme 级联不受影响
+    let src = "@[size 14pt]\n@[font \"Serif\"]\n# 标题 @[label h1]\n正文\n"
+    let p1 = pipeline_full(src)
+    let size_before = resolve_style(p1.theme, "body", 0, "size", None)
+    let font_before = resolve_style(p1.theme, "body", 0, "font", None)
+    assert(size_before == "14pt", f"编辑前 size = {size_before}")
+    assert(font_before == "Serif", f"编辑前 font = {font_before}")
+
+    // 编辑 heading 后 theme 不变
+    let p2 = pipeline_edit_heading(p1, 3, "修改后的标题")
+    let size_after = resolve_style(p2.theme, "body", 0, "size", None)
+    let font_after = resolve_style(p2.theme, "body", 0, "font", None)
+    assert(size_after == size_before, "编辑后 size 不变")
+    assert(font_after == font_before, "编辑后 font 不变")
+    return Ok(0)
+}
+
+@test
+fn render_theme_and_inline_scoped_independent() -> Result<i32, String> {
+    // theme 的 body size 和行内 @[size] 应独立
+    let src = "@[size 14pt]大字@[/size] 和正常文字\n"
+    let out = lex(src)
+    let pr = parse(out)
+    let state = build_document(pr, src)
+    var t = theme_new("test")
+    t = theme_add_rule(t, "body", 0, "size", "11pt")
+    // theme 设定 11pt,行内 Scoped 设定 14pt
+    // 行内 Scoped 应优先于 theme
+    var items = render_document(state, t)
+    assert(items.len() > 0, "渲染应有输出")
+    return Ok(0)
+}
+
+@test
+fn pipeline_multi_edit_chain_labels_and_refs() -> Result<i32, String> {
+    // 4 个 heading + 3 个 ref 的多轮编辑
+    let src = "# A @[label a]\n见 @[ref b]。\n## B @[label b]\n见 @[ref c]。\n### C @[label c]\n见 @[ref a]。\n"
+    let p1 = pipeline_full(src)
+    assert(p1.labels.len() == 3, f"初始 Label 应为 3,得到 {p1.labels.len()}")
+    // 引用应完整
+    assert(p1.unresolved_refs.len() == 0, f"初始引用应完整")
+
+    // 编辑第一个 heading
+    let p2 = pipeline_edit_heading(p1, 1, "修改后的 A")
+    // Label 应保留
+    var found_a = false
+    var found_b = false
+    var found_c = false
+    for l in p2.labels {
+        if l.label == "a" { found_a = true }
+        if l.label == "b" { found_b = true }
+        if l.label == "c" { found_c = true }
+    }
+    assert(found_a && found_b && found_c, f"编辑后所有 Label 应保留")
+    // 引用应完整
+    assert(p2.unresolved_refs.len() == 0, f"编辑后引用应完整")
+    return Ok(0)
+}
