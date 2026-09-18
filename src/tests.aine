@@ -2564,3 +2564,76 @@ fn render_obj_types() -> Result<i32, String> {
     assert(img && toc && footnote, "image/toc/footnote 应全部解析")
     return Ok(0)
 }
+
+// ── 增量解析深度验证(§1.3)────────────────────────────────
+
+@test
+fn incr_incremental_matches_full_parse() -> Result<i32, String> {
+    // 增量更新的结果应与全量解析一致
+    let old_src = "# A\n旧内容\n## B\n子内容\n"
+    let new_src = "# A\n新内容\n## B\n子内容\n"
+
+    // 全量解析(参考)
+    let out_full = lex(new_src)
+    let pr_full = parse(out_full)
+    let state_full = build_document(pr_full, new_src)
+
+    // 增量更新
+    let out_old = lex(old_src)
+    let pr_old = parse(out_old)
+    let state_old = build_document(pr_old, old_src)
+    let incr = incremental_update(state_old, collect_labels(state_old), old_src, new_src)
+
+    // 节点数一致
+    assert(state_full.nodes.len() == incr.state.nodes.len(), f"节点数不一致: full={state_full.nodes.len()} incr={incr.state.nodes.len()}")
+
+    // kind 序列一致
+    var i = 0
+    while i < state_full.nodes.len() && i < incr.state.nodes.len() {
+        assert(state_full.nodes[i].kind == incr.state.nodes[i].kind, f"节点 {i} kind 不一致")
+        i += 1
+    }
+    return Ok(0)
+}
+
+@test
+fn incr_edit_heading_incremental() -> Result<i32, String> {
+    // 增量编辑 heading 后,未编辑 heading 的内容应不变
+    let src = "# 标题 A\n段落 A\n# 标题 B\n段落 B\n"
+    let out1 = lex(src)
+    let pr1 = parse(out1)
+    let state1 = build_document(pr1, src)
+    let labels1 = collect_labels(state1)
+
+    // 增量编辑 heading A
+    let upd = incremental_update(state1, labels1, src, "# 修改后的 A\n段落 A\n# 标题 B\n段落 B\n")
+
+    // 验证未编辑的 heading B 保留
+    var found_b = false
+    for node in upd.state.nodes {
+        if node.kind == "heading" {
+            let text = inline_plain(node.inline)
+            if text.contains("标题 B") { found_b = true }
+        }
+    }
+    assert(found_b, "heading B 应保留")
+    return Ok(0)
+}
+
+@test
+fn incr_delete_line_detection() -> Result<i32, String> {
+    // 删除一行后,差异检测应正确
+    let d = find_changed_range("a\nb\nc\nd", "a\nc\nd")
+    assert(d.has_change, "应检测到删除")
+    // b 被删除,在行 1
+    assert(d.first >= 1, f"变更起始应 >= 1")
+    return Ok(0)
+}
+
+@test
+fn incr_append_line_detection() -> Result<i32, String> {
+    // 尾部追加新行
+    let d = find_changed_range("a\nb", "a\nb\nc")
+    assert(d.has_change, "应检测到追加")
+    return Ok(0)
+}
