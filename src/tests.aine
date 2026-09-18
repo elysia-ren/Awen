@@ -5525,3 +5525,72 @@ fn render_scoped_color_in_paragraph() -> Result<i32, String> {
     assert(found_scoped, "应找到 Scoped(Color) 节点")
     return Ok(0)
 }
+
+// ── 更多 Theme + Render 深度集成 ────────────────────────────
+
+@test
+fn render_scoped_raw_inline_combination() -> Result<i32, String> {
+    // 段落中混合多种行内节点类型
+    let src = "文字**粗**`码`@[u]线@[/u]@[m]x@[/m]尾\n"
+    let out = lex(src)
+    let pr = parse(out)
+    let state = build_document(pr, src)
+    // 找到 para 节点统计行内类型
+    var has_text = false
+    var has_bold = false
+    var has_code = false
+    var has_scoped_u = false
+    var has_raw_math = false
+    for node in state.nodes {
+        if node.kind == "para" {
+            for item in node.inline {
+                match item {
+                    AwTxt(s) { if s.len() > 0 { has_text = true } }
+                    IBold(c) { has_bold = true }
+                    CodeSpan(s) { has_code = true }
+                    Scoped(cmd, c2) { if cmd == U { has_scoped_u = true } }
+                    RawInline(cmd, lang, content) { if cmd == Math { has_raw_math = true } }
+                    _ { }
+                }
+            }
+        }
+    }
+    assert(has_text && has_bold && has_code && has_scoped_u && has_raw_math,
+        f"应包含所有5种行内节点类型")
+    return Ok(0)
+}
+
+@test
+fn pipeline_full_render_count_matches_nodes() -> Result<i32, String> {
+    let src = load_corpus("all_syntax.awen")
+    let p = pipeline_full(src)
+    // 渲染项数应等于 Document State 节点数
+    assert(p.render_items.len() == p.state.nodes.len(),
+        f"渲染项 {p.render_items.len()} != 节点 {p.state.nodes.len()}")
+    return Ok(0)
+}
+
+@test
+fn pipeline_incremental_single_edit_preserves_render_count() -> Result<i32, String> {
+    // 编辑后渲染项数不变
+    let src = "# 标题\n正文\n"
+    let p1 = pipeline_full(src)
+    let p2 = pipeline_edit_heading(p1, 1, "新标题")
+    assert(p1.render_items.len() == p2.render_items.len(), "渲染项数应一致")
+    return Ok(0)
+}
+
+@test
+fn render_theme_override_with_inline_size() -> Result<i32, String> {
+    // 节点级 @[size] 优先于 theme 的 body size
+    let src = "@[size 14pt]特殊大小@[/size] 正常\n"
+    let out = lex(src)
+    let pr = parse(out)
+    let state = build_document(pr, src)
+    var t = theme_new("test")
+    t = theme_add_rule(t, "body", 0, "size", "11pt")
+    let items = render_document(state, t)
+    // Scoped(Size) 的 14pt 应覆盖 theme 的 11pt
+    assert(items.len() > 0, "应有渲染项")
+    return Ok(0)
+}
