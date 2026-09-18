@@ -7353,3 +7353,85 @@ fn integration_multi_edit_theme_stable() -> Result<i32, String> {
     assert(h2_size == "18pt", f"H2 应为 18pt,得到 {h2_size}")
     return Ok(0)
 }
+
+// ── 更多编辑+渲染+Label+Theme+CJK 深度验证(持续加固)──────────
+
+@test
+fn integration_theme_edit_render_all_levels() -> Result<i32, String> {
+    // 编辑所有级别的 heading 后 theme 级联不受影响
+    let src = "# H1\n## H2\n### H3\n"
+    let out = lex(src)
+    let pr = parse(out)
+    let state = build_document(pr, src)
+    var t = theme_new("edit_test")
+    t = theme_add_rule(t, "heading", 1, "size", "24pt")
+    t = theme_add_rule(t, "heading", 2, "size", "18pt")
+    t = theme_add_rule(t, "heading", 3, "size", "16pt")
+
+    // 依次编辑三个 heading
+    let r1 = edit_heading_text(state, 1, "修改 H1", src)
+    let out2 = lex(r1.new_source)
+    let pr2 = parse(out2)
+    let state2 = build_document(pr2, r1.new_source)
+    let r2 = edit_heading_text(state2, 3, "修改 H3", r1.new_source)
+    let out3 = lex(r2.new_source)
+    let pr3 = parse(out3)
+    let state3 = build_document(pr3, r2.new_source)
+
+    // 渲染后验证
+    let items = render_document(state3, t)
+    var found_h1 = false
+    var found_h2 = false
+    var found_h3_mod = false
+    for item in items {
+        if item.kind == "heading" {
+            if item.font_size == "24pt" && item.text.contains("修改 H1") { found_h1 = true }
+            if item.font_size == "18pt" && item.text.contains("H2") { found_h2 = true }
+            if item.font_size == "16pt" && item.text.contains("修改 H3") { found_h3_mod = true }
+        }
+    }
+    assert(found_h1 && found_h2 && found_h3_mod, f"所有 heading 渲染应正确")
+    return Ok(0)
+}
+
+@test
+fn integration_cjk_line_break_and_squeeze() -> Result<i32, String> {
+    // CJK 断行 + 挤压协同
+    let text = "这是一段包含标点的中文文本。他说：「你好！」然后离开了。"
+    let lines = cjk_line_break(text, 85.0, 11.0)
+    let fixed = fix_kinsoku(lines)
+    let issues = cjk_validate_line_breaks(fixed)
+    assert(issues.len() == 0, f"禁则修正后不应有违规: {issues}")
+    return Ok(0)
+}
+
+@test
+fn integration_incremental_theme_edit_consistency() -> Result<i32, String> {
+    // 增量编辑后 theme 级联结果一致
+    let src = "@[size 14pt]\n# 标题 @[label h1]\n正文 @[ref h1]。\n"
+    let out = lex(src)
+    let pr = parse(out)
+    let state = build_document(pr, src)
+    let t1 = theme_from_document(state)
+
+    // 编辑 heading
+    let r = edit_heading_text(state, 2, "修改后的标题", src)
+    let out2 = lex(r.new_source)
+    let pr2 = parse(out2)
+    let state2 = build_document(pr2, r.new_source)
+    let t2 = theme_from_document(state2)
+
+    // size 应一致
+    let s1 = resolve_style(t1, "body", 0, "size", None)
+    let s2 = resolve_style(t2, "body", 0, "size", None)
+    assert(s1 == s2, f"size 应一致: {s1} vs {s2}")
+
+    // Label 应保留
+    let labels2 = collect_labels(state2)
+    var found_h1 = false
+    for l in labels2 {
+        if l.label == "h1" { found_h1 = true }
+    }
+    assert(found_h1, "Label 应保留")
+    return Ok(0)
+}
