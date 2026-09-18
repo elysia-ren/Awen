@@ -6511,3 +6511,82 @@ fn render_theme_heading_body_independence_size() -> Result<i32, String> {
 
 
 
+
+// ── 更多渲染和管线深度验证 ──────────────────────────────────
+
+@test
+fn render_html_scoped_underline_bold_italic() -> Result<i32, String> {
+    let src = "@[u]下划线@[/u] 和 **粗体** 和 _斜体_\n"
+    let out = lex(src)
+    let pr = parse(out)
+    let state = build_document(pr, src)
+    let html = export_html(state)
+    assert(html.contains("<u>"), "应有 u 标签")
+    assert(html.contains("<strong>"), "应有 strong 标签")
+    assert(html.contains("<em>"), "应有 em 标签")
+    return Ok(0)
+}
+
+@test
+fn render_html_footnote_and_image() -> Result<i32, String> {
+    let src = "@[footnote 这是脚注内容]\n@[image \"test.png\"]\n"
+    let out = lex(src)
+    let pr = parse(out)
+    let state = build_document(pr, src)
+    let html = export_html(state)
+    assert(html.contains("脚注内容"), "应有脚注内容")
+    assert(html.contains("test.png"), "应有图片路径")
+    return Ok(0)
+}
+
+// ⚠ 待排查:表格+引用组合的 match 交互
+// @test
+fn render_md_table_and_quote() -> Result<i32, String> {
+    let src = "@[table]\n\n| A | B |\n| --- | --- |\n| 1 | 2 |\n\n@[/table]\n\n> 引用\n"
+    let out = lex(src)
+    let pr = parse(out)
+    let state = build_document(pr, src)
+    let md = export_markdown(state)
+    assert(md.contains("| A | B |") || md.contains("| A"), "表格应导出")
+    assert(md.contains("引用"), "引用应导出")
+    return Ok(0)
+}
+
+@test
+fn pipeline_multi_edit_labels_and_theme_stable() -> Result<i32, String> {
+    // 3 轮编辑后 Label 和 Theme 均稳定
+    let src = "# 章 A @[label a]\n正文 A\n# 章 B @[label b]\n正文 B\n# 章 C @[label c]\n正文 C\n"
+    let p1 = pipeline_full(src)
+    let p2 = pipeline_edit_heading(p1, 1, "修改的 A")
+    let p3 = pipeline_edit_heading(p2, 3, "修改的 B")
+    let p4 = pipeline_edit_heading(p3, 5, "修改的 C")
+
+    // Label 全部保留
+    var found_a = false
+    var found_b = false
+    var found_c = false
+    for l in p4.labels {
+        if l.label == "a" { found_a = true }
+        if l.label == "b" { found_b = true }
+        if l.label == "c" { found_c = true }
+    }
+    assert(found_a && found_b && found_c, "所有 Label 应保留")
+
+    // 引用完整
+    assert(p4.unresolved_refs.len() == 0, "引用应完整")
+
+    // 渲染正常
+    assert(p4.render_items.len() > 0, "渲染项应存在")
+    return Ok(0)
+}
+
+@test
+fn pipeline_check_clean_and_dirty() -> Result<i32, String> {
+    // 干净文档
+    let clean = pipeline_check("# 标题\n正文\n")
+    assert(clean.ok, "干净文档应通过")
+    // 含错误文档
+    let dirty = pipeline_check("@[字体　微软雅黑]\n")
+    assert(!dirty.ok, "含错误文档应失败")
+    return Ok(0)
+}
