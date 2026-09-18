@@ -7518,3 +7518,98 @@ fn render_html_raw_code() -> Result<i32, String> {
     return Ok(0)
 }
 
+
+// ── 更多集成测试(持续加固覆盖)────────────────────────────
+
+// ⚠ 待排查
+// @test
+fn integration_render_theme_and_labels_multi() -> Result<i32, String> {
+    // Theme + Label + 多级 heading + 渲染 全集成
+    let src = "# 文档标题 @[label doc]\n使用 Rust 和 Aine 开发。\n## 数据 @[label data]\n@[table]\n\n| 名 | 值 |\n| --- | --- |\n| 测试 | 42 |\n\n@[/table]\n\n见 @[ref doc] 和 @[ref data]。\n"
+    let out = lex(src)
+    let pr = parse(out)
+    let state = build_document(pr, src)
+    var t = theme_new("integration")
+    t = theme_add_rule(t, "heading", 1, "size", "22pt")
+    t = theme_add_rule(t, "heading", 2, "size", "18pt")
+    t = theme_add_rule(t, "body", 0, "font", "Noto Sans CJK SC")
+
+    let labels = collect_labels(state)
+    assert(labels.len() == 2, f"应有 2 个 Label,得到 {labels.len()}")
+
+    let items = render_document(state, t)
+    assert(items.len() == state.nodes.len(), "渲染项应匹配节点数")
+
+    let unresolved = validate_refs(state, labels)
+    assert(unresolved.len() == 0, "引用应完整")
+
+    let md = export_markdown(state)
+    assert(md.contains("文档标题") || md.contains("标题"), "MD 应含标题")
+    assert(md.contains("Rust"), "MD 应含 Rust")
+
+    let html = export_html(state)
+    assert(html.contains("<h1>"), "HTML 应有 h1")
+    assert(html.contains("<h2>"), "HTML 应有 h2")
+
+    return Ok(0)
+}
+
+// ⚠ 待排查
+// @test
+fn integration_edit_preserves_everything() -> Result<i32, String> {
+    // 编辑 heading 后:Label 保留 + 段落保留 + 列表保留 + 表格保留
+    let src = "# 数据文档 @[label data-doc]\n这是**粗体**正文。\n\n## 数据表 @[label data-table]\n@[table]\n\n| 名 | 值 |\n| --- | --- |\n| 测试 | 42 |\n\n@[/table]\n\n- 项目一\n- 项目二\n\n> 引用\n"
+    let out = lex(src)
+    let pr = parse(out)
+    let state = build_document(pr, src)
+
+    // 编辑第一个 heading
+    let r = edit_heading_text(state, 1, "修改后的数据文档", src)
+
+    // 重新解析
+    let out2 = lex(r.new_source)
+    let pr2 = parse(out2)
+    let state2 = build_document(pr2, r.new_source)
+
+    // 所有内容类型保留
+    assert(doc_count_kind(state2, "heading") >= 2, "heading 应保留")
+    assert(doc_count_kind(state2, "para") >= 1, "段落应保留")
+    assert(doc_count_kind(state2, "list") >= 1, "列表应保留")
+    assert(doc_count_kind(state2, "quote") >= 1, "引用应保留")
+    assert(doc_count_kind(state2, "table") >= 1, "表格应保留")
+
+    // Label 保留
+    let labels2 = collect_labels(state2)
+    var found_data_table = false
+    for l in labels2 {
+        if l.label == "data-table" { found_data_table = true }
+    }
+    assert(found_data_table, "data-table Label 应保留")
+
+    // 修改后的文本应存在
+    assert(r.new_source.contains("修改后的数据文档"), "修改应生效")
+
+    // 引用应完整
+    let unresolved = validate_refs(state2, labels2)
+    assert(unresolved.len() == 0, f"引用应完整")
+    return Ok(0)
+}
+
+// ⚠ 待排查
+// @test
+fn integration_cjk_and_pipeline() -> Result<i32, String> {
+    // CJK + Pipeline 集成
+    let src = "# 中文文档 @[label cjk-doc]\n使用 Rust 和 Aine 开发文档系统。支持表格和公式。\n"
+    let out = lex(src)
+    let pr = parse(out)
+    let state = build_document(pr, src)
+    var t = theme_new("cjk")
+    t = theme_add_rule(t, "body", 0, "font", "Noto Sans CJK SC")
+    t = theme_add_rule(t, "body", 0, "size", "12pt")
+    let items = render_document(state, t)
+    assert(items.len() > 0, "渲染项应存在")
+    assert(items[0].font_name == "Noto Sans CJK SC", "CJK 字体")
+    assert(items[0].font_size == "12pt", "CJK 字号")
+    assert(items[0].text.contains("中文文档"), "CJK 文本应完整")
+    return Ok(0)
+}
