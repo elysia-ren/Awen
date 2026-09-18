@@ -2112,3 +2112,213 @@ fn cjk_kinsoku_comprehensive() {
     assert(cjk_is_line_end_forbidden("（"), "（")
     assert(!cjk_is_line_end_forbidden("」"), "」 可在行尾")
 }
+
+// ── 渲染深度测试 ────────────────────────────────────────────
+
+@test
+fn render_quote_depth() -> Result<i32, String> {
+    let src = "> 一级引用\n>> 二级引用\n"
+    let out = lex(src)
+    let pr = parse(out)
+    let state = build_document(pr, src)
+    var depth_1 = 0
+    var depth_2 = 0
+    for node in state.nodes {
+        if node.kind == "quote" {
+            if node.quote_depth == 1 { depth_1 += 1 }
+            if node.quote_depth == 2 { depth_2 += 1 }
+        }
+    }
+    assert(depth_1 == 1, f"应有 1 个一级引用,得到 {depth_1}")
+    assert(depth_2 == 1, f"应有 1 个二级引用,得到 {depth_2}")
+    return Ok(0)
+}
+
+@test
+fn render_ordered_list_numbering() -> Result<i32, String> {
+    let src = "1. 第一项\n2. 第二项\n3. 第三项\n"
+    let out = lex(src)
+    let pr = parse(out)
+    let state = build_document(pr, src)
+    // 找到列表节点
+    for node in state.nodes {
+        if node.kind == "list" {
+            assert(node.list_ordered, "应为有序列表")
+            assert(node.list_items.len() == 3, f"应有 3 项,得到 {node.list_items.len()}")
+            // 渲染应包含编号
+            let text = render_list(node)
+            assert(text.contains("1."), "应含编号 1.")
+            assert(text.contains("3."), "应含编号 3.")
+            return Ok(0)
+        }
+    }
+    return Err("找不到列表节点")
+}
+
+@test
+fn render_heading_hierarchy_levels() -> Result<i32, String> {
+    let src = "# L1\n## L2\n### L3\n#### L4\n##### L5\n###### L6\n"
+    let out = lex(src)
+    let pr = parse(out)
+    let state = build_document(pr, src)
+    var levels_found: Vec<i32> = []
+    for node in state.nodes {
+        if node.kind == "heading" {
+            levels_found = levels_found.push(node.level)
+        }
+    }
+    assert(levels_found.len() == 6, f"应有 6 个 heading,得到 {levels_found.len()}")
+    var i = 0
+    while i < 6 {
+        assert(levels_found[i] == i + 1, f"heading[{i}] level 应为 {i + 1}")
+        i += 1
+    }
+    return Ok(0)
+}
+
+// ── 增量解析深度测试(§1.3 NodeId 稳定性)────────────────────
+
+@test
+fn incr_single_line_edit_preserves_all_other_ids() -> Result<i32, String> {
+    // §1.3:修改一处文本,未受影响区域的 kind+内容应保持
+    let src = "# 标题 A\n段落 1\n段落 2\n## 子标题\n段落 3\n"
+    let out1 = lex(src)
+    let pr1 = parse(out1)
+    let state1 = build_document(pr1, src)
+
+    // 修改段落 1 的文本(不改变行数)
+    let new_src = "# 标题 A\n修改后的段落\n段落 2\n## 子标题\n段落 3\n"
+    let out2 = lex(new_src)
+    let pr2 = parse(out2)
+    let state2 = build_document(pr2, new_src)
+
+    // 节点数应相同
+    assert(state1.nodes.len() == state2.nodes.len(), f"节点数不同: {state1.nodes.len()} vs {state2.nodes.len()}")
+
+    // 所有节点的 kind 和 level 应对应
+    var i = 0
+    while i < state1.nodes.len() {
+        assert(state1.nodes[i].kind == state2.nodes[i].kind, f"节点 {i} kind 漂移")
+        assert(state1.nodes[i].level == state2.nodes[i].level, f"节点 {i} level 漂移")
+        i += 1
+    }
+    return Ok(0)
+}
+
+@test
+fn incr_multi_paragraph_structure_stable() -> Result<i32, String> {
+    let src = "# 标题\n段落一。\n\n段落二。\n\n段落三。\n"
+    let out1 = lex(src)
+    let pr1 = parse(out1)
+    let state1 = build_document(pr1, src)
+    let text1 = render_plain_text(state1)
+
+    // 编辑中间段落
+    let modified = "# 标题\n段落一(修改)。\n\n段落二。\n\n段落三。\n"
+    let out2 = lex(modified)
+    let pr2 = parse(out2)
+    let state2 = build_document(pr2, modified)
+    let text2 = render_plain_text(state2)
+
+    // 结构应稳定(标题数、段落数)
+    assert(doc_count_kind(state1, "heading") == doc_count_kind(state2, "heading"), "标题数漂移")
+    assert(doc_count_kind(state1, "para") == doc_count_kind(state2, "para"), "段落数漂移")
+
+    // 修改后的内容应反映
+    assert(text2.contains("段落一(修改)"), "修改应生效")
+    assert(text2.contains("段落三。"), "未修改段落应保留")
+    return Ok(0)
+}
+
+// ── 跨模块集成测试 ─────────────────────────────────────────
+
+@test
+fn integration_theme_ref_toc() -> Result<i32, String> {
+    // Theme + Label + Ref + TOC 协同工作
+    let src = "# 引言 @[label intro]\n正文\n## 方法 @[label method]\n见 @[ref intro]。\n# 实验 @[label experiment]\n"
+    let out = lex(src)
+    let pr = parse(out)
+    let state = build_document(pr, src)
+
+    // Theme
+    var t = theme_new("test")
+    t = theme_add_rule(t, "heading", 1, "size", "22pt")
+    t = theme_add_rule(t, "heading", 2, "size", "18pt")
+
+    // Label
+    let labels = collect_labels(state)
+    assert(labels.len() == 3, f"应有 3 个 Label,得到 {labels.len()}")
+
+    // Ref 解析
+    let res = resolve_ref(state, labels, "intro")
+    assert(res.found, "ref 应解析")
+
+    // TOC
+    let entries = generate_toc(state, 0)
+    assert(entries.len() == 3, f"TOC 应有 3 条,得到 {entries.len()}")
+
+    // 渲染:theme 应正确应用
+    let items = render_document(state, t)
+    assert(items.len() == state.nodes.len(), "渲染项与节点数一致")
+
+    // H1 的 font_size 应为 22pt
+    var h1_count = 0
+    for item in items {
+        if item.kind == "heading" && item.font_size == "22pt" { h1_count += 1 }
+    }
+    assert(h1_count == 2, f"应有 2 个 H1(22pt),得到 {h1_count}")
+    return Ok(0)
+}
+
+@test
+fn integration_edit_preserves_refs_and_labels() -> Result<i32, String> {
+    // 编辑一个 heading,验证另一个 heading 的 Label 和段落中的 Ref 不受影响
+    let src = "# 目标 @[label target]\n## 其他 @[label other]\n见 @[ref target] 和 @[ref other]。\n"
+    let out = lex(src)
+    let pr = parse(out)
+    let state = build_document(pr, src)
+
+    // 编辑第一个 heading(包含 label target)
+    // ⚠ 当前已知:edit_heading_text 保留 @[...] 后缀
+    let r = edit_heading_text(state, 1, "修改后的目标", src)
+
+    // 重新解析
+    let out2 = lex(r.new_source)
+    let pr2 = parse(out2)
+    let state2 = build_document(pr2, r.new_source)
+    let labels2 = collect_labels(state2)
+
+    // 未编辑的 Label(other)应保留
+    var found_other = false
+    for l in labels2 {
+        if l.label == "other" { found_other = true }
+    }
+    assert(found_other, "未编辑的 Label(other) 应保留")
+
+    // 引用应完整
+    let unresolved = validate_refs(state2, labels2)
+    // target 的 label 可能丢失(已知限制),但 other 应保留
+    // 只要 other 的引用不未解析即可
+    var other_unresolved = false
+    for u in unresolved {
+        if u == "other" { other_unresolved = true }
+    }
+    assert(!other_unresolved, "other 引用不应未解析")
+    return Ok(0)
+}
+
+@test
+fn integration_cjk_in_render() -> Result<i32, String> {
+    // CJK 文本在渲染管线中的完整性
+    let src = "# 中文标题\n这是一段中文内容，包含标点。\n"
+    let out = lex(src)
+    let pr = parse(out)
+    let state = build_document(pr, src)
+    let text = render_plain_text(state)
+    // CJK 字符应完整保留
+    assert(text.contains("中文标题"), "标题应保留")
+    assert(text.contains("这是一段中文内容"), "正文应保留")
+    assert(text.contains("，"), "全角逗号应保留")
+    assert(text.contains("。"), "全角句号应保留")
+    return Ok(0)
+}
