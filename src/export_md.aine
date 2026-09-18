@@ -1,0 +1,130 @@
+// awen-proto/src/export_md.aine —— Markdown 导出(§8.6 互操作)
+// 将 Document State 导出为 Markdown 格式
+// 用于与其他工具互操作、AI 理解、版本控制 diff
+
+fn export_md_heading(node: SemNode) -> String {
+    var hashes = ""
+    var i = 0
+    while i < node.level {
+        hashes = hashes + "#"
+        i += 1
+    }
+    return hashes + " " + inline_plain(node.inline)
+}
+
+fn export_md_paragraph(node: SemNode) -> String {
+    return inline_plain(node.inline)
+}
+
+fn export_md_list(node: SemNode) -> String {
+    var out = ""
+    var idx = 0
+    for item in node.list_items {
+        idx += 1
+        if node.list_ordered {
+            out = out + f"{idx}. " + inline_plain(item) + "\n"
+        } else {
+            out = out + "- " + inline_plain(item) + "\n"
+        }
+    }
+    return out
+}
+
+fn export_md_quote(node: SemNode) -> String {
+    var prefix = ""
+    var i = 0
+    while i < node.quote_depth {
+        prefix = prefix + ">"
+        i += 1
+    }
+    return prefix + " " + inline_plain(node.inline)
+}
+
+fn export_md_table(node: SemNode) -> String {
+    var out = ""
+    // 表头
+    if node.tbl_header.len() > 0 {
+        let header = node.tbl_header[0]
+        out = out + "|"
+        for cell in header {
+            out = out + " " + inline_plain([cell]) + " |"
+        }
+        out = out + "\n"
+        // 对齐分隔行
+        out = out + "|"
+        var k = 0
+        while k < header.len() {
+            out = out + " --- |"
+            k += 1
+        }
+        out = out + "\n"
+    }
+    // 数据行
+    for row in node.tbl_rows {
+        out = out + "|"
+        for cell in row {
+            out = out + " " + inline_plain([cell]) + " |"
+        }
+        out = out + "\n"
+    }
+    return out
+}
+
+fn export_md_raw(node: SemNode) -> String {
+    var out = ""
+    // 语言标签
+    var lang = ""
+    match node.raw_lang {
+        Some(l) { lang = l }
+        None { }
+    }
+    if node.raw_cmd == Math {
+        out = out + "$$\n"
+    } else {
+        out = out + "```" + lang + "\n"
+    }
+    for line in node.raw_lines {
+        out = out + line + "\n"
+    }
+    if node.raw_cmd == Math {
+        out = out + "$$\n"
+    } else {
+        out = out + "```\n"
+    }
+    return out
+}
+
+// ── 完整 Markdown 导出 ──────────────────────────────────────
+
+fn export_markdown(state: DocState) -> String {
+    var out = ""
+    for node in state.nodes {
+        if node.kind == "heading" {
+            var hashes = ""
+            var h = 0
+            while h < node.level {
+                hashes = hashes + "#"
+                h += 1
+            }
+            out = out + hashes + " " + inline_plain(node.inline) + "\n\n"
+        } else if node.kind == "para" {
+            out = out + inline_plain(node.inline) + "\n\n"
+        } else if node.kind == "list" {
+            out = out + export_md_list(node) + "\n"
+        } else if node.kind == "quote" {
+            out = out + export_md_quote(node) + "\n\n"
+        } else if node.kind == "hr" {
+            out = out + "---\n\n"
+        } else if node.kind == "raw" {
+            out = out + export_md_raw(node) + "\n\n"
+        } else if node.kind == "table" {
+            out = out + export_md_table(node) + "\n"
+        } else if node.kind == "obj" {
+            // 对象:导出为 Awen 语法注释
+            out = out + "<!-- " + node.obj_cu.name_raw + " -->\n\n"
+        } else if node.kind == "comment" {
+            // 注释不导出(§11.3:不进入渲染)
+        }
+    }
+    return out
+}
