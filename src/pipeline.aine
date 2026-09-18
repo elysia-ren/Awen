@@ -1,0 +1,85 @@
+// awen-proto/src/pipeline.aine —— 编辑管线(§85 完整闭环)
+// 每次编辑后自动执行:
+// 1. 文本 patch → 2. 重新解析 → 3. Document State 更新
+// 4. Label 重新收集 → 5. 引用完整性验证 → 6. 诊断输出
+//
+// 这是"编译器内部吃掉全部迭代"的实现(§7.4/§7.5):
+// 用户只看到最终结果,不需要手动触发重新编译。
+
+struct PipelineResult {
+    // 更新后的源码
+    source: String
+    // 更新后的 Document State
+    state: DocState
+    // 更新后的 Label 注册表
+    labels: Vec<LabelEntry>
+    // 未解析的引用(空 = 完整)
+    unresolved_refs: Vec<String>
+    // 重复的 Label(空 = 无冲突)
+    duplicate_labels: Vec<String>
+    // 词法/语法诊断
+    diags: Vec<Diagnostic>
+    // 主题(从文档级设置构建)
+    theme: Theme
+    // 渲染结果
+    render_items: Vec<RenderItem>
+}
+
+// ── 完整管线:源码 → 全部中间表示 ────────────────────────
+
+fn pipeline_full(src: String) -> PipelineResult {
+    let out = lex(src)
+    let pr = parse(out)
+    let state = build_document(pr, src)
+    let labels = collect_labels(state)
+    let dupes = check_label_uniqueness(labels)
+    let unresolved = validate_refs(state, labels)
+    let theme = theme_from_document(state)
+    let items = render_document(state, theme)
+    return PipelineResult {
+        source: src,
+        state: state,
+        labels: labels,
+        unresolved_refs: unresolved,
+        duplicate_labels: dupes,
+        diags: out.diags,
+        theme: theme,
+        render_items: items,
+    }
+}
+
+// ── 增量管线:编辑 → 更新全部中间表示 ────────────────────
+
+// 修改标题文本后的完整管线更新
+fn pipeline_edit_heading(
+    prev: PipelineResult,
+    node_id: i32,
+    new_text: String,
+) -> PipelineResult {
+    let result = edit_heading_text(prev.state, node_id, new_text, prev.source)
+    let updated = pipeline_full(result.new_source)
+    return updated
+}
+
+// ── 管线不变量验证 ──────────────────────────────────────────
+
+// 验证管线结果的自洽性:
+// 1. 节点数一致(编辑前后)
+// 2. Label 引用完整性
+// 3. 无词法错误
+fn pipeline_validate(prev: PipelineResult, curr: PipelineResult) -> Result<i32, String> {
+    // 1. 词法无错误
+    let errors = count_errors(curr.diags)
+    if errors > 0 {
+        return Err(f"管线产出 {errors} 个词法错误")
+    }
+    // 2. 节点数一致(§86 不漂移)
+    if curr.state.nodes.len() != prev.state.nodes.len() {
+        return Err(f"节点数漂移: {prev.state.nodes.len()} → {curr.state.nodes.len()}")
+    }
+    // 3. Label 引用完整性
+    for r in curr.unresolved_refs {
+        return Err(f"未解析引用: {r}")
+    }
+    return Ok(0)
+}

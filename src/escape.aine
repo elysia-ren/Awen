@@ -1,0 +1,44 @@
+// awen-proto/src/escape.aine —— 轻量标记转义(核心规范 §6.8)
+struct EscapeHit {
+    consumed: i32
+    text: String
+}
+
+fn starts_with_at(s: String, i: i32, pat: String) -> bool {
+    if i < 0 || i + pat.len() > s.len() {
+        return false
+    }
+    return s[i..i + pat.len()] == pat
+}
+
+fn escape_scan(s: String, i: i32) -> Option<EscapeHit> {
+    if starts_with_at(s, i, "@**") {
+        return Some(EscapeHit { consumed: 3, text: "**" })
+    }
+    if starts_with_at(s, i, "@~~") {
+        return Some(EscapeHit { consumed: 3, text: "~~" })
+    }
+    if starts_with_at(s, i, "@#") {
+        return Some(EscapeHit { consumed: 2, text: "#" })
+    }
+    if starts_with_at(s, i, "@_") {
+        return Some(EscapeHit { consumed: 2, text: "_" })
+    }
+    if starts_with_at(s, i, "@-") {
+        return Some(EscapeHit { consumed: 2, text: "-" })
+    }
+    if starts_with_at(s, i, "@>") {
+        return Some(EscapeHit { consumed: 2, text: ">" })
+    }
+    if starts_with_at(s, i, "@`") {
+        return Some(EscapeHit { consumed: 2, text: "`" })
+    }
+    var j = i + 1
+    while j < s.len() && s[j] >= "0" && s[j] <= "9" {
+        j += 1
+    }
+    if j > i + 1 && j < s.len() && s[j] == "." {
+        return Some(EscapeHit { consumed: j - i + 1, text: s[i + 1..j + 1] })
+    }
+    return None
+}

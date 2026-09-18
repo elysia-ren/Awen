@@ -1,0 +1,21 @@
+// awen-proto/src/fullwidth.aine —— 全角归一化(核心规范 §6.9–§6.10)
+fn fw_normalize_in_command(c: String) -> Option<String> {
+    if c == "“" || c == "”" || c == "‘" || c == "’" {
+        return Some("\"")
+    }
+    if c == "：" {
+        return Some(":")
+    }
+    return None
+}
+
+fn fw_normalize_comma_in_row(c: String) -> Option<String> {
+    if c == "，" {
+        return Some(",")
+    }
+    return None
+}
+
+fn fw_is_ideo_space(c: String) -> bool {
+    return c == "　"
+}

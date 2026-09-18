@@ -1,0 +1,102 @@
+// awen-proto/src/diff.aine —— 文本差异比较(核心规范 §8.6)
+// `awen diff` 的底层实现:比较两份 User Syntax 的行级差异
+// 用于 Git diff driver 和 CI 集成
+
+struct DiffLine {
+    kind: String     // "same" "add" "del"
+    old_no: i32      // 旧文件行号(-1 = 新增)
+    new_no: i32      // 新文件行号(-1 = 删除)
+    text: String
+}
+
+struct DiffResult {
+    lines: Vec<DiffLine>
+    added: i32
+    deleted: i32
+    same: i32
+}
+
+// ── 行级差异(LCS 简化版)─────────────────────────────────
+
+// 比较两份文本,返回行级差异
+// 策略:先找公共前缀和后缀,中间部分标记为 add/del
+fn diff_text(old_src: String, new_src: String) -> DiffResult {
+    let old_lines = old_src.split("\n")
+    let new_lines = new_src.split("\n")
+    let old_len = old_lines.len()
+    let new_len = new_lines.len()
+
+    // 前缀:找最长相等前缀
+    var prefix = 0
+    while prefix < old_len && prefix < new_len && old_lines[prefix] == new_lines[prefix] {
+        prefix += 1
+    }
+
+    // 后缀:找最长相等后缀(不与前缀重叠)
+    var suffix = 0
+    while suffix < (old_len - prefix) && suffix < (new_len - prefix)
+        && old_lines[old_len - 1 - suffix] == new_lines[new_len - 1 - suffix] {
+        suffix += 1
+    }
+
+    var lines: Vec<DiffLine> = []
+    var added = 0
+    var deleted = 0
+    var same = 0
+
+    // 前缀(相同)
+    var i = 0
+    while i < prefix {
+        lines = lines.push(DiffLine { kind: "same", old_no: i + 1, new_no: i + 1, text: old_lines[i] })
+        same += 1
+        i += 1
+    }
+
+    // 中间差异(旧文件删除的行)
+    var oi = prefix
+    while oi < old_len - suffix {
+        lines = lines.push(DiffLine { kind: "del", old_no: oi + 1, new_no: -1, text: old_lines[oi] })
+        deleted += 1
+        oi += 1
+    }
+
+    // 中间差异(新文件新增的行)
+    var ni = prefix
+    while ni < new_len - suffix {
+        lines = lines.push(DiffLine { kind: "add", old_no: -1, new_no: ni + 1, text: new_lines[ni] })
+        added += 1
+        ni += 1
+    }
+
+    // 后缀(相同)
+    i = 0
+    while i < suffix {
+        let old_idx = old_len - suffix + i
+        let new_idx = new_len - suffix + i
+        lines = lines.push(DiffLine { kind: "same", old_no: old_idx + 1, new_no: new_idx + 1, text: old_lines[old_idx] })
+        same += 1
+        i += 1
+    }
+
+    return DiffResult { lines: lines, added: added, deleted: deleted, same: same }
+}
+
+// 格式化差异输出(unified diff 风格)
+fn format_diff(diff: DiffResult) -> String {
+    var out = ""
+    for l in diff.lines {
+        if l.kind == "add" {
+            out = out + "+ " + l.text + "\n"
+        } else if l.kind == "del" {
+            out = out + "- " + l.text + "\n"
+        } else {
+            out = out + "  " + l.text + "\n"
+        }
+    }
+    return out
+}
+
+// 判断两个 Awen 文件的 User Syntax 是否有差异
+fn has_changes(diff: DiffResult) -> bool {
+    return diff.added > 0 || diff.deleted > 0
+}

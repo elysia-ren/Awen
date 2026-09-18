@@ -1,0 +1,205 @@
+// awen-proto/src/layout.aine —— 布局引擎接口 + 排版验证(核心规范 §10/§42/§45)
+// M5:Layout Engine 的 Aine 侧接口定义和 CJK 排版验收函数。
+// 真正的分页/断行算法由 Aine 编译后的原生代码执行(性能关键路径)。
+
+// ── 排版单元 ────────────────────────────────────────────────
+
+// 每个渲染节点经过 Layout 后产出的度量信息
+struct LayoutBox {
+    node_id: i32
+    // 页面尺寸
+    page_width: f64       // mm
+    page_height: f64      // mm
+    // 内容区域(去 margin)
+    content_width: f64    // mm
+    content_height: f64   // mm
+    // 该节点占用的行数和高度
+    line_count: i32
+    total_height: f64     // mm
+    // 分页位置
+    start_page: i32
+    end_page: i32
+}
+
+// 页面模型(§30:页面尺寸/边距)
+struct PageModel {
+    width: f64            // mm (A4 = 210)
+    height: f64           // mm (A4 = 297)
+    margin_top: f64       // mm
+    margin_bottom: f64
+    margin_left: f64
+    margin_right: f64
+}
+
+fn page_model_a4() -> PageModel {
+    return PageModel {
+        width: 210.0,
+        height: 297.0,
+        margin_top: 20.0,
+        margin_bottom: 20.0,
+        margin_left: 20.0,
+        margin_right: 20.0,
+    }
+}
+
+// 内容区域宽度和高度
+fn content_width(pm: PageModel) -> f64 {
+    return pm.width - pm.margin_left - pm.margin_right
+}
+
+fn content_height(pm: PageModel) -> f64 {
+    return pm.height - pm.margin_top - pm.margin_bottom
+}
+
+// ── CJK 断行模拟(§10:验证用简化模型)───────────────────────
+
+// 将 CJK 文本按内容区域宽度断行
+// 简化模型:每个 CJK 字符 = 全角宽度(约 0.5 × 字号),每个 Latin 字符 = 半角
+// 返回:断行后的行列表
+fn cjk_line_break(text: String, content_width: f64, font_size: f64) -> Vec<String> {
+    let char_width = font_size * 0.352778 // pt → mm
+    let max_chars = content_width / char_width
+    if max_chars <= 0.0 { return [text] }
+
+    var out: Vec<String> = []
+    var cur = ""
+    var cur_width = 0.0
+    var i = 0
+    while i < text.len() {
+        let c = text[i]
+        var w = 1.0
+        if cjk_is_ideograph_char(c) {
+            w = 1.0 // CJK 全角
+        } else if cjk_is_latin_char(c) {
+            w = 0.5 // Latin 半角
+        } else {
+            w = 0.5 // 标点/其他 半角
+        }
+        cur_width += w
+        cur = cur + c
+        if cur_width >= max_chars {
+            out = out.push(cur)
+            cur = ""
+            cur_width = 0.0
+        }
+        i += 1
+    }
+    if cur.len() > 0 { out = out.push(cur) }
+    return out
+}
+
+fn cjk_is_ideograph_char(c: String) -> bool {
+    return c > "\x7f"
+}
+
+fn cjk_is_latin_char(c: String) -> bool {
+    return (c >= "a" && c <= "z") || (c >= "A" && c <= "Z") || (c >= "0" && c <= "9")
+}
+
+// ── 行首/行尾禁则修正 ──────────────────────────────────────
+
+// 断行后修正:行首禁则字符回退到上一行尾,行尾禁则字符带到下一行首
+// 函数式实现:构建新 Vec,避免原地修改(Aine 值语义)
+fn fix_kinsoku(lines: Vec<String>) -> Vec<String> {
+    if lines.len() < 2 { return lines }
+    var out: Vec<String> = []
+    // 先复制所有行
+    var idx = 0
+    while idx < lines.len() {
+        out = out.push(lines[idx])
+        idx += 1
+    }
+    // 逐行修正
+    var i = 0
+    while i < lines.len() - 1 {
+        let cur = out[i]
+        let next = out[i + 1]
+        if cur.len() > 0 && next.len() > 0 {
+            // 行尾禁则:当前行末尾的禁则字符带到下一行首
+            let last_c = cur[cur.len() - 1]
+            if cjk_is_line_end_forbidden(last_c) && cur.len() > 1 {
+                out[i] = cur[0..cur.len() - 1]
+                out[i + 1] = last_c + out[i + 1]
+            }
+            // 行首禁则:下一行首的禁则字符回退到当前行尾
+            let next2 = out[i + 1]
+            if next2.len() > 0 && cjk_is_line_start_forbidden(next2[0]) {
+                out[i] = out[i] + next2[0]
+                out[i + 1] = next2[1..next2.len()]
+            }
+        }
+        i += 1
+    }
+    return out
+}
+
+// ── 中西文混排间距计算 ──────────────────────────────────────
+
+// 计算混排文本的总宽度(考虑 CJK 全角/Latin 半角 + 混排间距)
+fn mixed_text_width(text: String, font_size: f64) -> f64 {
+    let char_width = font_size * 0.352778 // pt → mm
+    var total = 0.0
+    var i = 0
+    while i < text.len() {
+        let c = text[i]
+        let next = if i + 1 < text.len() { text[i + 1] } else { "" }
+        if cjk_is_ideograph_char(c) {
+            total += char_width
+        } else if cjk_is_latin_char(c) {
+            total += char_width * 0.5
+        } else {
+            total += char_width * 0.5
+        }
+        // 中西文混排间距(§10):CJK 与 Latin 之间加 1/8 em
+        if i + 1 < text.len() {
+            let c_cjk = cjk_is_ideograph_char(c)
+            let n_latin = cjk_is_latin_char(next)
+            let c_latin = cjk_is_latin_char(c)
+            let n_cjk = cjk_is_ideograph_char(next)
+            if (c_cjk && n_latin) || (c_latin && n_cjk) {
+                total += char_width * 0.125
+            }
+        }
+        i += 1
+    }
+    return total
+}
+
+// ── 布局验证(§10.3 验收标准)────────────────────────────────
+
+// 验证函数:给定排版结果,检查是否符合 CJK 排版验收标准
+struct CJKValidation {
+    no_line_start_forbidden: bool   // 无行首禁则违规
+    no_line_end_forbidden: bool     // 无行尾禁则违规
+    no_orphan_punct: bool           // 无孤字标点
+    mixed_spacing_ok: bool          // 混排间距合理
+}
+
+fn validate_cjk_layout(lines: Vec<String>) -> CJKValidation {
+    var no_start = true
+    var no_end = true
+    var no_orphan = true
+
+    var i = 0
+    while i < lines.len() {
+        let line = lines[i]
+        if line.len() == 0 {
+            i += 1
+            continue
+        }
+        let first = line[0]
+        let last = line[line.len() - 1]
+        if cjk_is_line_start_forbidden(first) { no_start = false }
+        if cjk_is_line_end_forbidden(last) && line.len() > 1 { no_end = false }
+        // 孤字标点:整行只有一个标点
+        if line.len() == 1 && cjk_is_punct(first) { no_orphan = false }
+        i += 1
+    }
+
+    return CJKValidation {
+        no_line_start_forbidden: no_start,
+        no_line_end_forbidden: no_end,
+        no_orphan_punct: no_orphan,
+        mixed_spacing_ok: true, // 简化:间距计算正确的判定待实现
+    }
+}

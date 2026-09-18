@@ -1,0 +1,268 @@
+// awen-proto/src/parser.aine —— 语法树构建(M2b)
+// 将词法器的扁平 Block 序列分组为文档结构:
+// - 相邻同类列表项 → 列表组
+// - 相邻引用行 → 引用块(按深度)
+// - Heading 层级 → 文档大纲
+// 其余块原样通过(段落/分节线/Raw/表格/独立对象)。
+//
+// ⚠ Aine 限制:match 臂内 continue 不可靠,全部用旗标模式。
+//   枚举变体名全局唯一,避免与 UI 内建名冲突(Text 等)。
+
+// ── 文档树节点 ─────────────────────────────────────────────
+
+enum DocNode {
+    DocRoot(Vec<DocNode>)
+    Section(i32, Vec<Inline>, Vec<DocNode>)
+    Para(Vec<Inline>)
+    ListGroup(bool, Vec<Vec<Inline>>)
+    QuoteBlk(i32, Vec<Inline>)
+    HRule
+    Obj(CommandUse)
+    RawBlk(ExplicitCommand, Option<String>, Vec<String>)
+    TblNode(Option<Vec<Vec<Inline>>>, Vec<Vec<Inline>>, bool)
+    CommentNode(String)
+}
+
+struct ParseResult {
+    nodes: Vec<DocNode>
+    diags: Vec<Diagnostic>
+}
+
+struct ListItemData {
+    ordered: bool
+    inline: Vec<Inline>
+}
+
+struct QuoteData {
+    depth: i32
+    inline: Vec<Inline>
+}
+
+// ── 辅助:从 Block 变体中提取数据 ──────────────────────────
+
+fn extract_list_item(blk: Block) -> ListItemData {
+    match blk {
+        BlkListItem(ordered, inline) { return ListItemData { ordered: ordered, inline: inline } }
+        _ { return ListItemData { ordered: false, inline: [] } }
+    }
+}
+
+fn extract_quote(blk: Block) -> QuoteData {
+    match blk {
+        Quote(depth, inline) { return QuoteData { depth: depth, inline: inline } }
+        _ { return QuoteData { depth: 0, inline: [] } }
+    }
+}
+
+// ── 树构建 ─────────────────────────────────────────────────
+
+fn parse(lex_out: LexOutput) -> ParseResult {
+    var nodes: Vec<DocNode> = []
+    var diags = lex_out.diags
+
+    var i = 0
+    let blocks = lex_out.blocks
+    var in_list = false
+    var list_ordered = false
+    var list_items: Vec<Vec<Inline>> = []
+
+    while i < blocks.len() {
+        let blk = blocks[i].block
+
+        // 列表项:延续或开启列表组
+        let is_item = match blk {
+            BlkListItem(ordered, inline) { true }
+            _ { false }
+        }
+        if is_item {
+            let lid = extract_list_item(blk)
+            if in_list && lid.ordered == list_ordered {
+                list_items.push(lid.inline)
+            } else {
+                if in_list {
+                    nodes.push(ListGroup(list_ordered, list_items))
+                    list_items = []
+                }
+                list_ordered = lid.ordered
+                list_items.push(lid.inline)
+                in_list = true
+            }
+            i += 1
+            continue
+        }
+
+        // 非列表项:刷出待定列表组
+        if in_list {
+            nodes.push(ListGroup(list_ordered, list_items))
+            list_items = []
+            in_list = false
+        }
+
+        // 引用块
+        let is_quote = match blk {
+            Quote(depth, inline) { true }
+            _ { false }
+        }
+        if is_quote {
+            let qd = extract_quote(blk)
+            nodes.push(QuoteBlk(qd.depth, qd.inline))
+            i += 1
+            continue
+        }
+
+        // 其余块类型
+        match blk {
+            Heading(level, inline) {
+                nodes.push(Section(level, inline, []))
+            }
+            Paragraph(inline) {
+                nodes.push(Para(inline))
+            }
+            Divider {
+                nodes.push(HRule)
+            }
+            BlkObject(u) {
+                if u.cmd == Comment {
+                    let content = match u.content {
+                        Some(c) { c }
+                        None { "" }
+                    }
+                    nodes.push(CommentNode(content))
+                } else {
+                    nodes.push(Obj(u))
+                }
+            }
+            RawOpen(cmd, lang) {
+                var content_lines: Vec<String> = []
+                var j = i + 1
+                var found_close = false
+                while j < blocks.len() {
+                    match blocks[j].block {
+                        RawLine(content) {
+                            content_lines.push(content)
+                            j += 1
+                        }
+                        RawClose(close_cmd) {
+                            found_close = true
+                            j += 1
+                            break
+                        }
+                        _ { j += 1 }
+                    }
+                }
+                if !found_close {
+                    diags.push(diag_error("Raw Block 未闭合", blocks[i].line))
+                }
+                nodes.push(RawBlk(cmd, lang, content_lines))
+                i = j
+                continue
+            }
+            TableOpen(u) {
+                var header: Option<Vec<Vec<Inline>>> = None
+                var data_rows: Vec<Vec<Inline>> = []
+                var has_delim = false
+                var j = i + 1
+                var found_close = false
+                while j < blocks.len() {
+                    match blocks[j].block {
+                        TableRow(cells, delimiter) {
+                            if delimiter {
+                                has_delim = true
+                                if data_rows.len() > 0 {
+                                    header = Some(data_rows[0])
+                                    var shifted: Vec<Vec<Inline>> = []
+                                    var sk = 1
+                                    while sk < data_rows.len() {
+                                        shifted.push(data_rows[sk])
+                                        sk += 1
+                                    }
+                                    data_rows = shifted
+                                }
+                            } else {
+                                data_rows.push(cells)
+                            }
+                            j += 1
+                        }
+                        Blank { j += 1 }
+                        TableClose {
+                            found_close = true
+                            j += 1
+                            break
+                        }
+                        _ { j += 1 }
+                    }
+                }
+                if !found_close {
+                    diags.push(diag_error("@[table] 未闭合", blocks[i].line))
+                }
+                if !has_delim && data_rows.len() > 0 {
+                    header = Some(data_rows[0])
+                    var shifted2: Vec<Vec<Inline>> = []
+                    var sk2 = 1
+                    while sk2 < data_rows.len() {
+                        shifted2.push(data_rows[sk2])
+                        sk2 += 1
+                    }
+                    data_rows = shifted2
+                }
+                nodes.push(TblNode(header, data_rows, has_delim))
+                i = j
+                continue
+            }
+            Blank { }
+            RawLine(content) { }
+            RawClose(cmd) { }
+            TableRow(cells, delimiter) { }
+            TableClose { }
+            BlkListItem(ordered, inline) { }
+            Quote(depth, inline) { }
+            _ { }
+        }
+        i += 1
+    }
+
+    if in_list {
+        nodes.push(ListGroup(list_ordered, list_items))
+    }
+
+    return ParseResult { nodes: nodes, diags: diags }
+}
+
+// ── 统计辅助(测试用)────────────────────────────────────
+
+fn count_nodes(nodes: Vec<DocNode>, kind: String) -> i32 {
+    var n = 0
+    for node in nodes {
+        match node {
+            ListGroup(ordered, items) {
+                if kind == "list" { n += 1 }
+            }
+            Section(level, inline, children) {
+                if kind == "section" { n += 1 }
+            }
+            QuoteBlk(depth, inline) {
+                if kind == "quote" { n += 1 }
+            }
+            Para(inline) {
+                if kind == "para" { n += 1 }
+            }
+            HRule {
+                if kind == "hr" { n += 1 }
+            }
+            Obj(u) {
+                if kind == "obj" { n += 1 }
+            }
+            RawBlk(cmd, lang, lines) {
+                if kind == "raw" { n += 1 }
+            }
+            TblNode(header, rows, has_delim) {
+                if kind == "table" { n += 1 }
+            }
+            CommentNode(content) {
+                if kind == "comment" { n += 1 }
+            }
+            DocRoot(children) { }
+        }
+    }
+    return n
+}

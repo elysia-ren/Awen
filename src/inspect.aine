@@ -1,0 +1,97 @@
+// awen-proto/src/inspect.aine —— awen inspect 输出(核心规范 §75)
+// 开发者工具:展示文档树结构 + NodeId + Source Span
+
+// 生成 inspect 输出(树形格式)
+fn inspect_tree(state: DocState, spans: Vec<NodeSpan>) -> String {
+    var out = "Document\n"
+    var i = 0
+    while i < state.nodes.len() {
+        let node = state.nodes[i]
+        let span = find_span(spans, node.id)
+        var span_info = ""
+        match span {
+            Some(s) { span_info = f" [L{s.start_line + 1}-{s.end_line + 1}]" }
+            None { }
+        }
+        var kind_icon = "?"
+        if node.kind == "heading" { kind_icon = "H" }
+        else if node.kind == "para" { kind_icon = "P" }
+        else if node.kind == "list" { kind_icon = "L" }
+        else if node.kind == "quote" { kind_icon = "Q" }
+        else if node.kind == "hr" { kind_icon = "--" }
+        else if node.kind == "obj" { kind_icon = "@" }
+        else if node.kind == "raw" { kind_icon = "R" }
+        else if node.kind == "table" { kind_icon = "T" }
+        else if node.kind == "comment" { kind_icon = "!" }
+
+        var detail = ""
+        if node.kind == "heading" {
+            detail = f" L{node.level} [{inline_plain(node.inline)}]"
+        } else if node.kind == "para" {
+            let txt = inline_plain(node.inline)
+            if txt.len() > 30 {
+                detail = f" [{txt[0..30]}...]"
+            } else {
+                detail = f" [{txt}]"
+            }
+        } else if node.kind == "raw" {
+            var lang = ""
+            match node.raw_lang {
+                Some(l) { lang = f" [{l}]" }
+                None { }
+            }
+            detail = f"{lang} ({node.raw_lines.len()} lines)"
+        } else if node.kind == "obj" {
+            detail = f" {node.obj_cu.name_raw}"
+        } else if node.kind == "table" {
+            detail = f" ({node.tbl_rows.len()} rows)"
+        }
+
+        out = out + f"  {kind_icon} #{node.id}{detail}{span_info}\n"
+        i += 1
+    }
+    return out
+}
+
+fn find_span(spans: Vec<NodeSpan>, id: i32) -> Option<NodeSpan> {
+    for sp in spans {
+        if sp.node_id == id {
+            return Some(sp)
+        }
+    }
+    return None
+}
+
+// 生成带统计的完整 inspect 报告
+fn inspect_full(state: DocState, spans: Vec<NodeSpan>, labels: Vec<LabelEntry>) -> String {
+    var out = "=== Awen inspect ===\n"
+    out = out + f"节点数: {state.nodes.len()}\n"
+    out = out + f"Label 数: {labels.len()}\n"
+
+    // 统计各类型
+    var counts: Vec<String> = []
+    var kinds = ["heading", "para", "list", "quote", "hr", "obj", "raw", "table", "comment"]
+    for kind in kinds {
+        let n = doc_count_kind(state, kind)
+        if n > 0 {
+            counts = counts.push(f"{kind}: {n}")
+        }
+    }
+    for c in counts {
+        out = out + f"  {c}\n"
+    }
+
+    out = out + "\n--- 文档树 ---\n"
+    out = out + inspect_tree(state, spans)
+
+    out = out + "\n--- Labels ---\n"
+    if labels.len() == 0 {
+        out = out + "  (无)\n"
+    } else {
+        for l in labels {
+            out = out + f"  [{l.label}] → Node #{l.node_id} ({l.kind})\n"
+        }
+    }
+
+    return out
+}

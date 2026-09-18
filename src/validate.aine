@@ -1,0 +1,95 @@
+// awen-proto/src/validate.aine —— 文档结构验证(§75 aine validate)
+// 检查文档结构完整性:孤立标题、空段落、未闭合引用、Label 冲突
+
+struct ValidationIssue {
+    severity: Severity
+    code: String
+    message: String
+    line: i32
+}
+
+fn validate_document(state: DocState, labels: Vec<LabelEntry>) -> Vec<ValidationIssue> {
+    var issues: Vec<ValidationIssue> = []
+
+    // 1. Label 唯一性(§2.3)
+    let dupes = check_label_uniqueness(labels)
+    for d in dupes {
+        issues = issues.push(ValidationIssue {
+            severity: SevError,
+            code: "V001",
+            message: f"重复 Label: {d}",
+            line: 0,
+        })
+    }
+
+    // 2. 引用完整性(§2.5)
+    let unresolved = validate_refs(state, labels)
+    for r in unresolved {
+        issues = issues.push(ValidationIssue {
+            severity: SevError,
+            code: "V002",
+            message: f"未解析引用: {r}",
+            line: 0,
+        })
+    }
+
+    // 3. 空段落(无行内内容)
+    for node in state.nodes {
+        if node.kind == "para" && node.inline.len() == 0 {
+            issues = issues.push(ValidationIssue {
+                severity: SevWarning,
+                code: "V003",
+                message: "空段落",
+                line: node.span_start,
+            })
+        }
+        // 4. 孤立标题(无内容的标题)
+        if node.kind == "heading" && node.inline.len() == 0 {
+            issues = issues.push(ValidationIssue {
+                severity: SevWarning,
+                code: "V004",
+                message: f"空标题 (level {node.level})",
+                line: node.span_start,
+            })
+        }
+    }
+
+    // 5. 未解析的 ref 命令(行内)
+    for node in state.nodes {
+        if node.kind == "para" || node.kind == "heading" {
+            let refs = find_refs_in_inline(node.inline)
+            for r in refs {
+                var found = false
+                for entry in labels {
+                    if entry.label == r { found = true }
+                }
+                if !found {
+                    issues = issues.push(ValidationIssue {
+                        severity: SevError,
+                        code: "V005",
+                        message: f"@[ref {r}] 引用了不存在的 Label",
+                        line: node.span_start,
+                    })
+                }
+            }
+        }
+    }
+
+    return issues
+}
+
+// 格式化验证报告
+fn format_validation_report(issues: Vec<ValidationIssue>) -> String {
+    if issues.len() == 0 {
+        return "验证通过 ✓ (无问题)"
+    }
+    var out = f"发现 {issues.len()} 个问题:\n"
+    for issue in issues {
+        var sev = "警告"
+        if issue.severity == SevError { sev = "错误" }
+        var line_info = ""
+        if issue.line > 0 { line_info = f" (行 {issue.line + 1})" }
+        out = out + f"  [{sev} {issue.code}]{line_info} {issue.message}\n"
+    }
+    return out
+}

@@ -1,0 +1,159 @@
+// awen-proto/src/main.aine —— 全管线演示入口
+// 运行:aine run src/main.aine(在 awen-proto-aine 根目录)
+// 测试:aine test src/tests.aine
+
+module diag;
+module registry;
+module fullwidth;
+module escape;
+module explicit;
+module lightweight;
+module lexer;
+module parser;
+module document;
+module mapping;
+module refs;
+module theme;
+module render;
+module incremental;
+module pipeline;
+module cjk;
+module toc;
+module diff;
+module heading_tree;
+module numbering;
+module validate;
+module inspect;
+module seed;
+
+fn main() {
+    print("Awen 原型(Aine 移植版,核心规范 v0.4)")
+    print("")
+
+    let src = read_file("corpus/all_syntax.awen")
+    if src.contains("[read_file error") {
+        print("corpus 加载失败(请在 awen-proto-aine 根目录运行)")
+        return
+    }
+
+    print("── 1. 词法分析 ──")
+    let out = lex(src)
+    var lex_errors = 0
+    var lex_warnings = 0
+    for d in out.diags {
+        if d.severity == SevError {
+            lex_errors += 1
+            print(f"  错误(行 {d.line + 1}): {d.message}")
+        } else {
+            lex_warnings += 1
+        }
+    }
+    print(f"  块数: {out.blocks.len()}")
+    print(f"  诊断: {lex_errors} 错误, {lex_warnings} 告警")
+    if lex_errors > 0 {
+        print("  词法分析失败")
+        return
+    }
+    print("  通过")
+
+    print("")
+    print("── 2. 语法树 ──")
+    let pr = parse(out)
+    var sections = 0
+    var paras = 0
+    var lists = 0
+    var raws = 0
+    var tables = 0
+    for n in pr.nodes {
+        match n {
+            Section(level, inline, children) { sections += 1 }
+            Para(inline) { paras += 1 }
+            ListGroup(ordered, items) { lists += 1 }
+            RawBlk(cmd, lang, lines) { raws += 1 }
+            TblNode(header, rows, has_delim) { tables += 1 }
+            _ { }
+        }
+    }
+    print(f"  顶层节点: {pr.nodes.len()}")
+    print(f"  标题: {sections} 段落: {paras} 列表: {lists} Raw: {raws} 表格: {tables}")
+
+    print("")
+    print("── 3. Document State ──")
+    let state = build_document(pr, src)
+    print(f"  SemNode: {state.nodes.len()}")
+    var n_headings = 0
+    var n_paras = 0
+    var n_objs = 0
+    var n_raws = 0
+    var n_tables = 0
+    var n_comments = 0
+    for node in state.nodes {
+        if node.kind == "heading" { n_headings += 1 }
+        if node.kind == "para" { n_paras += 1 }
+        if node.kind == "obj" { n_objs += 1 }
+        if node.kind == "raw" { n_raws += 1 }
+        if node.kind == "table" { n_tables += 1 }
+        if node.kind == "comment" { n_comments += 1 }
+    }
+    print(f"  heading={n_headings} para={n_paras} obj={n_objs} raw={n_raws} table={n_tables} comment={n_comments}")
+
+    print("")
+    print("── 4. Label / Reference ──")
+    let labels = collect_labels(state)
+    print(f"  Label 数: {labels.len()}")
+    for l in labels {
+        print(f"    [{l.label}] -> #{l.node_id} ({l.kind})")
+    }
+    let dupes = check_label_uniqueness(labels)
+    if dupes.len() > 0 {
+        print(f"  重复: {dupes}")
+    } else {
+        print("  无重复")
+    }
+    let unresolved = validate_refs(state, labels)
+    if unresolved.len() == 0 {
+        print("  引用完整")
+    } else {
+        print(f"  未解析引用: {unresolved}")
+    }
+
+    print("")
+    print("── 5. Theme 级联 ──")
+    let theme = theme_from_document(state)
+    let h1_size = heading_size(theme, 1)
+    let body_size = resolve_style(theme, "body", 0, "size", None)
+    let body_font = resolve_style(theme, "body", 0, "font", None)
+    print(f"  H1: {h1_size}")
+    print(f"  body: {body_size} / {body_font}")
+
+    print("")
+    print("── 6. 渲染 ──")
+    let items = render_document(state, theme)
+    print(f"  渲染项: {items.len()}")
+    var show = items.len()
+    if show > 5 { show = 5 }
+    var si = 0
+    while si < show {
+        let item = items[si]
+        print(f"    [{item.kind}] {item.font_size} | {item.text}")
+        si += 1
+    }
+
+    print("")
+    print("── 7. 验证 ──")
+    let issues = validate_document(state, labels)
+    var v_errors = 0
+    var v_warnings = 0
+    for i in issues {
+        if i.severity == SevError { v_errors += 1 }
+        else { v_warnings += 1 }
+    }
+    print(f"  {v_errors} 错误, {v_warnings} 警告")
+
+    print("")
+    if lex_errors == 0 {
+        print("词法验收:通过")
+    } else {
+        print(f"词法验收:失败({lex_errors} 错误)")
+    }
+}

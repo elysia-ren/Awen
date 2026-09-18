@@ -1,0 +1,93 @@
+// awen-proto/src/seed.aine —— 基础类型与不变量种子(核心规范 §1–§4)
+
+struct SourceSpan {
+    start: i32
+    end: i32
+}
+
+fn span_new(start: i32, end: i32) -> Option<SourceSpan> {
+    if start <= end {
+        return Some(SourceSpan { start: start, end: end })
+    }
+    return None
+}
+
+fn span_after_edit(s: SourceSpan, e_start: i32, e_end: i32, new_len: i32) -> Option<SourceSpan> {
+    if e_end <= s.start {
+        let delta = new_len - (e_end - e_start)
+        return span_new(s.start + delta, s.end + delta)
+    }
+    if e_start >= s.end {
+        return Some(s)
+    }
+    return None
+}
+
+fn label_char_ok(c: String) -> bool {
+    if c >= "0" && c <= "9" { return true }
+    if c >= "a" && c <= "z" { return true }
+    if c >= "A" && c <= "Z" { return true }
+    if c == "_" || c == "-" { return true }
+    if c > "\x7f" { return true }
+    return false
+}
+
+fn label_parse(s: String) -> Option<String> {
+    if s.len() == 0 { return None }
+    var i = 0
+    while i < s.len() {
+        if !label_char_ok(s[i]) { return None }
+        i += 1
+    }
+    return Some(s)
+}
+
+struct TextPatch {
+    start: i32
+    old: String
+    new: String
+}
+
+fn patch_invert(p: TextPatch) -> TextPatch {
+    return TextPatch { start: p.start, old: p.new, new: p.old }
+}
+
+struct Buffer {
+    content: String
+}
+
+struct BufWithPatch {
+    buf: Buffer
+    patch: TextPatch
+}
+
+fn buffer_new(s: String) -> Buffer {
+    return Buffer { content: s }
+}
+
+fn buffer_insert(b: Buffer, start: i32, s: String) -> Result<BufWithPatch, String> {
+    if start < 0 || start > b.content.len() {
+        return Err(f"无效偏移 {start}")
+    }
+    let nl = Buffer { content: b.content[0..start] + s + b.content[start..b.content.len()] }
+    return Ok(BufWithPatch { buf: nl, patch: TextPatch { start: start, old: "", new: s } })
+}
+
+fn buffer_delete(b: Buffer, start: i32, end: i32) -> Result<BufWithPatch, String> {
+    if start < 0 || end > b.content.len() || start > end {
+        return Err(f"无效区间 {start}..{end}")
+    }
+    let old = b.content[start..end]
+    let nl = Buffer { content: b.content[0..start] + b.content[end..b.content.len()] }
+    return Ok(BufWithPatch { buf: nl, patch: TextPatch { start: start, old: old, new: "" } })
+}
+
+fn buffer_apply(b: Buffer, p: TextPatch) -> Result<Buffer, String> {
+    if p.start < 0 || p.start + p.old.len() > b.content.len() {
+        return Err("补丁不匹配")
+    }
+    if b.content[p.start..p.start + p.old.len()] != p.old {
+        return Err("补丁不匹配")
+    }
+    return Ok(Buffer { content: b.content[0..p.start] + p.new + b.content[p.start + p.old.len()..b.content.len()] })
+}

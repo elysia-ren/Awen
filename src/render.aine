@@ -1,0 +1,334 @@
+// awen-proto/src/render.aine —— 文本渲染管线(桥接 Document State → Layout)
+// M4+:将 Theme 样式级联到 Document State,输出渲染指令。
+// 这是 Live Render 的最小验证;PDF/打印路径后续在 Layout Engine 中实现。
+
+// ── 渲染节点(带样式的输出单元)─────────────────────────
+
+struct RenderItem {
+    node_id: i32
+    kind: String
+    // 格式化后的文本
+    text: String
+    // 级联样式
+    font_size: String
+    font_name: String
+    color: String
+    indent: String
+    line_spacing: String
+    weight: String
+}
+
+// ── 文档渲染 ────────────────────────────────────────────────
+
+// 将 Document State + Theme 渲染为带样式的输出
+fn render_document(state: DocState, theme: Theme) -> Vec<RenderItem> {
+    var out: Vec<RenderItem> = []
+    for node in state.nodes {
+        let item = render_node(node, theme)
+        out = out.push(item)
+    }
+    return out
+}
+
+fn render_node(node: SemNode, theme: Theme) -> RenderItem {
+    var kind = node.kind
+    var text = ""
+    var role = "body"
+    var level = 0
+
+    if node.kind == "heading" {
+        role = "heading"
+        level = node.level
+        text = inline_plain(node.inline)
+    } else if node.kind == "para" {
+        role = "body"
+        text = inline_plain(node.inline)
+    } else if node.kind == "quote" {
+        role = "quote"
+        text = "> " + inline_plain(node.inline)
+    } else if node.kind == "list" {
+        role = "body"
+        text = render_list(node)
+    } else if node.kind == "hr" {
+        role = "body"
+        text = "━━━━━━━━━━━━━━━━━━"
+    } else if node.kind == "raw" {
+        role = "code"
+        text = render_raw(node)
+    } else if node.kind == "table" {
+        role = "table"
+        text = render_table(node)
+    } else if node.kind == "comment" {
+        role = "comment"
+        text = ""
+    } else if node.kind == "obj" {
+        role = "body"
+        text = render_object(node)
+    }
+
+    // 级联样式
+    var size = ""
+    var font = ""
+    var color = ""
+    var weight = ""
+    var indent = ""
+    var spacing = ""
+
+    if role == "heading" {
+        size = resolve_style(theme, role, level, "size", None)
+        font = resolve_style(theme, role, level, "font", None)
+        color = resolve_style(theme, role, level, "color", None)
+        weight = resolve_style(theme, role, level, "weight", None)
+        spacing = resolve_style(theme, role, level, "spacing", None)
+    } else {
+        size = resolve_style(theme, role, 0, "size", None)
+        font = resolve_style(theme, role, 0, "font", None)
+        color = resolve_style(theme, role, 0, "color", None)
+        weight = resolve_style(theme, role, 0, "weight", None)
+        indent = resolve_style(theme, role, 0, "indent", None)
+        spacing = resolve_style(theme, role, 0, "spacing", None)
+    }
+
+    return RenderItem {
+        node_id: node.id,
+        kind: kind,
+        text: text,
+        font_size: size,
+        font_name: font,
+        color: color,
+        indent: indent,
+        line_spacing: spacing,
+        weight: weight,
+    }
+}
+
+// ── 子渲染 ──────────────────────────────────────────────────
+
+fn render_list(node: SemNode) -> String {
+    var out = ""
+    var idx = 0
+    for item in node.list_items {
+        let plain = inline_plain(item)
+        if node.list_ordered {
+            idx += 1
+            out = out + f"{idx}. {plain}\n"
+        } else {
+            out = out + f"• {plain}\n"
+        }
+    }
+    return out
+}
+
+fn render_raw(node: SemNode) -> String {
+    var out = ""
+    var first = true
+    for line in node.raw_lines {
+        if !first {
+            out = out + "\n"
+        }
+        out = out + "    " + line
+        first = false
+    }
+    return out
+}
+
+fn render_table(node: SemNode) -> String {
+    var out = ""
+    // 表头
+    if node.tbl_header.len() > 0 {
+        var header = node.tbl_header[0]
+        out = out + "|"
+        for cell in header {
+            out = out + " " + inline_plain([cell]) + " |"
+        }
+        out = out + "\n"
+    }
+    // 数据行
+    for row in node.tbl_rows {
+        out = out + "|"
+        for cell in row {
+            out = out + " " + inline_plain([cell]) + " |"
+        }
+        out = out + "\n"
+    }
+    return out
+}
+
+fn render_object(node: SemNode) -> String {
+    let cu = node.obj_cu
+    if cu.cmd == Image {
+        var path = ""
+        if cu.args.len() > 0 {
+            path = arg_plain(cu.args[0])
+        }
+        return f"[图片: {path}]"
+    }
+    if cu.cmd == Toc {
+        return "[目录]"
+    }
+    if cu.cmd == Footnote {
+        var content = ""
+        match cu.content {
+            Some(c) { content = c }
+            None { }
+        }
+        return f"[脚注: {content}]"
+    }
+    return f"[{cu.name_raw}]"
+}
+
+// ── 纯文本输出(无样式,纯文本导出用)─────────────────────
+
+fn render_plain_text(state: DocState) -> String {
+    var out = ""
+    for node in state.nodes {
+        if node.kind == "heading" {
+            let text = inline_plain(node.inline)
+            var hashes = ""
+            var h = 0
+            while h < node.level {
+                hashes = hashes + "#"
+                h += 1
+            }
+            out = out + hashes + " " + text + "\n\n"
+        } else if node.kind == "para" {
+            out = out + inline_plain(node.inline) + "\n\n"
+        } else if node.kind == "list" {
+            out = out + render_list(node) + "\n"
+        } else if node.kind == "quote" {
+            out = out + "> " + inline_plain(node.inline) + "\n\n"
+        } else if node.kind == "hr" {
+            out = out + "---\n\n"
+        } else if node.kind == "raw" {
+            out = out + render_raw(node) + "\n\n"
+        } else if node.kind == "table" {
+            out = out + render_table(node) + "\n"
+        }
+    }
+    return out
+}
+
+// ── 行内渲染(带标记)───────────────────────────────────────
+
+// 带标记的行内渲染:**粗体** _斜体_ `代码` 等
+// 用于 Debug View 和文本导出
+fn inline_render_marked(items: Vec<Inline>) -> String {
+    var out = ""
+    for it in items {
+        match it {
+            AwTxt(s) { out = out + s }
+            IBold(c) { out = out + "**" + inline_render_marked(c) + "**" }
+            Italic(c) { out = out + "_" + inline_render_marked(c) + "_" }
+            Strike(c) { out = out + "~~" + inline_render_marked(c) + "~~" }
+            Scoped(cmd, c) {
+                var tag = ""
+                match cmd {
+                    Bold { tag = "b" }
+                    U { tag = "u" }
+                    Font { tag = "font" }
+                    Size { tag = "size" }
+                    Color { tag = "color" }
+                    Cell { tag = "cell" }
+                    _ { tag = "scoped" }
+                }
+                out = out + "@[" + tag + "]" + inline_render_marked(c) + "@[/" + tag + "]"
+            }
+            CodeSpan(s) { out = out + "`" + s + "`" }
+            Command(u) { out = out + f"@[{u.name_raw}" + render_args(u) + "]" }
+            RawInline(cmd, lang, content) { out = out + content }
+        }
+    }
+    return out
+}
+
+fn render_args(u: CommandUse) -> String {
+    var out = ""
+    for a in u.args {
+        out = out + " " + arg_plain(a)
+    }
+    for attr in u.attrs {
+        out = out + " " + attr.key + ": " + arg_plain(attr.val)
+    }
+    return out
+}
+
+// ── 文档统计报告 ────────────────────────────────────────────
+
+struct DocStats {
+    total_nodes: i32
+    headings: i32
+    paragraphs: i32
+    lists: i32
+    quotes: i32
+    tables: i32
+    raw_blocks: i32
+    objects: i32
+    comments: i32
+    dividers: i32
+    labels: i32
+    refs: i32
+    word_count: i32
+}
+
+fn compute_doc_stats(state: DocState, labels: Vec<LabelEntry>) -> DocStats {
+    var n_headings = 0
+    var n_paras = 0
+    var n_lists = 0
+    var n_quotes = 0
+    var n_tables = 0
+    var n_raws = 0
+    var n_objs = 0
+    var n_comments = 0
+    var n_dividers = 0
+    var n_words = 0
+    var n_refs = 0
+    for node in state.nodes {
+        if node.kind == "heading" { n_headings += 1 }
+        if node.kind == "para" { n_paras += 1 }
+        if node.kind == "list" { n_lists += 1 }
+        if node.kind == "quote" { n_quotes += 1 }
+        if node.kind == "table" { n_tables += 1 }
+        if node.kind == "raw" { n_raws += 1 }
+        if node.kind == "obj" { n_objs += 1 }
+        if node.kind == "comment" { n_comments += 1 }
+        if node.kind == "hr" { n_dividers += 1 }
+        if node.kind == "para" || node.kind == "heading" {
+            n_words += inline_plain(node.inline).len()
+        }
+    }
+    for node in state.nodes {
+        if node.kind == "para" || node.kind == "heading" {
+            n_refs += count_refs_in(node.inline)
+        }
+    }
+    return DocStats {
+        total_nodes: state.nodes.len(),
+        headings: n_headings,
+        paragraphs: n_paras,
+        lists: n_lists,
+        quotes: n_quotes,
+        tables: n_tables,
+        raw_blocks: n_raws,
+        objects: n_objs,
+        comments: n_comments,
+        dividers: n_dividers,
+        labels: labels.len(),
+        refs: n_refs,
+        word_count: n_words,
+    }
+}
+
+fn count_refs_in(items: Vec<Inline>) -> i32 {
+    var n = 0
+    for it in items {
+        match it {
+            Command(u) { if u.cmd == Ref { n += 1 } }
+            IBold(c) { n += count_refs_in(c) }
+            Italic(c) { n += count_refs_in(c) }
+            Strike(c) { n += count_refs_in(c) }
+            Scoped(cmd, c) { n += count_refs_in(c) }
+            _ { }
+        }
+    }
+    return n
+}

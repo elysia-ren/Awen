@@ -1,0 +1,232 @@
+// awen-proto/src/explicit.aine —— 显式命令头解析(核心规范 §6.1、§11)
+enum Arg {
+    Str(String)
+    Atom(String)
+}
+
+fn arg_plain(a: Arg) -> String {
+    match a {
+        Str(s) { return s }
+        Atom(s) { return s }
+    }
+}
+
+struct KVPair {
+    key: String
+    val: Arg
+}
+
+struct CommandUse {
+    cmd: ExplicitCommand
+    name_raw: String
+    args: Vec<Arg>
+    attrs: Vec<KVPair>
+    content: Option<String>
+}
+
+struct ParseErr {
+    msg: String
+    hint: Option<String>
+}
+
+struct HeaderParsed {
+    cu: CommandUse
+    consumed: i32
+}
+
+struct ValParsed {
+    arg: Arg
+    consumed: i32
+}
+
+struct Balanced {
+    text: String
+    close_idx: i32
+}
+
+fn ex_is_name_char(c: String) -> bool {
+    if fw_is_ideo_space(c) { return false }
+    if c == "：" || c == "“" || c == "”" || c == "‘" || c == "’" || c == "，" { return false }
+    if c >= "a" && c <= "z" { return true }
+    if c >= "A" && c <= "Z" { return true }
+    if c >= "0" && c <= "9" { return true }
+    if c == "-" { return true }
+    if c > "\x7f" { return true }
+    return false
+}
+
+fn ex_is_atom_char(c: String) -> bool {
+    if c == " " || c == "\t" || c == "]" || c == ":" || c == "\"" {
+        return false
+    }
+    if c == "：" || c == "“" || c == "”" || c == "‘" || c == "’" {
+        return false
+    }
+    if fw_is_ideo_space(c) {
+        return false
+    }
+    return true
+}
+
+fn space_err() -> ParseErr {
+    return ParseErr {
+        msg: "全角空格(U+3000)不是语法分隔符",
+        hint: Some("未加引号的值不能包含空格,请使用双引号(规范 §6.10)"),
+    }
+}
+
+fn ex_scan_balanced(s: String, start: i32) -> Option<Balanced> {
+    var depth = 1
+    var out = ""
+    var i = start
+    while i < s.len() {
+        let c = s[i]
+        if c == "[" {
+            depth += 1
+            out = out + "["
+        } else if c == "]" {
+            depth -= 1
+            if depth == 0 {
+                return Some(Balanced { text: out, close_idx: i })
+            }
+            out = out + "]"
+        } else {
+            out = out + c
+        }
+        i += 1
+    }
+    return None
+}
+
+fn read_value(s: String, start: i32) -> Result<ValParsed, ParseErr> {
+    let raw_c = s[start]
+    let q_opt = fw_normalize_in_command(raw_c)
+    let quote = match q_opt {
+        Some(q) { q }
+        None { raw_c }
+    }
+    if quote == "\"" {
+        var i = start + 1
+        var out = ""
+        while i < s.len() {
+            let cq_opt = fw_normalize_in_command(s[i])
+            let cq = match cq_opt {
+                Some(q) { q }
+                None { s[i] }
+            }
+            if cq == "\"" {
+                return Ok(ValParsed { arg: Str(out), consumed: i + 1 - start })
+            }
+            out = out + s[i]
+            i += 1
+        }
+        return Err(ParseErr { msg: "字符串未闭合", hint: None })
+    }
+    var i = start
+    while i < s.len() && ex_is_atom_char(s[i]) {
+        i += 1
+    }
+    if i == start {
+        return Err(ParseErr { msg: "缺少参数值", hint: None })
+    }
+    return Ok(ValParsed { arg: Atom(s[start..i]), consumed: i - start })
+}
+
+fn parse_header(s: String, at: i32) -> Result<HeaderParsed, ParseErr> {
+    var i = at + 2
+    let name_start = i
+    while i < s.len() && ex_is_name_char(s[i]) {
+        i += 1
+    }
+    let name = s[name_start..i]
+    if name.len() == 0 {
+        return Err(ParseErr { msg: "空命令名", hint: None })
+    }
+    let cmd_opt = lookup(name)
+    let cmd = match cmd_opt {
+        Some(c) { c }
+        None {
+            return Err(ParseErr { msg: f"未注册的命令 '@[{name}]'(核心规范 §11 白名单)", hint: None })
+        }
+    }
+
+    if cmd == Comment || cmd == Footnote {
+        let bal_opt = ex_scan_balanced(s, i)
+        let bal = match bal_opt {
+            Some(b) { b }
+            None {
+                return Err(ParseErr { msg: f"命令 '@[{name}]' 缺少结束 ']'", hint: None })
+            }
+        }
+        let noargs: Vec<Arg> = []
+        let noattrs: Vec<KVPair> = []
+        return Ok(HeaderParsed {
+            cu: CommandUse { cmd: cmd, name_raw: name, args: noargs, attrs: noattrs, content: Some(bal.text.trim()) },
+            consumed: bal.close_idx + 1 - at,
+        })
+    }
+
+    var args: Vec<Arg> = []
+    var attrs: Vec<KVPair> = []
+    while true {
+        while i < s.len() && (s[i] == " " || s[i] == "\t") {
+            i += 1
+        }
+        if i >= s.len() {
+            return Err(ParseErr { msg: f"命令 '@[{name}]' 缺少结束 ']'", hint: None })
+        }
+        let c = s[i]
+        if c == "]" {
+            i += 1
+            break
+        }
+        if fw_is_ideo_space(c) {
+            return Err(space_err())
+        }
+        if fw_normalize_in_command(c) == Some(":") {
+            i += 1
+            continue
+        }
+        let vp = read_value(s, i)?
+        let tok = vp.arg
+        i = i + vp.consumed
+        var j = i
+        while j < s.len() && (s[j] == " " || s[j] == "\t") {
+            j += 1
+        }
+        let is_colon = j < s.len() && (s[j] == ":" || fw_normalize_in_command(s[j]) == Some(":"))
+        if is_colon {
+            j += 1
+            while j < s.len() && (s[j] == " " || s[j] == "\t") {
+                j += 1
+            }
+            if j >= s.len() {
+                return Err(ParseErr { msg: f"属性 '{arg_plain(tok)}' 缺少值", hint: None })
+            }
+            if fw_is_ideo_space(s[j]) {
+                return Err(space_err())
+            }
+            let vvp = read_value(s, j)?
+            j = j + vvp.consumed
+            attrs.push(KVPair { key: arg_plain(tok), val: vvp.arg })
+            i = j
+        } else {
+            args.push(tok)
+            let ar = positional_arity(cmd)
+            let over = match ar {
+                Some(n) { args.len() > n }
+                None { false }
+            }
+            if over {
+                return Err(ParseErr {
+                    msg: f"命令 '@[{name}]' 位置参数过多",
+                    hint: Some("值包含空格,请使用双引号(规范 §6.10)"),
+                })
+            }
+        }
+    }
+    return Ok(HeaderParsed {
+        cu: CommandUse { cmd: cmd, name_raw: name, args: args, attrs: attrs, content: None },
+        consumed: i - at,
+    })
+}

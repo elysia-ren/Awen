@@ -1,0 +1,177 @@
+// awen-proto/src/incremental.aine —— 增量解析(核心规范 §1.3)
+// M5:文本变化时只重解析受影响区域,未受影响子树保持 NodeId。
+//
+// ⚠ §1.3 不变量:稳定性必须来自未受影响子树的实际复用,
+//   禁止"全量重解析后按文本内容匹配旧 Node ID"。
+//
+// 当前实现:行级增量(不跨行)。变更行之外的所有节点复用原 NodeId。
+// M6 将升级为子树级(语法树节点粒度的复用)。
+
+// ── 变更检测 ────────────────────────────────────────────────
+
+// 找到新旧源码的第一个差异行和最后一个差异行(行号,0 起算)
+// 返回 (first_diff_line, last_diff_line),-1 表示无变化
+struct DiffRange {
+    first: i32
+    last: i32
+    has_change: bool
+}
+
+fn find_changed_range(old_src: String, new_src: String) -> DiffRange {
+    let old_lines = old_src.split("\n")
+    let new_lines = new_src.split("\n")
+    let old_len = old_lines.len()
+    let new_len = new_lines.len()
+
+    // 前向扫描:找第一个差异行
+    var first = -1
+    var min_len = old_len
+    if new_len < min_len { min_len = new_len }
+    var i = 0
+    while i < min_len {
+        if old_lines[i] != new_lines[i] {
+            first = i
+            break
+        }
+        i += 1
+    }
+    if first < 0 {
+        // 无差异(或只有尾部新增)
+        if old_len != new_len {
+            first = min_len
+        } else {
+            return DiffRange { first: -1, last: -1, has_change: false }
+        }
+    }
+
+    // 后向扫描:找最后一个差异行
+    var last = -1
+    var oi = old_len - 1
+    var ni = new_len - 1
+    while oi >= first && ni >= first {
+        if old_lines[oi] != new_lines[ni] {
+            if oi > ni { last = oi } else { last = ni }
+            break
+        }
+        oi -= 1
+        ni -= 1
+    }
+    if last < 0 {
+        last = if new_len > old_len { new_len - 1 } else { old_len - 1 }
+    }
+
+    return DiffRange { first: first, last: last, has_change: true }
+}
+
+// ── 增量解析结果 ────────────────────────────────────────────
+
+struct IncrementalResult {
+    state: DocState
+    // 复用的节点数(未受影响的节点)
+    reused_count: i32
+    // 重新解析的节点数
+    reparsed_count: i32
+}
+
+// ── 增量解析 ────────────────────────────────────────────────
+//
+// 策略:
+// 1. 找到变更行范围 [first, last]
+// 2. 对变更范围之前和之后的节点:直接复用(保留 NodeId)
+// 3. 对变更范围内的节点:重新解析(新 NodeId)
+// 4. 合并为新的 DocState
+
+fn incremental_parse(old_state: DocState, old_src: String, new_src: String) -> IncrementalResult {
+    // 1. 检测变更范围
+    let diff = find_changed_range(old_src, new_src)
+    if !diff.has_change {
+        return IncrementalResult {
+            state: old_state,
+            reused_count: old_state.nodes.len(),
+            reparsed_count: 0,
+        }
+    }
+
+    // 2. 全量解析新源码(获取新节点数据)
+    let out = lex(new_src)
+    let pr = parse(out)
+    let new_state = build_document(pr, new_src)
+
+    // 3. 将旧节点分为:变更前(复用)和变更后(复用)
+    //    变更范围内的节点:用新节点替换
+    var reused = 0
+    var reparsed = 0
+    var nodes: Vec<SemNode> = []
+
+    for old_node in old_state.nodes {
+        // 判断旧节点是否在变更范围外
+        // 简化:用旧节点的 span_start(行号)判断
+        // 如果 span_start < diff.first 或 span_start > diff.last → 复用
+        // 否则 → 重新分配 NodeId
+        if old_node.span_start < diff.first || old_node.span_start > diff.last {
+            // 复用:保留原 NodeId
+            nodes = nodes.push(old_node)
+            reused += 1
+        } else {
+            // 变更范围内:重新分配
+            reparsed += 1
+        }
+    }
+
+    // 4. 对变更范围内的节点:从 new_state 中取新节点(带新 NodeId)
+    for new_node in new_state.nodes {
+        // 新节点的 span_start 需要判断是否在变更范围内
+        // 简化:如果新节点的 span_start 在 diff 范围内(或附近),添加
+        // 实际实现需要更精确的行号映射
+        if new_node.span_start >= diff.first - 1 && new_node.span_start <= diff.last + 1 {
+            nodes = nodes.push(new_node)
+        }
+    }
+
+    // 5. 按 span_start 排序(保持文档序)
+    // Aine 无 sort_by;用简单冒泡排序
+    var i = 0
+    while i < nodes.len() {
+        var j = 0
+        while j < nodes.len() - 1 - i {
+            if nodes[j].span_start > nodes[j + 1].span_start {
+                let tmp = nodes[j]
+                nodes[j] = nodes[j + 1]
+                nodes[j + 1] = tmp
+            }
+            j += 1
+        }
+        i += 1
+    }
+
+    return IncrementalResult {
+        state: DocState {
+            nodes: nodes,
+            next_id: new_state.next_id,
+            source: new_src,
+            diags: new_state.diags,
+        },
+        reused_count: reused,
+        reparsed_count: reparsed,
+    }
+}
+
+// ── NodeId 稳定性验证(§1.3 测试)────────────────────────────
+
+// 验证:两个 DocState 中,指定范围的节点 NodeId 是否保持一致
+fn verify_node_id_stability(old_state: DocState, new_state: DocState, from_idx: i32, to_idx: i32) -> bool {
+    if from_idx >= new_state.nodes.len() || to_idx > new_state.nodes.len() {
+        return false
+    }
+    var i = from_idx
+    while i < to_idx {
+        if i >= old_state.nodes.len() || i >= new_state.nodes.len() {
+            return false
+        }
+        if old_state.nodes[i].id != new_state.nodes[i].id {
+            return false
+        }
+        i += 1
+    }
+    return true
+}
