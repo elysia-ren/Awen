@@ -5301,3 +5301,79 @@ fn integration_cjk_render_theme_pipeline() -> Result<i32, String> {
 
     return Ok(0)
 }
+
+// ── 更多 Label/Theme/Render/Pipeline 深度集成测试 ────────────
+
+@test
+fn integration_edit_heading_and_check_labels() -> Result<i32, String> {
+    let src = "# 章 A @[label sec-a]\n内容 A\n## 章 B @[label sec-b]\n内容 B\n"
+    let out = lex(src)
+    let pr = parse(out)
+    let state = build_document(pr, src)
+    let labels = collect_labels(state)
+    assert(labels.len() == 2, f"应有 2 个 Label,得到 {labels.len()}")
+    // 编辑第一个 heading
+    let r = edit_heading_text(state, 1, "修改后的章 A", src)
+    let out2 = lex(r.new_source)
+    let pr2 = parse(out2)
+    let state2 = build_document(pr2, r.new_source)
+    let labels2 = collect_labels(state2)
+    // sec-b 应保留
+    var found_b = false
+    for l in labels2 {
+        if l.label == "sec-b" { found_b = true }
+    }
+    assert(found_b, "sec-b Label 应保留")
+    return Ok(0)
+}
+
+@test
+fn integration_theme_render_multiple_levels() -> Result<i32, String> {
+    // 多级 heading 的 theme 级联渲染
+    let src = "# H1\n## H2\n### H3\n"
+    let out = lex(src)
+    let pr = parse(out)
+    let state = build_document(pr, src)
+    var t = theme_new("multi_level")
+    t = theme_add_rule(t, "heading", 1, "size", "24pt")
+    t = theme_add_rule(t, "heading", 2, "size", "20pt")
+    t = theme_add_rule(t, "heading", 3, "size", "16pt")
+    let items = render_document(state, t)
+    // 三个 heading 各有不同的 font_size
+    var h1_size = ""
+    var h2_size = ""
+    var h3_size = ""
+    for item in items {
+        if item.kind == "heading" {
+            if item.text == "H1" { h1_size = item.font_size }
+            if item.text == "H2" { h2_size = item.font_size }
+            if item.text == "H3" { h3_size = item.font_size }
+        }
+    }
+    assert(h1_size == "24pt", f"H1 = {h1_size}")
+    assert(h2_size == "20pt", f"H2 = {h2_size}")
+    assert(h3_size == "16pt", f"H3 = {h3_size}")
+    return Ok(0)
+}
+
+@test
+fn pipeline_check_and_validate_clean() -> Result<i32, String> {
+    // 完整检查:干净文档不应有任何问题
+    let src = "# 章 A @[label a]\n## 章 B @[label b]\n正文内容\n"
+    let cr = pipeline_check(src)
+    assert(cr.ok, f"干净文档应通过 check")
+    assert(cr.lex_errors == 0, "无词法错误")
+    assert(cr.lex_warnings == 0, "无词法警告")
+    assert(cr.validation_issues.len() == 0, f"无验证问题")
+    return Ok(0)
+}
+
+@test
+fn pipeline_check_dirty_document_has_errors() -> Result<i32, String> {
+    // 含错误的文档:check 应有错误报告
+    let src = "@[字体　微软雅黑]\n"
+    let cr = pipeline_check(src)
+    assert(!cr.ok, f"含错误的文档 check 应失败")
+    assert(cr.lex_errors > 0, f"应有词法错误")
+    return Ok(0)
+}
