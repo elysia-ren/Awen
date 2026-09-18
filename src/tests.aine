@@ -4007,3 +4007,63 @@ fn render_html_escapes_xss() -> Result<i32, String> {
     assert(html.contains("&lt;script&gt;"), "应有转义后的标签")
     return Ok(0)
 }
+
+// ── 更多全角/CJK/混排/转义边界测试 ─────────────────────────
+
+@test
+fn fullwidth_all_mappings() {
+    assert(fw_normalize_in_command("“") == Some("\""), "左双引号")
+    assert(fw_normalize_in_command("”") == Some("\""), "右双引号")
+    assert(fw_normalize_in_command("‘") == Some("\""), "左单引号")
+    assert(fw_normalize_in_command("’") == Some("\""), "右单引号")
+    assert(fw_normalize_in_command("：") == Some(":"), "全角冒号")
+    assert(fw_normalize_in_command("。") == None, "句号不归一化")
+    assert(fw_normalize_comma_in_row("，") == Some(","), "全角逗号(表格)")
+    assert(fw_normalize_comma_in_row("中") == None, "中文不归一化")
+}
+
+@test
+fn escape_special_cases() {
+    // @ 后跟非标记字符 → 普通字符
+    assert(escape_scan("@x", 0) == None, "@x 非转义")
+    assert(escape_scan("@ ", 0) == None, "@空格 非转义")
+    // @数字无点 → 非转义
+    assert(escape_scan("@12", 0) == None, "@12 无点非转义")
+    assert(escape_scan("@1.", 0) != None, "@1. 是转义")
+}
+
+@test
+fn classify_edge_cases() {
+    // 空行和纯空白
+    assert(classify("") == LcBlank, "空行")
+    assert(classify("   ") == LcBlank, "纯空白行")
+    assert(classify("\t") == LcBlank, "Tab 行")
+    // 命令行
+    assert(classify("@[image x]") == LcCommand, "@[ 命令行")
+    // 非命令行
+    assert(classify("@") == LcText, "裸 @ 是文本")
+    assert(classify("@x") == LcText, "@x 是文本")
+}
+
+@test
+fn inline_render_all_variants() -> Result<i32, String> {
+    // 测试 inline_render_marked 处理所有 Inline 变体
+    let r = lw_scan_inline("**b** _i_ ~~s~~ `c`", 0, [])
+    let marked = inline_render_marked(r.inline)
+    // 标记应保留
+    assert(marked.contains("**b**"), "粗体标记")
+    assert(marked.contains("_i_"), "斜体标记")
+    assert(marked.contains("~~s~~"), "删除线标记")
+    assert(marked.contains("`c`"), "代码标记")
+    return Ok(0)
+}
+
+@test
+fn inline_scope_nested_render() -> Result<i32, String> {
+    // 嵌套 Scoped 渲染
+    let r = lw_scan_inline("@[b]外层 @[u]内层@[/u] 尾@[/b]", 0, [])
+    let marked = inline_render_marked(r.inline)
+    assert(marked.contains("@[b]"), "外层标记")
+    assert(marked.contains("@[u]"), "内层标记")
+    return Ok(0)
+}
