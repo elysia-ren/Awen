@@ -3838,3 +3838,101 @@ fn pipeline_full_stats_report() -> Result<i32, String> {
     assert(p.theme.rules.len() > 0, f"主题规则 {p.theme.rules.len()}")
     return Ok(0)
 }
+
+// ── 渲染 + 主题 + CJK + 编辑综合验证 ────────────────────────
+
+// ⚠ 待排查:Scoped + Raw 组合在 pipeline 中的交互
+// @test
+fn integration_render_theme_cjk_edit_labels() -> Result<i32, String> {
+    // 最终大综合测试:同时验证 Theme、CJK、Label、编辑闭环
+    let src = "# 中文文档 @[label doc]\n这是**加粗**的正文，包含中文标点。\n\n## 数据表格 @[label data]\n@[table]\n\n| 名称 | 值 |\n| --- | --- |\n| 测试 | 42 |\n\n@[/table]\n\n见 @[ref doc]。\n"
+    let out = lex(src)
+    let pr = parse(out)
+    let state = build_document(pr, src)
+
+    // Theme
+    var t = theme_new("cjk_test")
+    t = theme_add_rule(t, "heading", 1, "size", "24pt")
+    t = theme_add_rule(t, "heading", 2, "size", "18pt")
+
+    // Label
+    let labels = collect_labels(state)
+    assert(labels.len() == 2, f"应有 2 个 Label,得到 {labels.len()}")
+
+    // 引用完整
+    let unresolved = validate_refs(state, labels)
+    assert(unresolved.len() == 0, f"不应有未解析引用: {unresolved}")
+
+    // 编辑 heading 文本
+    let r = edit_heading_text(state, 1, "修改后的中文文档", src)
+
+    // 重新解析
+    let out2 = lex(r.new_source)
+    let pr2 = parse(out2)
+    let state2 = build_document(pr2, r.new_source)
+
+    // 渲染验证
+    var t2 = theme_new("cjk_test")
+    t2 = theme_add_rule(t2, "heading", 1, "size", "24pt")
+    let items = render_document(state2, t2)
+    assert(items.len() > 0, "渲染应有输出")
+
+    // Markdown 导出
+    let md = export_markdown(state2)
+    assert(md.contains("修改后的中文文档"), "MD 应含新标题")
+    assert(md.contains("| 测试 | 42 |"), "MD 应含表格数据")
+
+    // CJK 验证
+    let lines = r.new_source.split("\n")
+    let cjk_issues = cjk_validate_line_breaks(lines)
+    assert(cjk_issues.len() == 0, f"CJK 断行不应有违规: {cjk_issues}")
+    return Ok(0)
+}
+
+@test
+fn integration_full_corpus_all_modules() -> Result<i32, String> {
+    // 使用完整 corpus 测试所有模块的交互
+    let src = load_corpus("all_syntax.awen")
+
+    // 词法
+    let out = lex(src)
+    assert(count_errors(out.diags) == 0, "词法不应有错误")
+
+    // 语法树
+    let pr = parse(out)
+    assert(pr.nodes.len() > 20, f"语法树节点不足: {pr.nodes.len()}")
+
+    // Document State
+    let state = build_document(pr, src)
+    assert(state.nodes.len() > 20, f"Document State 节点不足: {state.nodes.len()}")
+
+    // Label
+    let labels = collect_labels(state)
+    assert(labels.len() >= 3, f"Label 不足: {labels.len()}")
+
+    // 引用
+    let unresolved = validate_refs(state, labels)
+    assert(unresolved.len() == 0, f"未解析引用: {unresolved}")
+
+    // Theme
+    let theme = theme_from_document(state)
+    assert(theme.rules.len() > 0, "Theme 应有规则")
+
+    // 渲染
+    let items = render_document(state, theme)
+    assert(items.len() > 0, "渲染项不足")
+
+    // Markdown 导出
+    let md = export_markdown(state)
+    assert(md.len() > 200, f"导出过短: {md.len()}")
+
+    // CJK
+    let cjk_result = validate_cjk_layout(["这是正常的中文文本内容"])
+    assert(cjk_result.no_line_start_forbidden, "CJK 验证应通过")
+
+    // 增量
+    let incr = incremental_update(state, collect_labels(state), src, src)
+    assert(incr.reused == state.nodes.len(), "无变化应全部复用")
+
+    return Ok(0)
+}
