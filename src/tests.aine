@@ -4130,3 +4130,56 @@ fn inline_unclosed_produces_warning() -> Result<i32, String> {
     assert(inline_plain(r.inline) == "**没有关闭", "字面保持")
     return Ok(0)
 }
+
+// ── 更多文档导航 + Label + 渲染集成测试 ─────────────────────
+
+@test
+fn nav_next_heading() -> Result<i32, String> {
+    let src = "# 第一章\n内容\n# 第二章\n内容\n"
+    let out = lex(src)
+    let pr = parse(out)
+    let state = build_document(pr, src)
+    let next = doc_next_heading(state, 1)
+    match next {
+        Some(n) {
+            assert(n.id != 1, "下一个 heading 不应是自身")
+            let title = inline_plain(n.inline)
+            assert(title.contains("第二章"), f"下一个 heading 应为第二章,得到 [{title}]")
+        }
+        None { return Err("找不到下一个 heading") }
+    }
+    return Ok(0)
+}
+
+@test
+fn nav_word_count_positive() -> Result<i32, String> {
+    let src = "这是第一段。\n\n这是第二段。\n"
+    let out = lex(src)
+    let pr = parse(out)
+    let state = build_document(pr, src)
+    let wc = doc_word_count(state)
+    assert(wc > 0, f"字数应大于 0,得到 {wc}")
+    return Ok(0)
+}
+
+@test
+fn nav_empty_document_word_count() -> Result<i32, String> {
+    let out = lex("")
+    let pr = parse(out)
+    let state = build_document(pr, "")
+    assert(doc_word_count(state) == 0, "空文档字数为 0")
+    return Ok(0)
+}
+
+@test
+fn nav_get_outline_shows_headings() -> Result<i32, String> {
+    let src = "# 章 A\n## 节 A1\n# 章 B\n"
+    let out = lex(src)
+    let pr = parse(out)
+    let state = build_document(pr, src)
+    let outline = doc_get_outline(state)
+    assert(outline.contains("章 A"), "大纲应含章 A")
+    assert(outline.contains("节 A1"), "大纲应含节 A1")
+    assert(outline.contains("章 B"), "大纲应含章 B")
+    return Ok(0)
+}
