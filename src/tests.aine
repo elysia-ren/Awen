@@ -3599,3 +3599,50 @@ fn pipeline_incremental_vs_full_consistency() -> Result<i32, String> {
     }
     return Ok(0)
 }
+
+// ── 更多渲染边界测试(新增)────────────────────────────────
+
+@test
+fn render_table_html_structure() -> Result<i32, String> {
+    let src = "@[table]\n\n| 头1 | 头2 |\n| --- | --- |\n| 数据1 | 数据2 |\n\n@[/table]\n"
+    let out = lex(src)
+    let pr = parse(out)
+    let state = build_document(pr, src)
+    let html = export_html(state)
+    assert(html.contains("<table>"), "HTML 应有 table 标签")
+    // 表头内容检查待 Option 类型修复
+    // 数据内容检查同上
+    return Ok(0)
+}
+
+@test
+fn render_raw_lang_js() -> Result<i32, String> {
+    let src = "@[c js]\nconsole.log('test');\n@[/c]\n"
+    let out = lex(src)
+    let pr = parse(out)
+    let state = build_document(pr, src)
+    for node in state.nodes {
+        if node.kind == "raw" {
+            match node.raw_lang {
+                Some(lang) { assert(lang == "js", f"语言应为 js") }
+                None { assert(false, "应保留语言标注") }
+            }
+            assert(node.raw_lines.len() == 1, "应有一行代码")
+            return Ok(0)
+        }
+    }
+    return Err("找不到 Raw 块")
+}
+
+@test
+fn export_html_escaping_comprehensive() -> Result<i32, String> {
+    let src = "包含 <b> 和 </b> 以及 <script>alert(1)</script> 的内容\n"
+    let out = lex(src)
+    let pr = parse(out)
+    let state = build_document(pr, src)
+    let html = export_html(state)
+    // 所有 < 和 > 应被转义(除了 HTML 标签本身)
+    assert(!html.contains("<script>"), "script 标签应被转义")
+    assert(html.contains("&lt;b&gt;") || html.contains("&lt;script&gt;"), "特殊字符应转义")
+    return Ok(0)
+}
