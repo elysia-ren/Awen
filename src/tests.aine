@@ -3245,3 +3245,28 @@ fn render_theme_override_body_size() -> Result<i32, String> {
     assert(items[0].font_size == "14pt", f"body 应为 14pt,得到 {items[0].font_size}")
     return Ok(0)
 }
+
+// ── 文档导航测试 ────────────────────────────────────────────
+
+@test
+fn nav_get_outline() -> Result<i32, String> {
+    let src = "# 第一章\n正文\n## 第一节\n# 第二章\n"
+    let out = lex(src)
+    let pr = parse(out)
+    let state = build_document(pr, src)
+    let outline = doc_get_outline(state)
+    assert(outline.contains("[#") && outline.contains("第一章"), "大纲应含 NodeId 和标题")
+    assert(outline.contains("  "), "子标题应有缩进")
+    return Ok(0)
+}
+
+@test
+fn nav_word_count() -> Result<i32, String> {
+    let src = "这是正文内容。\n\n另一段文字。\n"
+    let out = lex(src)
+    let pr = parse(out)
+    let state = build_document(pr, src)
+    let wc = doc_word_count(state)
+    assert(wc > 0, f"字数应大于 0,得到 {wc}")
+    return Ok(0)
+}

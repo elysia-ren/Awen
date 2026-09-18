@@ -376,3 +376,72 @@ fn doc_compute_spans(state: DocState) -> DocState {
     // M4 将实现:遍历源码行,按节点内容匹配行号
     return state
 }
+
+// ── 文档导航(§22:文档结构分析)────────────────────────────
+
+// 获取某个 heading 的下一个同级 heading
+// 用于编辑器的"下一个标题"导航
+fn doc_next_heading(state: DocState, current_id: i32) -> Option<SemNode> {
+    var found_current = false
+    for node in state.nodes {
+        if found_current && node.kind == "heading" {
+            return Some(node)
+        }
+        if node.id == current_id {
+            found_current = true
+        }
+    }
+    return None
+}
+
+// 获取某个 heading 的所有子内容(直到下一个同级或更高级 heading)
+fn doc_get_section_content(state: DocState, heading_id: i32) -> Vec<SemNode> {
+    var out: Vec<SemNode> = []
+    var in_section = false
+    var section_level = 0
+    for node in state.nodes {
+        if node.id == heading_id {
+            in_section = true
+            match node.kind_expr {
+                _ { }
+            }
+            continue
+        }
+        if in_section {
+            if node.kind == "heading" && node.level <= section_level {
+                break
+            }
+            out = out.push(node)
+        }
+    }
+    return out
+}
+
+// 获取文档的字数统计
+fn doc_word_count(state: DocState) -> i32 {
+    var total = 0
+    for node in state.nodes {
+        if node.kind == "para" {
+            total += inline_plain(node.inline).len()
+        }
+    }
+    return total
+}
+
+// 获取文档的 heading 大纲(仅标题文本 + level + id)
+fn doc_get_outline(state: DocState) -> String {
+    var out = ""
+    for node in state.nodes {
+        if node.kind == "heading" {
+            var indent = ""
+            var i = 1
+            while i < node.level {
+                indent = indent + "  "
+                i += 1
+            }
+            let title = inline_plain(node.inline)
+            out = out + indent + f"[#{node.id}] {title}\n"
+        }
+    }
+    return out
+}
