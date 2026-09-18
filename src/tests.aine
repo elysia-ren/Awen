@@ -30,6 +30,7 @@ module container;
 module fmt;
 module export_md;
 module seed;
+module incremental_update;
 
 fn expect(cond: bool, msg: String) -> Result<i32, String> {
     if cond { return Ok(0) }
@@ -2381,5 +2382,46 @@ fn ultimate_pipeline_integration() -> Result<i32, String> {
     let cjk_result = validate_cjk_layout(lines)
     assert(cjk_result.no_orphan_punct, "CJK 验证应通过")
 
+    return Ok(0)
+}
+
+// ── 增量更新(§1.3/§41)───────────────────────────────────
+
+@test
+fn incr_update_preserves_kind() -> Result<i32, String> {
+    // 修改文本后,所有节点的 kind 应保持一致
+    let src = "# 标题\n段落一\n## 子标题\n段落二\n"
+    let out = lex(src)
+    let pr = parse(out)
+    let old_state = build_document(pr, src)
+    let old_labels = collect_labels(old_state)
+
+    let new_src = "# 标题\n修改后的段落\n## 子标题\n段落二\n"
+    let upd = incremental_update(old_state, old_labels, src, new_src)
+
+    // 验证:新旧状态节点数相同
+    assert(old_state.nodes.len() == upd.state.nodes.len(), f"节点数应一致")
+    // kind 应对应
+    var i = 0
+    while i < old_state.nodes.len() && i < upd.state.nodes.len() {
+        assert(old_state.nodes[i].kind == upd.state.nodes[i].kind, f"节点 {i} kind 漂移")
+        i += 1
+    }
+    return Ok(0)
+}
+
+@test
+fn incr_update_label_preserved() -> Result<i32, String> {
+    // 修改不含 Label 的 heading,其他 heading 的 Label 应保留(§2.5)
+    let src = "# 目标\n## 其他 @[label other]\n"
+    let out = lex(src)
+    let pr = parse(out)
+    let old_state = build_document(pr, src)
+    let old_labels = collect_labels(old_state)
+    assert(old_labels.len() == 1, f"初始应有 1 个 Label")
+
+    let upd = incremental_update(old_state, old_labels, src, "# 修改后\n## 其他 @[label other]\n")
+    assert(upd.labels.len() == 1, f"编辑后 Label 应保留,得到 {upd.labels.len()}")
+    assert(upd.labels[0].label == "other", f"Label 值不变")
     return Ok(0)
 }
