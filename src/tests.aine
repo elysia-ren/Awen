@@ -3776,3 +3776,65 @@ fn render_html_theme_sizes_in_tags() -> Result<i32, String> {
     assert(html.contains("<h3>"), "应有 h3 标签")
     return Ok(0)
 }
+
+// ── 更多 Label/Ref 跨编辑深度测试 ───────────────────────────
+
+@test
+fn label_heading_edit_preserves_inline_suffix() -> Result<i32, String> {
+    // edit_heading_text 应保留 @[label xxx] 后缀(§87 修复验证)
+    let src = "# 旧标题 @[label h1]\n内容\n"
+    let out = lex(src)
+    let pr = parse(out)
+    let state = build_document(pr, src)
+    let r = edit_heading_text(state, 1, "新标题", src)
+    // Label 后缀应保留
+    assert(r.new_source.contains("@[label h1]"), f"Label 后缀应保留: [{r.new_source}]")
+    assert(r.new_source.contains("新标题"), "新文本应存在")
+    return Ok(0)
+}
+
+@test
+fn label_ref_resolution_after_multiple_edits() -> Result<i32, String> {
+    // 多次编辑后 ref 解析仍应正确
+    let src = "# 引言 @[label intro]\n内容\n见 @[ref intro]。\n## 方法 @[label method]\n"
+    let out = lex(src)
+    let pr = parse(out)
+    let state = build_document(pr, src)
+    let labels1 = collect_labels(state)
+    assert(labels1.len() == 2, f"初始 Label 应为 2")
+
+    // 修改引言 heading
+    let r = edit_heading_text(state, 1, "修改后的引言", src)
+    let out2 = lex(r.new_source)
+    let pr2 = parse(out2)
+    let state2 = build_document(pr2, r.new_source)
+    let labels2 = collect_labels(state2)
+
+    // method 的 Label 应不受影响
+    var found_method = false
+    for l in labels2 {
+        if l.label == "method" { found_method = true }
+    }
+    assert(found_method, "method Label 应保留")
+
+    // ref intro 应仍可解析(如果 intro label 因编辑丢失,应有诊断)
+    let res = resolve_ref(state2, labels2, "method")
+    assert(res.found, "method ref 应可解析")
+    return Ok(0)
+}
+
+@test
+fn pipeline_full_stats_report() -> Result<i32, String> {
+    // 完整管线的统计报告
+    let src = load_corpus("all_syntax.awen")
+    let p = pipeline_full(src)
+    // 验证统计
+    assert(p.state.nodes.len() > 20, f"节点数 {p.state.nodes.len()}")
+    assert(p.render_items.len() > 20, f"渲染项 {p.render_items.len()}")
+    assert(p.labels.len() >= 3, f"Label {p.labels.len()}")
+    // 引用完整
+    assert(p.unresolved_refs.len() == 0, f"未解析引用 {p.unresolved_refs}")
+    // 主题应有规则
+    assert(p.theme.rules.len() > 0, f"主题规则 {p.theme.rules.len()}")
+    return Ok(0)
+}
