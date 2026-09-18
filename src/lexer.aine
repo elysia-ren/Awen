@@ -1,0 +1,252 @@
+// awen-proto/src/lexer.aine —— 词法编排(核心规范 §6/§9/§11)
+// ⚠ Aine 限制:match 臂内 continue 不可靠,主循环采用"先行自增行号"结构。
+
+enum Block {
+    Blank
+    Heading(i32, Vec<Inline>)
+    Paragraph(Vec<Inline>)
+    BlkListItem(bool, Vec<Inline>)
+    Quote(i32, Vec<Inline>)
+    Divider
+    BlkObject(CommandUse)
+    RawOpen(ExplicitCommand, Option<String>)
+    RawLine(String)
+    RawClose(ExplicitCommand)
+    TableOpen(CommandUse)
+    TableRow(Vec<Vec<Inline>>, bool)
+    TableClose
+}
+
+struct LexedBlock {
+    line: i32
+    block: Block
+}
+
+struct LexOutput {
+    blocks: Vec<LexedBlock>
+    diags: Vec<Diagnostic>
+}
+
+struct CmdOutcome {
+    blocks: Vec<LexedBlock>
+    diags: Vec<Diagnostic>
+    raw: Option<ExplicitCommand>
+    table: bool
+}
+
+fn lex_strip_cr(line: String) -> String {
+    if line.len() > 0 && line[line.len() - 1] == "\r" {
+        return line[0..line.len() - 1]
+    }
+    return line
+}
+
+fn lex_close_tag_name(line: String) -> Option<String> {
+    let t = line.trim()
+    if starts_with_at(t, 0, "@[/") {
+        if t.len() >= 4 && t[t.len() - 1] == "]" {
+            return Some(t[3..t.len() - 1])
+        }
+    }
+    return None
+}
+
+fn lex_is_delimiter_cell(c: String) -> bool {
+    var has_dash = false
+    var k = 0
+    while k < c.len() {
+        let ch = c[k]
+        if ch == "-" { has_dash = true }
+        else if ch != ":" { return false }
+        k += 1
+    }
+    return has_dash
+}
+
+fn lex(src: String) -> LexOutput {
+    var blocks: Vec<LexedBlock> = []
+    var diags: Vec<Diagnostic> = []
+    var raw: Option<ExplicitCommand> = None
+    var table = false
+    let lines = src.split("\n")
+    var lineno = 0
+    while lineno < lines.len() {
+        let line = lex_strip_cr(lines[lineno])
+        lineno += 1
+        // Raw Block 状态
+        let in_raw = match raw {
+            Some(cmd) { true }
+            None { false }
+        }
+        if in_raw {
+            let cmd = match raw {
+                Some(c) { c }
+                None { Code }
+            }
+            let close_opt = lex_close_tag_name(line)
+            var closed = false
+            match close_opt {
+                Some(name) {
+                    if close_matches(cmd, name) { closed = true }
+                }
+                None { }
+            }
+            if closed {
+                blocks.push(LexedBlock { line: lineno - 1, block: RawClose(cmd) })
+                raw = None
+            } else {
+                blocks.push(LexedBlock { line: lineno - 1, block: RawLine(line) })
+            }
+            continue
+        }
+        // 表格状态
+        if table {
+            let t = line.trim()
+            if t == "@[/table]" {
+                blocks.push(LexedBlock { line: lineno - 1, block: TableClose })
+                table = false
+                continue
+            }
+            if t.len() == 0 {
+                blocks.push(LexedBlock { line: lineno - 1, block: Blank })
+                continue
+            }
+            if starts_with_at(t, 0, "|") && t[t.len() - 1] == "|" && t.len() >= 2 {
+                let inner = t[1..t.len() - 1]
+                var cells_text: Vec<String> = []
+                var cur = ""
+                for ch in inner {
+                    if ch == "|" {
+                        cells_text.push(cur.trim())
+                        cur = ""
+                    }
+                    else { cur = cur + ch }
+                }
+                cells_text.push(cur.trim())
+                var all_delim = true
+                for ct in cells_text {
+                    if !lex_is_delimiter_cell(ct) { all_delim = false }
+                }
+                var cells: Vec<Vec<Inline>> = []
+                for ct in cells_text {
+                    let so = lw_scan_inline(ct, lineno - 1, diags)
+                    diags = so.diags
+                    cells.push(so.inline)
+                }
+                blocks.push(LexedBlock { line: lineno - 1, block: TableRow(cells, all_delim) })
+                continue
+            }
+            diags.push(diag_error("表格块内只能包含表格行或 @[/table]", lineno - 1))
+            blocks.push(LexedBlock { line: lineno - 1, block: Paragraph([mk_text(line)]) })
+            continue
+        }
+        // 常规行分类
+        let cls = classify(line)
+        match cls {
+            LcBlank { blocks.push(LexedBlock { line: lineno - 1, block: Blank }) }
+            LcDivider { blocks.push(LexedBlock { line: lineno - 1, block: Divider }) }
+            LcHeading(level) {
+                let so = lw_scan_inline(line[level + 1..line.len()], lineno - 1, diags)
+                diags = so.diags
+                blocks.push(LexedBlock { line: lineno - 1, block: Heading(level, so.inline) })
+            }
+            LcQuote(depth) {
+                let so = lw_scan_inline(line[depth + 1..line.len()], lineno - 1, diags)
+                diags = so.diags
+                blocks.push(LexedBlock { line: lineno - 1, block: Quote(depth, so.inline) })
+            }
+            LcListItem(ordered) {
+                let skip = if ordered { ordered_marker_len(line) } else { 2 }
+                let so = lw_scan_inline(line[skip..line.len()], lineno - 1, diags)
+                diags = so.diags
+                blocks.push(LexedBlock { line: lineno - 1, block: BlkListItem(ordered, so.inline) })
+            }
+            LcCommand {
+                let co = lex_command_line(line, lineno - 1, diags, raw, table)
+                for nb in co.blocks { blocks.push(nb) }
+                diags = co.diags
+                raw = co.raw
+                table = co.table
+            }
+            LcText {
+                let so = lw_scan_inline(line, lineno - 1, diags)
+                diags = so.diags
+                blocks.push(LexedBlock { line: lineno - 1, block: Paragraph(so.inline) })
+            }
+        }
+    }
+    let last = lines.len()
+    match raw {
+        Some(cmd) { diags.push(diag_error("Raw Block 未闭合到文件结尾", last)) }
+        None { }
+    }
+    if table {
+        diags.push(diag_error("@[table] 未闭合到文件结尾", last))
+    }
+    return LexOutput { blocks: blocks, diags: diags }
+}
+
+fn lex_command_line(chars: String, lineno: i32, diags: Vec<Diagnostic>, raw: Option<ExplicitCommand>, table: bool) -> CmdOutcome {
+    var blocks: Vec<LexedBlock> = []
+    var diags = diags
+    let hp = parse_header(chars, 0)
+    match hp {
+        Err(e) => {
+            var mut_d = diag_error(e.msg, lineno)
+            match e.hint {
+                Some(h) { mut_d = diag_hint(mut_d, h) }
+                None { }
+            }
+            diags.push(mut_d)
+            blocks.push(LexedBlock { line: lineno, block: Paragraph([mk_text(chars)]) })
+            return CmdOutcome { blocks: blocks, diags: diags, raw: raw, table: table }
+        }
+        Ok(hp2) => {
+            let u = hp2.cu
+            let consumed = hp2.consumed
+            if u.cmd == Table {
+                blocks.push(LexedBlock { line: lineno, block: TableOpen(u) })
+                return CmdOutcome { blocks: blocks, diags: diags, raw: raw, table: true }
+            }
+            if is_raw_block(u.cmd) {
+                let header_empty = match u.content {
+                    None { true }
+                    Some(c) { c.len() == 0 }
+                }
+                let rest = chars[consumed..chars.len()]
+                if header_empty && rest.trim().len() == 0 {
+                    var lang: Option<String> = None
+                    if u.cmd == Code && u.args.len() > 0 { lang = Some(arg_plain(u.args[0])) }
+                    blocks.push(LexedBlock { line: lineno, block: RawOpen(u.cmd, lang) })
+                    return CmdOutcome { blocks: blocks, diags: diags, raw: Some(u.cmd), table: table }
+                }
+            }
+            let so = lw_scan_inline(chars, lineno, diags)
+            var is_single = false
+            var single: Option<CommandUse> = None
+            if so.inline.len() == 1 {
+                match so.inline[0] {
+                    Command(cu) {
+                        is_single = true
+                        single = Some(cu)
+                    }
+                    _ { }
+                }
+            }
+            if is_single {
+                // unwrap() 不可靠,用 match
+                match single {
+                    Some(cu) {
+                        blocks.push(LexedBlock { line: lineno, block: BlkObject(cu) })
+                    }
+                    None {
+                        blocks.push(LexedBlock { line: lineno, block: Paragraph(so.inline) })
+                    }
+                }
+            } else {
+                blocks.push(LexedBlock { line: lineno, block: Paragraph(so.inline) })
+            }
+            return CmdOutcome { blocks: blocks, diags: diags, raw: raw, table: table }
+        }
+    }
+}

@@ -1,0 +1,103 @@
+// awen-proto/src/heading_tree.aine —— 文档大纲树(M3 深化)
+// 将扁平的 heading 序列组装为层级树:
+//   # 一级
+//     ## 二级
+//       ### 三级
+//   # 另一个一级
+// 支撑 TOC、文档导航、§7.1 编号级联。
+
+struct OutlineNode {
+    node_id: i32
+    level: i32
+    title: String
+    children: Vec<OutlineNode>
+}
+
+// 从 DocState 中提取所有 heading,构建层级大纲树
+// 算法:栈式构建——遇到更深层级则入栈,遇到同级或更浅则弹栈
+fn build_outline(state: DocState) -> Vec<OutlineNode> {
+    var roots: Vec<OutlineNode> = []
+    // 栈:(level, OutlineNode)
+    var stack_levels: Vec<i32> = []
+    var stack_nodes: Vec<OutlineNode> = []
+
+    for node in state.nodes {
+        if node.kind != "heading" { continue }
+        let level = node.level
+        let title = inline_plain(node.inline)
+        let on = OutlineNode { node_id: node.id, level: level, title: title, children: [] }
+
+        // 弹栈:直到栈顶层级 < 当前层级
+        while stack_levels.len() > 0 {
+            let top = stack_levels[stack_levels.len() - 1]
+            if top < level { break }
+            // 弹出并挂到父节点
+            let popped = stack_nodes[stack_nodes.len() - 1]
+            stack_levels = lw_vec_drop_i(stack_levels, stack_levels.len() - 1)
+            stack_nodes = lw_vec_drop_i_n(stack_nodes, stack_nodes.len() - 1)
+            if stack_levels.len() > 0 {
+                let pi = stack_levels.len() - 1
+                let pn = stack_nodes[pi]
+                let new_children = pn.children.push(popped)
+                stack_nodes = lw_vec_set_i(stack_nodes, pi, OutlineNode {
+                    node_id: pn.node_id, level: pn.level, title: pn.title, children: new_children
+                })
+            } else {
+                roots = roots.push(popped)
+            }
+        }
+
+        // 入栈
+        stack_levels = stack_levels.push(level)
+        stack_nodes = stack_nodes.push(on)
+    }
+
+    // 弹出剩余栈
+    while stack_levels.len() > 0 {
+        let popped = stack_nodes[stack_nodes.len() - 1]
+        stack_levels = lw_vec_drop_i(stack_levels, stack_levels.len() - 1)
+        stack_nodes = lw_vec_drop_i_n(stack_nodes, stack_nodes.len() - 1)
+        if stack_levels.len() > 0 {
+            let pi = stack_levels.len() - 1
+            let pn = stack_nodes[pi]
+            let new_children = pn.children.push(popped)
+            stack_nodes = lw_vec_set_i(stack_nodes, pi, OutlineNode {
+                node_id: pn.node_id, level: pn.level, title: pn.title, children: new_children
+            })
+        } else {
+            roots = roots.push(popped)
+        }
+    }
+
+    return roots
+}
+
+fn lw_vec_drop_i(v: Vec<i32>, idx: i32) -> Vec<i32> {
+    var out: Vec<i32> = []
+    var k = 0
+    while k < v.len() {
+        if k != idx { out = out.push(v[k]) }
+        k += 1
+    }
+    return out
+}
+
+fn lw_vec_drop_i_n(v: Vec<OutlineNode>, idx: i32) -> Vec<OutlineNode> {
+    var out: Vec<OutlineNode> = []
+    var k = 0
+    while k < v.len() {
+        if k != idx { out = out.push(v[k]) }
+        k += 1
+    }
+    return out
+}
+
+fn lw_vec_set_i(v: Vec<OutlineNode>, idx: i32, n: OutlineNode) -> Vec<OutlineNode> {
+    var out: Vec<OutlineNode> = []
+    var k = 0
+    while k < v.len() {
+        if k == idx { out = out.push(n) } else { out = out.push(v[k]) }
+        k += 1
+    }
+    return out
+}

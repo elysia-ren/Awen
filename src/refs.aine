@@ -1,0 +1,239 @@
+// awen-proto/src/refs.aine —— Label/Reference 解析(核心规范 §2)
+// Label 是唯一持久引用(§2.1);Node ID 仅会话内部身份(§1)。
+// 引用解析拆为 Semantic Resolver(图号/章节号)和 Layout Resolver(页码)。
+
+// ── Label 注册表 ───────────────────────────────────────────
+
+// 从 Document State 中收集所有 Label 及其对应的 NodeId
+// Label 来源:
+//   1. Heading 内嵌 @[label xxx](§11.3:标题 Label = 标题内嵌 Label 对象)
+//   2. 独立对象 @[figure xxx]/@[table xxx] 的第一个位置参数
+//   3. 显式 @[label "xxx"] 对象
+fn collect_labels(state: DocState) -> Vec<LabelEntry> {
+    var out: Vec<LabelEntry> = []
+    for node in state.nodes {
+        if node.kind == "heading" {
+            // 在 heading 的行内内容中搜索 Label 命令
+            let label = find_label_in_inline(node.inline)
+            match label {
+                Some(l) {
+                    out = out.push(LabelEntry { label: l, node_id: node.id, kind: "heading" })
+                }
+                None { }
+            }
+        } else if node.kind == "obj" {
+            // 独立对象:检查 cmd 是否有 label
+            let cu = node.obj_cu
+            if cu.cmd == Label {
+                // @[label "xxx"] 或 @[label xxx]
+                if cu.args.len() > 0 {
+                    let l = arg_plain(cu.args[0])
+                    out = out.push(LabelEntry { label: l, node_id: node.id, kind: "obj" })
+                }
+            } else if cu.cmd == Image || cu.cmd == Figure || cu.cmd == Table {
+                // 第一个位置参数即 Label(§2.4)
+                if cu.args.len() > 0 {
+                    let l = arg_plain(cu.args[0])
+                    out = out.push(LabelEntry { label: l, node_id: node.id, kind: "obj" })
+                }
+            }
+        }
+    }
+    return out
+}
+
+struct LabelEntry {
+    label: String
+    node_id: i32
+    kind: String
+}
+
+// 在行内内容中搜索 Label 命令(§2.4:标题内嵌 @[label xxx])
+fn find_label_in_inline(items: Vec<Inline>) -> Option<String> {
+    for it in items {
+        match it {
+            Command(u) {
+                if u.cmd == Label && u.args.len() > 0 {
+                    return Some(arg_plain(u.args[0]))
+                }
+            }
+            IBold(c) {
+                let r = find_label_in_inline(c)
+                match r {
+                    Some(l) { return Some(l) }
+                    None { }
+                }
+            }
+            Italic(c) {
+                let r = find_label_in_inline(c)
+                match r {
+                    Some(l) { return Some(l) }
+                    None { }
+                }
+            }
+            _ { }
+        }
+    }
+    return None
+}
+
+// ── Label 唯一性检查(§2.3)────────────────────────────────
+
+// 返回重复的 Label 列表(空 = 无重复)
+fn check_label_uniqueness(entries: Vec<LabelEntry>) -> Vec<String> {
+    var dupes: Vec<String> = []
+    var i = 0
+    while i < entries.len() {
+        var j = i + 1
+        while j < entries.len() {
+            if entries[i].label == entries[j].label {
+                // 避免重复添加
+                var already = false
+                for d in dupes {
+                    if d == entries[i].label { already = true }
+                }
+                if !already {
+                    dupes = dupes.push(entries[i].label)
+                }
+            }
+            j += 1
+        }
+        i += 1
+    }
+    return dupes
+}
+
+// ── 引用解析(§2.5:双 Resolver)───────────────────────────
+
+// Semantic Resolver:Label → 被引节点的语义编号(如 "图 3"/"第 2 章")
+// 页码由 Layout Resolver 解决(M5);此处只做语义编号
+struct RefResolution {
+    found: bool
+    node_id: i32
+    semantic_number: String
+}
+
+fn resolve_ref(state: DocState, labels: Vec<LabelEntry>, target: String) -> RefResolution {
+    for entry in labels {
+        if entry.label == target {
+            // 找到目标节点,计算语义编号
+            let num = compute_semantic_number(state, entry)
+            return RefResolution {
+                found: true,
+                node_id: entry.node_id,
+                semantic_number: num,
+            }
+        }
+    }
+    return RefResolution { found: false, node_id: -1, semantic_number: "" }
+}
+
+// 计算语义编号(§7.1:Semantic Pass,基于 Document State 文档序)
+fn compute_semantic_number(state: DocState, entry: LabelEntry) -> String {
+    // 按 entry.kind 确定编号类型
+    if entry.kind == "heading" {
+        // 计算 heading 层级编号
+        var chapter = 0
+        var section = 0
+        for node in state.nodes {
+            if node.kind == "heading" {
+                if node.level == 1 {
+                    chapter += 1
+                    section = 0
+                } else if node.level == 2 {
+                    section += 1
+                }
+                // 检查是否是目标节点
+                if node.id == entry.node_id {
+                    if node.level == 1 {
+                        return f"{chapter}"
+                    } else if node.level == 2 {
+                        return f"{chapter}.{section}"
+                    }
+                }
+            }
+        }
+        return ""
+    }
+    // 图片/表格编号:按文档序计算
+    if entry.kind == "obj" {
+        var fig_num = 0
+        for node in state.nodes {
+            if node.kind == "obj" {
+                let cu = node.obj_cu
+                if cu.cmd == Image || cu.cmd == Figure {
+                    fig_num += 1
+                    if node.id == entry.node_id {
+                        return f"{fig_num}"
+                    }
+                }
+            }
+        }
+    }
+    return ""
+}
+
+// ── 引用完整性验证(§2.3)────────────────────────────────
+
+// 检查所有 @[ref xxx] 是否有对应的 Label
+// 返回未解析的引用 Label 列表
+fn validate_refs(state: DocState, labels: Vec<LabelEntry>) -> Vec<String> {
+    var unresolved: Vec<String> = []
+    for node in state.nodes {
+        // 遍历段落/标题中的行内内容,找 ref 命令
+        if node.kind == "para" || node.kind == "heading" {
+            let refs = find_refs_in_inline(node.inline)
+            for r in refs {
+                var found = false
+                for entry in labels {
+                    if entry.label == r { found = true }
+                }
+                if !found {
+                    var already = false
+                    for u in unresolved {
+                        if u == r { already = true }
+                    }
+                    if !already {
+                        unresolved = unresolved.push(r)
+                    }
+                }
+            }
+        }
+    }
+    return unresolved
+}
+
+// 在行内内容中收集所有 ref 目标
+fn find_refs_in_inline(items: Vec<Inline>) -> Vec<String> {
+    var out: Vec<String> = []
+    for it in items {
+        match it {
+            Command(u) {
+                if u.cmd == Ref && u.args.len() > 0 {
+                    out = out.push(arg_plain(u.args[0]))
+                }
+            }
+            IBold(c) { out = find_refs_in_inline_rec(c, out) }
+            Italic(c) { out = find_refs_in_inline_rec(c, out) }
+            _ { }
+        }
+    }
+    return out
+}
+
+fn find_refs_in_inline_rec(items: Vec<Inline>, out: Vec<String>) -> Vec<String> {
+    var acc = out
+    for it in items {
+        match it {
+            Command(u) {
+                if u.cmd == Ref && u.args.len() > 0 {
+                    acc = acc.push(arg_plain(u.args[0]))
+                }
+            }
+            IBold(c) { acc = find_refs_in_inline_rec(c, acc) }
+            Italic(c) { acc = find_refs_in_inline_rec(c, acc) }
+            _ { }
+        }
+    }
+    return acc
+}

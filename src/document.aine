@@ -1,0 +1,378 @@
+// awen-proto/src/document.aine —— Document State(核心规范 §1/§3/§五)
+// M3:从 parse 输出构建语义树,分配 NodeId,追踪 Source Span。
+//
+// ⚠ Aine 限制:
+//   - Vec.push 是原地修改,不要 x = x.push(y)
+//   - 不用 .unwrap()/.is_some()/.is_none()
+//   - 枚举变体名全局唯一
+
+// ── Node ID(§1:会话内部身份,不持久化)───────────────────
+
+// Node ID 用 i32 递增分配;Aine 无引用,由 DocumentState 持有计数器
+struct DocState {
+    // 扁平节点列表(树结构通过 parent/children 间接表示)
+    nodes: Vec<SemNode>
+    next_id: i32
+    // 源文本(用于 Source Span)
+    source: String
+    // 诊断
+    diags: Vec<Diagnostic>
+}
+
+// 语义节点:类型 + NodeId + 源码行范围 + 内容
+struct SemNode {
+    id: i32
+    // 节点类型标识:"heading" "para" "list" "quote" "hr" "obj" "raw" "table" "comment"
+    kind: String
+    // 层级(heading 用 1-6,其余 0)
+    level: i32
+    // 行内内容(heading/para/list_item/quote 的行内节点)
+    inline: Vec<Inline>
+    // 子节点 ID 列表(heading 的子节点、列表组的项等)
+    children: Vec<i32>
+    // 父节点 ID(根为 -1)
+    parent: i32
+    // Source Span(§3:当前 User Syntax 中的位置,行号起算)
+    span_start: i32
+    span_end: i32
+    // Raw 块内容行
+    raw_lines: Vec<String>
+    // Raw 块语言
+    raw_lang: Option<String>
+    // Raw 块命令类型
+    raw_cmd: ExplicitCommand
+    // 表格:表头 + 数据行
+    tbl_header: Vec<Vec<Inline>>
+    tbl_rows: Vec<Vec<Inline>>
+    tbl_has_delim: bool
+    // 独立对象的 CommandUse
+    obj_cu: CommandUse
+    // 注释内容
+    comment_text: String
+    // 列表组:是否有序
+    list_ordered: bool
+    // 列表组的各项行内内容
+    list_items: Vec<Vec<Inline>>
+    // 引用深度
+    quote_depth: i32
+}
+
+// ── 构建 Document State ────────────────────────────────────
+
+fn build_document(pr: ParseResult, source: String) -> DocState {
+    var nodes: Vec<SemNode> = []
+    var next_id: i32 = 1
+    var diags = pr.diags
+
+    for node in pr.nodes {
+        let result = build_node(node, nodes, next_id, -1, source, diags)
+        nodes = result.nodes
+        next_id = result.next_id
+        diags = result.diags
+    }
+
+    return DocState {
+        nodes: nodes,
+        next_id: next_id,
+        source: source,
+        diags: diags,
+    }
+}
+
+struct BuildResult {
+    nodes: Vec<SemNode>
+    next_id: i32
+    diags: Vec<Diagnostic>
+}
+
+fn build_node(node: DocNode, nodes: Vec<SemNode>, next_id: i32, parent: i32, source: String, diags: Vec<Diagnostic>) -> BuildResult {
+    var acc_nodes = nodes
+    var acc_id = next_id
+    var acc_diags = diags
+    let my_id = acc_id
+    acc_id += 1
+
+    match node {
+        Section(level, inline, children) {
+            let sem = SemNode {
+                id: my_id,
+                kind: "heading",
+                level: level,
+                inline: inline,
+                children: [],
+                parent: parent,
+                span_start: 0,
+                span_end: 0,
+                raw_lines: [],
+                raw_lang: None,
+                raw_cmd: Code,
+                tbl_header: [],
+                tbl_rows: [],
+                tbl_has_delim: false,
+                obj_cu: CommandUse { cmd: Code, name_raw: "", args: [], attrs: [], content: None },
+                comment_text: "",
+                list_ordered: false,
+                list_items: [],
+                quote_depth: 0,
+            }
+            acc_nodes = acc_nodes.push(sem)
+            // 递归构建子节点
+            for child in children {
+                let cr = build_node(child, acc_nodes, acc_id, my_id, source, acc_diags)
+                acc_nodes = cr.nodes
+                acc_id = cr.next_id
+                acc_diags = cr.diags
+            }
+        }
+        Para(inline) {
+            let sem = SemNode {
+                id: my_id,
+                kind: "para",
+                level: 0,
+                inline: inline,
+                children: [],
+                parent: parent,
+                span_start: 0,
+                span_end: 0,
+                raw_lines: [],
+                raw_lang: None,
+                raw_cmd: Code,
+                tbl_header: [],
+                tbl_rows: [],
+                tbl_has_delim: false,
+                obj_cu: CommandUse { cmd: Code, name_raw: "", args: [], attrs: [], content: None },
+                comment_text: "",
+                list_ordered: false,
+                list_items: [],
+                quote_depth: 0,
+            }
+            acc_nodes = acc_nodes.push(sem)
+        }
+        ListGroup(ordered, items) {
+            let sem = SemNode {
+                id: my_id,
+                kind: "list",
+                level: 0,
+                inline: [],
+                children: [],
+                parent: parent,
+                span_start: 0,
+                span_end: 0,
+                raw_lines: [],
+                raw_lang: None,
+                raw_cmd: Code,
+                tbl_header: [],
+                tbl_rows: [],
+                tbl_has_delim: false,
+                obj_cu: CommandUse { cmd: Code, name_raw: "", args: [], attrs: [], content: None },
+                comment_text: "",
+                list_ordered: ordered,
+                list_items: items,
+                quote_depth: 0,
+            }
+            acc_nodes = acc_nodes.push(sem)
+        }
+        QuoteBlk(depth, inline) {
+            let sem = SemNode {
+                id: my_id,
+                kind: "quote",
+                level: 0,
+                inline: inline,
+                children: [],
+                parent: parent,
+                span_start: 0,
+                span_end: 0,
+                raw_lines: [],
+                raw_lang: None,
+                raw_cmd: Code,
+                tbl_header: [],
+                tbl_rows: [],
+                tbl_has_delim: false,
+                obj_cu: CommandUse { cmd: Code, name_raw: "", args: [], attrs: [], content: None },
+                comment_text: "",
+                list_ordered: false,
+                list_items: [],
+                quote_depth: depth,
+            }
+            acc_nodes = acc_nodes.push(sem)
+        }
+        HRule {
+            let sem = SemNode {
+                id: my_id,
+                kind: "hr",
+                level: 0,
+                inline: [],
+                children: [],
+                parent: parent,
+                span_start: 0,
+                span_end: 0,
+                raw_lines: [],
+                raw_lang: None,
+                raw_cmd: Code,
+                tbl_header: [],
+                tbl_rows: [],
+                tbl_has_delim: false,
+                obj_cu: CommandUse { cmd: Code, name_raw: "", args: [], attrs: [], content: None },
+                comment_text: "",
+                list_ordered: false,
+                list_items: [],
+                quote_depth: 0,
+            }
+            acc_nodes = acc_nodes.push(sem)
+        }
+        Obj(u) {
+            let sem = SemNode {
+                id: my_id,
+                kind: "obj",
+                level: 0,
+                inline: [],
+                children: [],
+                parent: parent,
+                span_start: 0,
+                span_end: 0,
+                raw_lines: [],
+                raw_lang: None,
+                raw_cmd: Code,
+                tbl_header: [],
+                tbl_rows: [],
+                tbl_has_delim: false,
+                obj_cu: u,
+                comment_text: "",
+                list_ordered: false,
+                list_items: [],
+                quote_depth: 0,
+            }
+            acc_nodes = acc_nodes.push(sem)
+        }
+        RawBlk(cmd, lang, lines) {
+            let sem = SemNode {
+                id: my_id,
+                kind: "raw",
+                level: 0,
+                inline: [],
+                children: [],
+                parent: parent,
+                span_start: 0,
+                span_end: 0,
+                raw_lines: lines,
+                raw_lang: lang,
+                raw_cmd: cmd,
+                tbl_header: [],
+                tbl_rows: [],
+                tbl_has_delim: false,
+                obj_cu: CommandUse { cmd: Code, name_raw: "", args: [], attrs: [], content: None },
+                comment_text: "",
+                list_ordered: false,
+                list_items: [],
+                quote_depth: 0,
+            }
+            acc_nodes = acc_nodes.push(sem)
+        }
+        TblNode(header, rows, has_delim) {
+            let sem = SemNode {
+                id: my_id,
+                kind: "table",
+                level: 0,
+                inline: [],
+                children: [],
+                parent: parent,
+                span_start: 0,
+                span_end: 0,
+                raw_lines: [],
+                raw_lang: None,
+                raw_cmd: Code,
+                tbl_header: header,
+                tbl_rows: rows,
+                tbl_has_delim: has_delim,
+                obj_cu: CommandUse { cmd: Code, name_raw: "", args: [], attrs: [], content: None },
+                comment_text: "",
+                list_ordered: false,
+                list_items: [],
+                quote_depth: 0,
+            }
+            acc_nodes = acc_nodes.push(sem)
+        }
+        CommentNode(content) {
+            let sem = SemNode {
+                id: my_id,
+                kind: "comment",
+                level: 0,
+                inline: [],
+                children: [],
+                parent: parent,
+                span_start: 0,
+                span_end: 0,
+                raw_lines: [],
+                raw_lang: None,
+                raw_cmd: Code,
+                tbl_header: [],
+                tbl_rows: [],
+                tbl_has_delim: false,
+                obj_cu: CommandUse { cmd: Code, name_raw: "", args: [], attrs: [], content: None },
+                comment_text: content,
+                list_ordered: false,
+                list_items: [],
+                quote_depth: 0,
+            }
+            acc_nodes = acc_nodes.push(sem)
+        }
+        DocRoot(children) { }
+    }
+
+    return BuildResult { nodes: acc_nodes, next_id: acc_id, diags: acc_diags }
+}
+
+// ── 查询辅助 ────────────────────────────────────────────────
+
+// 按 NodeId 查找节点
+fn doc_find_by_id(state: DocState, id: i32) -> Option<SemNode> {
+    for node in state.nodes {
+        if node.id == id {
+            return Some(node)
+        }
+    }
+    return None
+}
+
+// 统计节点数
+fn doc_node_count(state: DocState) -> i32 {
+    return state.nodes.len()
+}
+
+// 按类型统计
+fn doc_count_kind(state: DocState, kind: String) -> i32 {
+    var n = 0
+    for node in state.nodes {
+        if node.kind == kind {
+            n += 1
+        }
+    }
+    return n
+}
+
+// 获取所有 heading 节点(用于 TOC 生成)
+fn doc_get_headings(state: DocState) -> Vec<SemNode> {
+    var out: Vec<SemNode> = []
+    for node in state.nodes {
+        if node.kind == "heading" {
+            out = out.push(node)
+        }
+    }
+    return out
+}
+
+// 获取下一个可用 NodeId(用于新增节点)
+fn doc_next_id(state: DocState) -> i32 {
+    return state.next_id
+}
+
+// ── Source Span(§3:简化版,行号粒度)──────────────────────
+
+// 从源文本中找到节点的行范围
+// 当前实现:遍历源码行,匹配节点内容的首行
+// M4 将替换为精确的字节偏移 Span
+fn doc_compute_spans(state: DocState) -> DocState {
+    // M3 简化:不做精确 span 计算,仅标记已完成
+    // M4 将实现:遍历源码行,按节点内容匹配行号
+    return state
+}

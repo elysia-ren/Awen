@@ -1,0 +1,257 @@
+// awen-proto/src/mapping.aine —— Source Mapping(核心规范 §3)
+// M4:Render Object → NodeId → Property → Source Span → 缓冲区偏移
+// 每个 SemNode 关联当前 User Syntax 中的行区间;Span 是派生数据,每次解析重建。
+
+// ── Source Span(精确到行)────────────────────────────────
+
+struct NodeSpan {
+    node_id: i32
+    start_line: i32
+    end_line: i32
+}
+
+// 从源文本 + 语义树计算每个节点的行区间
+// 策略:遍历源码行,按行首标记匹配节点类型,顺序分配
+fn compute_spans(state: DocState, src: String) -> Vec<NodeSpan> {
+    var spans: Vec<NodeSpan> = []
+    let lines = src.split("\n")
+    var line_idx = 0
+    var node_idx = 0
+
+    // 按源码顺序遍历节点(nodes 已按文档序排列)
+    while node_idx < state.nodes.len() {
+        let node = state.nodes[node_idx]
+        let start = find_node_start(lines, line_idx, node)
+        if start >= 0 {
+            let end = find_node_end(lines, start, node)
+            spans = spans.push(NodeSpan {
+                node_id: node.id,
+                start_line: start,
+                end_line: end,
+            })
+            line_idx = end + 1
+        }
+        node_idx += 1
+    }
+    return spans
+}
+
+// 找到节点在源码中的起始行
+fn find_node_start(lines: Vec<String>, from: i32, node: SemNode) -> i32 {
+    var i = from
+    while i < lines.len() {
+        let line = lines[i]
+        let t = line.trim()
+        if node.kind == "heading" {
+            // 标题:行首 # × level + 空格
+            var hashes = ""
+            var h = 0
+            while h < node.level {
+                hashes = hashes + "#"
+                h += 1
+            }
+            if starts_with_at(t, 0, hashes + " ") || t == hashes {
+                return i
+            }
+        } else if node.kind == "para" {
+            // 段落:非空、非标记行
+            if t.len() > 0 && t[0] != "#" && t[0] != "-" && t[0] != ">" && t[0] != "@" && t != "---" {
+                if !starts_with_at(t, 0, "- ") && !is_ordered_item(t) {
+                    return i
+                }
+            }
+        } else if node.kind == "list" {
+            if starts_with_at(t, 0, "- ") || is_ordered_item(t) {
+                return i
+            }
+        } else if node.kind == "quote" {
+            if t.len() > 0 && t[0] == ">" {
+                return i
+            }
+        } else if node.kind == "hr" {
+            if t == "---" { return i }
+        } else if node.kind == "obj" {
+            if starts_with_at(t, 0, "@[") { return i }
+        } else if node.kind == "raw" {
+            if starts_with_at(t, 0, "@[") { return i }
+        } else if node.kind == "table" {
+            if starts_with_at(t, 0, "@[table") { return i }
+        } else if node.kind == "comment" {
+            if starts_with_at(t, 0, "@[comment") { return i }
+        }
+        i += 1
+    }
+    return -1
+}
+
+fn is_ordered_item(t: String) -> bool {
+    var d = 0
+    while d < t.len() && t[d] >= "0" && t[d] <= "9" { d += 1 }
+    return d > 0 && d < t.len() && t[d] == "." && d + 1 < t.len() && t[d + 1] == " "
+}
+
+// 找到节点的结束行(含跨行段落和 Raw 块)
+fn find_node_end(lines: Vec<String>, start: i32, node: SemNode) -> i32 {
+    if node.kind == "raw" {
+        // Raw 块:找到 @[/cmd] 行
+        var i = start + 1
+        while i < lines.len() {
+            if lines[i].trim().starts_with("@[/") {
+                return i
+            }
+            i += 1
+        }
+        return start
+    }
+    if node.kind == "table" {
+        // 表格:找到 @[/table] 行
+        var i = start + 1
+        while i < lines.len() {
+            if lines[i].trim() == "@[/table]" {
+                return i
+            }
+            i += 1
+        }
+        return start
+    }
+    if node.kind == "comment" {
+        var i = start
+        if lines[i].trim().contains("@[/comment]") { return i }
+        var j = start + 1
+        while j < lines.len() {
+            if lines[j].trim().contains("@[/comment]") { return j }
+            j += 1
+        }
+        return start
+    }
+    if node.kind == "list" {
+        // 列表:延续到最后一个连续列表项
+        var i = start
+        while i + 1 < lines.len() {
+            let next = lines[i + 1].trim()
+            if starts_with_at(next, 0, "- ") || is_ordered_item(next) {
+                i += 1
+            } else {
+                break
+            }
+        }
+        return i
+    }
+    if node.kind == "para" {
+        // 段落:延续到空行或块级标记行
+        var i = start
+        while i + 1 < lines.len() {
+            let next = lines[i + 1].trim()
+            if next.len() == 0 { return i }
+            if next[0] == "#" || next[0] == "@" { return i }
+            if starts_with_at(next, 0, "- ") || starts_with_at(next, 0, "> ") { return i }
+            if next == "---" { return i }
+            if is_ordered_item(next) { return i }
+            i += 1
+        }
+        return i
+    }
+    // 其余(heading/quote/hr/obj):单行
+    return start
+}
+
+// ── 双视图闭环最小验证(§85)───────────────────────────────
+// Display Edit → Semantic Edit → Source Patch → Re-parse → Document State
+// M4 第一阶段:验证 "修改语义 → 文本 patch → 重新解析 → 语义一致"
+
+struct EditResult {
+    new_source: String
+    new_state: DocState
+    patch: TextPatch
+}
+
+// 修改节点的行内内容(如修改标题文本)并生成新的 User Syntax
+fn edit_heading_text(state: DocState, node_id: i32, new_text: String, src: String) -> EditResult {
+    let spans = compute_spans(state, src)
+    let lines = src.split("\n")
+
+    // 找到目标节点的 Span
+    var target_span: Option<NodeSpan> = None
+    for sp in spans {
+        if sp.node_id == node_id {
+            target_span = Some(sp)
+        }
+    }
+    let sp = match target_span {
+        Some(s) { s }
+        None {
+            return EditResult {
+                new_source: src,
+                new_state: state,
+                patch: TextPatch { start: 0, old: "", new: "" },
+            }
+        }
+    }
+
+    // 构造新标题行
+    let node_opt = doc_find_by_id(state, node_id)
+    let node = match node_opt {
+        Some(n) { n }
+        None {
+            return EditResult {
+                new_source: src,
+                new_state: state,
+                patch: TextPatch { start: 0, old: "", new: "" },
+            }
+        }
+    }
+    var hashes = ""
+    var h = 0
+    while h < node.level {
+                hashes = hashes + "#"
+                h += 1
+            }
+    // 保留旧行中的行内命令(§87:GUI 修改不删除 @[label] 等非文本元素)
+    let old_line_full = lines[sp.start_line]
+    // 找到文本末尾(第一个 @[ 的位置,排除 @@[)
+    var cmd_suffix = ""
+    var search_pos = hashes.len() + 1 // 跳过 "# "
+    var pos = search_pos
+    while pos < old_line_full.len() {
+        if starts_with_at(old_line_full, pos, "@@") {
+            pos += 2
+            continue
+        }
+        if starts_with_at(old_line_full, pos, "@[") {
+            cmd_suffix = old_line_full[pos..old_line_full.len()]
+            break
+        }
+        pos += 1
+    }
+    let new_line = hashes + " " + new_text + cmd_suffix
+
+    // 生成文本 patch(最小修改:只替换标题行)
+    let old_line = lines[sp.start_line]
+    let char_start = line_to_char_offset(src, sp.start_line)
+    let char_end = char_start + old_line.len()
+
+    var new_source = src[0..char_start] + new_line + src[char_end..src.len()]
+
+    // 重新解析
+    let out = lex(new_source)
+    let pr = parse(out)
+    let new_state = build_document(pr, new_source)
+
+    return EditResult {
+        new_source: new_source,
+        new_state: new_state,
+        patch: TextPatch { start: char_start, old: old_line, new: new_line },
+    }
+}
+
+// 行号 → 字符偏移
+fn line_to_char_offset(src: String, line_no: i32) -> i32 {
+    var offset = 0
+    var current = 0
+    let lines = src.split("\n")
+    while current < line_no && current < lines.len() {
+        offset = offset + lines[current].len() + 1 // +1 for newline
+        current += 1
+    }
+    return offset
+}

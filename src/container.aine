@@ -1,0 +1,102 @@
+// awen-proto/src/container.aine —— .awen 容器格式(核心规范 §54/§56/§70–74)
+// User Syntax Chunk 必须 UTF-8 明文(codec=none,§8.6)。
+// 原型阶段:文本序列化(JSON-like)代替二进制,接口不变。
+
+struct AwenFile {
+    // Manifest(§70)
+    version: String
+    // User Syntax(唯一用户源,§8.6 codec=none)
+    user_syntax: String
+    // 元数据
+    label_count: i32
+    node_count: i32
+}
+
+// ── 序列化(.awen 保存)─────────────────────────────────────
+
+// 将 Document State 序列化为 .awen 容器内容
+// 原型:只写 User Syntax(核心数据)+ Manifest 头
+fn save_awen(state: DocState, path: String) -> Result<i32, String> {
+    // 构建 Manifest 头
+    var header = ""
+    header = header + f"# awen v0.4\n"
+    header = header + f"# nodes: {state.nodes.len()}\n"
+    header = header + f"# next_id: {state.next_id}\n"
+    header = header + f"# ---\n"
+
+    // User Syntax(明文 UTF-8,§8.6)
+    let content = header + state.source
+
+    // write_file 返回 bool(§10 io 模块)
+    let ok = write_file(path, content)
+    if !ok {
+        return Err(f"写入失败: {path}")
+    }
+    return Ok(content.len())
+}
+
+// ── 反序列化(.awen 加载)───────────────────────────────────
+
+// 从 .awen 文件加载
+// 返回:(User Syntax, Document State)
+struct LoadResult {
+    source: String
+    state: DocState
+}
+
+fn load_awen(path: String) -> Result<LoadResult, String> {
+    let content = read_file(path)
+    if content.contains("[read_file error") {
+        return Err(content)
+    }
+
+    // 只跳过 Manifest 头(# awen v 开头,到 # --- 分隔符为止)
+    // 不跳过 User Syntax 的 # 标题行
+    var src_start = 0
+    let lines = content.split("\n")
+    var i = 0
+    var in_manifest = false
+    while i < lines.len() {
+        if lines[i].starts_with("# awen v") {
+            in_manifest = true
+            src_start = src_start + lines[i].len() + 1
+            i += 1
+            continue
+        }
+        if in_manifest {
+            // # --- 是 Manifest 结束标记
+            if lines[i] == "# ---" {
+                src_start = src_start + lines[i].len() + 1
+                break
+            }
+            // Manifest 内部的注释行也跳过
+            src_start = src_start + lines[i].len() + 1
+            i += 1
+            continue
+        }
+        // 不在 Manifest 中:遇到第一个非 Manifest 行就停止
+        break
+    }
+
+    // 提取 User Syntax
+    var src = content[src_start..content.len()]
+
+    // 解析
+    let out = lex(src)
+    let pr = parse(out)
+    let state = build_document(pr, src)
+
+    return Ok(LoadResult { source: src, state: state })
+}
+
+// ── 完整性验证(§74)───────────────────────────────────────
+
+// 保存→加载→验证源码一致
+fn roundtrip_verify(state: DocState, path: String) -> Result<bool, String> {
+    // 保存
+    save_awen(state, path)?
+    // 加载
+    let loaded = load_awen(path)?
+    // 比较 User Syntax
+    return Ok(loaded.state.source == state.source)
+}

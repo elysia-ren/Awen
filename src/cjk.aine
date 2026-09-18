@@ -1,0 +1,132 @@
+// awen-proto/src/cjk.aine —— CJK 排版验证函数(核心规范 §10)
+// §10 冻结的验收要求:
+// - 中文断行不出现行首/行尾孤字标点
+// - 中西文混排间距符合出版惯例
+// - 标点挤压自然
+// 这些是 Layout Engine 的验收标准,M5 前以验证函数形式存在。
+
+// ── 字符分类 ────────────────────────────────────────────────
+
+// CJK 统一表意文字(U+4E00-U+9FFF)或扩展A(U+3400-U+4DBF)
+fn cjk_is_ideograph(c: String) -> bool {
+    if c >= "一" && c <= "龥" { return true }
+    if c >= "㐀" && c <= "䶿" { return true }
+    return false
+}
+
+// CJK 标点(需要禁则处理的字符)
+fn cjk_is_punct(c: String) -> bool {
+    // 行首禁则(不可出现在行首)
+    if c == "。" || c == "，" || c == "、" || c == "；" || c == "？"
+        || c == "！" || c == "」" || c == "』" || c == "）" || c == "】"
+        || c == "》" || c == "〉" || c == "〕" || c == "］" || c == "｝" {
+        return true
+    }
+    // 行尾禁则(不可出现在行尾)
+    if c == "「" || c == "『" || c == "（" || c == "【" || c == "《"
+        || c == "〈" || c == "〔" || c == "［" || c == "｛" {
+        return true
+    }
+    return false
+}
+
+// 行首禁则:不可出现在行首的标点
+fn cjk_is_line_start_forbidden(c: String) -> bool {
+    if c == "。" || c == "，" || c == "、" || c == "；" || c == "？"
+        || c == "！" || c == "」" || c == "』" || c == "）" || c == "】"
+        || c == "》" || c == "〉" || c == "〕" || c == "］" || c == "｝" {
+        return true
+    }
+    return false
+}
+
+// 行尾禁则:不可出现在行尾的标点
+fn cjk_is_line_end_forbidden(c: String) -> bool {
+    if c == "「" || c == "『" || c == "（" || c == "【" || c == "《"
+        || c == "〈" || c == "〔" || c == "［" || c == "｛" {
+        return true
+    }
+    return false
+}
+
+// ASCII 字母或数字(西文,影响混排间距)
+fn cjk_is_latin(c: String) -> bool {
+    if c >= "a" && c <= "z" { return true }
+    if c >= "A" && c <= "Z" { return true }
+    if c >= "0" && c <= "9" { return true }
+    return false
+}
+
+// ── 断行验证 ────────────────────────────────────────────────
+
+// 验证一段格式化文本的断行质量(§10.3)
+// 在真实 Layout Engine 中,断行由排版引擎计算;
+// 此处验证:给定行列表,检查是否有禁则违规
+fn cjk_validate_line_breaks(lines: Vec<String>) -> Vec<String> {
+    var issues: Vec<String> = []
+    var line_no = 0
+    for line in lines {
+        line_no += 1
+        if line.len() == 0 { continue }
+        // 行首禁则检查
+        let first = line[0]
+        if cjk_is_line_start_forbidden(first) {
+            issues = issues.push(f"行 {line_no}: 行首禁则字符 [{first}]")
+        }
+        // 行尾禁则检查
+        let last = line[line.len() - 1]
+        if cjk_is_line_end_forbidden(last) {
+            issues = issues.push(f"行 {line_no}: 行尾禁则字符 [{last}]")
+        }
+    }
+    return issues
+}
+
+// ── 中西文混排间距计算 ─────────────────────────────────────
+
+// 计算中西文之间的间距(模拟)
+// 规则:CJK 字符与 Latin 字符之间加 1/4 em 间距
+// 返回:加了间距标记的文本(用 [间隔] 标注)
+fn cjk_mixed_spacing_text(text: String) -> String {
+    var out = ""
+    var i = 0
+    while i < text.len() {
+        let c = text[i]
+        out = out + c
+        // 检查当前字符与下一个字符之间是否需要间距
+        if i + 1 < text.len() {
+            let next = text[i + 1]
+            let c_is_cjk = cjk_is_ideograph(c) || cjk_is_punct(c)
+            let n_is_latin = cjk_is_latin(next)
+            let c_is_latin = cjk_is_latin(c)
+            let n_is_cjk = cjk_is_ideograph(next) || cjk_is_punct(next)
+            if (c_is_cjk && n_is_latin) || (c_is_latin && n_is_cjk) {
+                out = out + "[¼em]"
+            }
+        }
+        i += 1
+    }
+    return out
+}
+
+// ── 标点挤压模拟 ────────────────────────────────────────────
+
+// 连续标点挤压:两个连续标点之间减少半角宽度
+// 返回:加了挤压标记的文本
+fn cjk_squeeze_punctuation(text: String) -> String {
+    var out = ""
+    var i = 0
+    while i < text.len() {
+        let c = text[i]
+        out = out + c
+        // 检查连续标点
+        if i + 1 < text.len() {
+            let next = text[i + 1]
+            if cjk_is_punct(c) && cjk_is_punct(next) {
+                out = out + "[挤半角]"
+            }
+        }
+        i += 1
+    }
+    return out
+}

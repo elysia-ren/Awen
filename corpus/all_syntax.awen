@@ -1,0 +1,133 @@
+@[page A4]
+@[margin 20mm]
+@[font "Noto Sans CJK SC"]
+@[size 11pt]
+@[line-spacing 1.65]
+@[first-line 2em]
+@[theme default]
+
+@[toc depth: 3]
+
+@[numbering figure "图 %figure"]
+@[numbering table "表 %table"]
+@[numbering equation "(%equation)"]
+@[numbering heading level: 1 "第 %chapter 章"]
+@[numbering heading level: 2 "%chapter.%section"]
+
+# 一级标题 @[label chapter-intro]
+这是第一章的正文。源码中的物理换行
+不会产生排版换行,这仍然是一个段落。
+
+空行产生新段落。
+
+## 二级标题 @[标签 二级示例]
+### 三级标题
+#### 四级标题
+##### 五级标题
+###### 六级标题
+
+## 行内格式
+
+**粗体** 与 _斜体_ 与 ~~删除线~~ 与 `行内代码` 与 @[u]下划线@[/u] 与 @[underline]长写下划线@[/underline]。
+
+嵌套:**粗体中嵌 _斜体_**,以及 @[b]短命令粗体@[/b] 和 @[bold]长命令粗体@[/bold]。
+
+行内数学 @[m]E = mc^2@[/m] 出现在段落之中。脚注演示@[footnote 这里是脚注内容。]。
+
+链接:@[link "OpenAI" url: "https://openai.com"],以及裸 URL 自动识别 https://example.com/docs。
+
+## 块级对象
+
+@[comment 本节演示块级对象;修改下方图片属性时,本行注释必须逐字保留。]
+
+@[image "hero.png" width 65% align center]
+
+@[figure 架构图 "architecture.png" width 50%]
+
+@[comment]
+这是块级源码注释:
+不进入渲染,但保留 Source Mapping(规范 §11.3)。
+@[/comment]
+
+@[m]
+\int_0^\infty e^{-x}\,dx = 1
+@[/m]
+
+@[math]
+a^2 + b^2 = c^2
+@[/math]
+
+@[c py]
+def hello():
+    print("Hello, Awen")  # 代码内部的 @[b] 与 ] 均不参与 Awen 解析
+@[/c]
+
+@[code python]
+raw content: }{ ] @[ ** _ ~`
+@[/code]
+
+## 引用与列表
+
+> 一级引用
+>> 二级引用
+>>> 三级引用
+
+- 无序列表项一
+- 无序列表项二
+
+1. 有序列表项一
+2. 有序列表项二
+
+---
+
+## 表格 @[label result-table-section]
+
+@[table result-table]
+
+| 方法 | 速度 | 安全性 |
+| --- | ---: | :---: |
+| A | 0.21 | 低 |
+| B | 0.48 | 中 |
+
+@[/table]
+
+复杂单元格 @[label "复杂 表格示例"]:
+
+@[table]
+
+| 姓名 | 备注 |
+| --- | --- |
+| "Smith, John" | 单元格含逗号无需转义 |
+| A | @[cell background: "#EEEEEE" span: 2]合并单元格@[/cell] |
+| **粗** | @[cell border-bottom: 2pt double "#000000"]`code` 与 @[m]a+b@[/m]@[/cell] |
+
+@[/table]
+
+表格引用:见 @[ref result-table-section]。
+
+## 样式与全角输入
+
+@[color "#3366CC"]彩色文字@[/color]。
+
+@[font "Noto Serif CJK SC"]局部字体@[/font] 与 @[size 12pt]局部字号@[/size]。
+
+全角输入:“微软雅黑” ,以及 @[字体 "微软雅黑"] 与 @[大小 12pt] 与 @[图片 "示例.png"] 均为合法中文方言。
+
+混合方言:同一文档允许中文语法、英文语法、短命令、长命令并存(规范 §6.14)。
+
+## 转义演示
+
+@# 不是标题
+@**不是粗体**
+@_不是斜体_
+@~~不是删除线~~
+@- 不是列表
+@> 不是引用
+@`不是代码`
+@1. 不是有序列表
+@@[image hero] 按字面显示
+@@[comment 这是正文中的示例] 按字面显示
+
+## 交叉引用
+
+参见章节 @[ref chapter-intro],图片 @[ref 架构图],以及二级标题 @[ref 二级示例]。

@@ -1,0 +1,87 @@
+// awen-proto/src/toc.aine —— 目录生成(核心规范 §11.6)
+// TOC 是生成型节点:读取 Heading 语义节点生成目录条目
+// 页码列按 §7.2 两段解析(实时 stale/导出收敛)
+
+struct TocEntry {
+    level: i32
+    title: String
+    number: String
+    node_id: i32
+}
+
+// ── 目录生成 ────────────────────────────────────────────────
+
+// 从 Document State 生成目录条目
+// max_depth:目录包含的最大标题层级(0 = 全部)
+fn generate_toc(state: DocState, max_depth: i32) -> Vec<TocEntry> {
+    var out: Vec<TocEntry> = []
+    var chapter = 0
+    var section = 0
+    var subsection = 0
+
+    for node in state.nodes {
+        if node.kind != "heading" { continue }
+        if max_depth > 0 && node.level > max_depth { continue }
+
+        if node.level == 1 {
+            chapter += 1
+            section = 0
+            subsection = 0
+            let title = inline_plain(node.inline)
+            out = out.push(TocEntry {
+                level: 1,
+                title: title,
+                number: f"{chapter}",
+                node_id: node.id,
+            })
+        } else if node.level == 2 {
+            section += 1
+            subsection = 0
+            let title = inline_plain(node.inline)
+            out = out.push(TocEntry {
+                level: 2,
+                title: title,
+                number: f"{chapter}.{section}",
+                node_id: node.id,
+            })
+        } else if node.level == 3 {
+            subsection += 1
+            let title = inline_plain(node.inline)
+            out = out.push(TocEntry {
+                level: 3,
+                title: title,
+                number: f"{chapter}.{section}.{subsection}",
+                node_id: node.id,
+            })
+        } else {
+            // level 4-6:只生成条目,不编号
+            let title = inline_plain(node.inline)
+            out = out.push(TocEntry {
+                level: node.level,
+                title: title,
+                number: "",
+                node_id: node.id,
+            })
+        }
+    }
+    return out
+}
+
+// 格式化目录为文本(带缩进)
+fn format_toc(entries: Vec<TocEntry>) -> String {
+    var out = ""
+    for entry in entries {
+        var indent = ""
+        var i = 1
+        while i < entry.level {
+            indent = indent + "  "
+            i += 1
+        }
+        if entry.number.len() > 0 {
+            out = out + indent + entry.number + " " + entry.title + "\n"
+        } else {
+            out = out + indent + entry.title + "\n"
+        }
+    }
+    return out
+}

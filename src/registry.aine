@@ -1,0 +1,90 @@
+// awen-proto/src/registry.aine —— 显式命令白名单注册表(核心规范 §11)
+enum ExplicitCommand {
+    Image
+    Figure
+    Table
+    Cell
+    Font
+    Size
+    Color
+    U
+    Link
+    Ref
+    Label
+    Footnote
+    Toc
+    Comment
+    Page
+    Margin
+    Theme
+    Numbering
+    LineSpacing
+    FirstLine
+    Bold
+    Math
+    Code
+}
+
+fn lookup(name: String) -> Option<ExplicitCommand> {
+    if name == "image" || name == "图片" { return Some(Image) }
+    if name == "figure" { return Some(Figure) }
+    if name == "table" { return Some(Table) }
+    if name == "cell" { return Some(Cell) }
+    if name == "font" || name == "字体" { return Some(Font) }
+    if name == "size" || name == "大小" { return Some(Size) }
+    if name == "color" { return Some(Color) }
+    if name == "u" || name == "underline" { return Some(U) }
+    if name == "link" { return Some(Link) }
+    if name == "ref" { return Some(Ref) }
+    if name == "label" || name == "标签" { return Some(Label) }
+    if name == "footnote" { return Some(Footnote) }
+    if name == "toc" { return Some(Toc) }
+    if name == "comment" { return Some(Comment) }
+    if name == "page" { return Some(Page) }
+    if name == "margin" { return Some(Margin) }
+    if name == "theme" { return Some(Theme) }
+    if name == "numbering" { return Some(Numbering) }
+    if name == "line-spacing" { return Some(LineSpacing) }
+    if name == "first-line" { return Some(FirstLine) }
+    if name == "bold" || name == "b" { return Some(Bold) }
+    if name == "math" || name == "m" { return Some(Math) }
+    if name == "code" || name == "c" { return Some(Code) }
+    return None
+}
+
+fn is_raw_block(cmd: ExplicitCommand) -> bool {
+    return cmd == Math || cmd == Code || cmd == Comment
+}
+
+fn is_doc_level(cmd: ExplicitCommand) -> bool {
+    return cmd == Page || cmd == Margin || cmd == Font || cmd == Size
+        || cmd == LineSpacing || cmd == FirstLine || cmd == Theme || cmd == Numbering
+}
+
+fn is_scoped(cmd: ExplicitCommand) -> bool {
+    return cmd == Bold || cmd == Font || cmd == Size || cmd == Color || cmd == U
+}
+
+fn close_matches(cmd: ExplicitCommand, close_name: String) -> bool {
+    if cmd == Code {
+        return close_name == "c" || close_name == "code"
+    }
+    if cmd == Math {
+        return close_name == "m" || close_name == "math"
+    }
+    return lookup(close_name) == Some(cmd)
+}
+
+fn positional_arity(cmd: ExplicitCommand) -> Option<i32> {
+    if cmd == Font || cmd == Size || cmd == Color || cmd == Theme
+        || cmd == Page || cmd == Margin || cmd == LineSpacing || cmd == FirstLine {
+        return Some(1)
+    }
+    if cmd == Bold || cmd == U || cmd == Math || cmd == Toc {
+        return Some(0)
+    }
+    if cmd == Code {
+        return Some(1)
+    }
+    return None
+}

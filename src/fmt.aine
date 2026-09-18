@@ -1,0 +1,106 @@
+// awen-proto/src/fmt.aine —— awen fmt 格式化(规范化 User Syntax)
+// 规则:
+// - 统一引号(全角→半角)
+// - 统一空格(去多余空白)
+// - Raw Block 不变(逐字保留)
+// - 标题/列表/引用的标记后确保一个空格
+// - 不改变语义(§37 最小修改:只规范化格式,不改内容)
+
+// 格式化单个行(轻量层)
+fn fmt_line(line: String) -> String {
+    let trimmed = line.trim()
+    if trimmed.len() == 0 { return "" }
+
+    // 标题:确保 # 后有一个空格
+    if trimmed[0] == "#" {
+        var level = 0
+        while level < trimmed.len() && trimmed[level] == "#" { level += 1 }
+        if level <= 6 && level < trimmed.len() {
+            if trimmed[level] == " " {
+                return trimmed[0..level] + " " + trimmed[level + 1..trimmed.len()].trim()
+            }
+            // 无空格:插入一个(§6.11 规范格式)
+            return trimmed[0..level] + " " + trimmed[level..trimmed.len()]
+        }
+        return trimmed
+    }
+
+    // 引用:确保 > 后有一个空格
+    if trimmed[0] == ">" {
+        var d = 0
+        while d < trimmed.len() && trimmed[d] == ">" { d += 1 }
+        if d < trimmed.len() && trimmed[d] == " " {
+            return trimmed[0..d] + " " + trimmed[d + 1..trimmed.len()].trim()
+        }
+        return trimmed
+    }
+
+    // 列表:确保 - 或 N. 后有一个空格
+    if trimmed[0] == "-" && trimmed.len() > 1 && trimmed[1] == " " {
+        return "- " + trimmed[2..trimmed.len()].trim()
+    }
+
+    return trimmed
+}
+
+// 规范化引号(§6.9:全角→半角,仅在命令头上下文)
+// 注意:正文中的全角标点是内容,不改!
+fn fmt_normalize_quotes_in_header(line: String) -> String {
+    var out = ""
+    var i = 0
+    while i < line.len() {
+        let c = line[i]
+        let norm = fw_normalize_in_command(c)
+        match norm {
+            Some(nc) { out = out + nc }
+            None { out = out + c }
+        }
+        i += 1
+    }
+    return out
+}
+
+// 完整格式化(简化版:不解析,只规范化已知模式)
+fn fmt(src: String) -> String {
+    var out_lines: Vec<String> = []
+    var in_raw = false
+    var raw_close = ""
+
+    for line in src.split("\n") {
+        let stripped = line.trim()
+        if in_raw {
+            out_lines.push(line)
+            if stripped == raw_close { in_raw = false }
+            continue
+        }
+        // 检测 Raw 块开启
+        if starts_with_at(stripped, 0, "@[c ") || stripped == "@[c]"
+            || starts_with_at(stripped, 0, "@[code ") || stripped == "@[code]"
+            || starts_with_at(stripped, 0, "@[m]") || stripped == "@[math]"
+            || stripped == "@[comment]" {
+            out_lines.push(stripped)
+            in_raw = true
+            if stripped.contains("@[m]") || stripped.contains("@[math]") {
+                raw_close = "@[/m]"
+            } else if stripped.contains("@[c ") || stripped.contains("@[code]") || stripped.contains("@[c]") {
+                raw_close = "@[/c]"
+            } else if stripped.contains("comment") {
+                raw_close = "@[/comment]"
+            } else {
+                raw_close = "@[/c]"
+            }
+            continue
+        }
+        // 格式化轻量层行
+        out_lines.push(fmt_line(line))
+    }
+
+    var out = ""
+    var first = true
+    for l in out_lines {
+        if !first { out = out + "\n" }
+        out = out + l
+        first = false
+    }
+    return out
+}
