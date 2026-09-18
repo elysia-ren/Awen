@@ -4705,3 +4705,62 @@ fn pipeline_multi_edit_preserves_render() -> Result<i32, String> {
     assert(items_before.len() == items_after.len(), f"渲染项数应一致: {items_before.len()} → {items_after.len()}")
     return Ok(0)
 }
+
+// ── 更多渲染和编辑综合边界测试 ──────────────────────────────
+
+@test
+fn render_scoped_command_in_heading() -> Result<i32, String> {
+    // heading 内的 @[label] 和 scoped 命令共存
+    let src = "# 标题 @[label h1]\n@[size 14pt]大字@[/size]\n"
+    let out = lex(src)
+    let pr = parse(out)
+    let state = build_document(pr, src)
+    assert(count_errors(out.diags) == 0, f"不应有错误")
+    // Label 应在 Document State 的 heading 行内中
+    let labels = collect_labels(state)
+    assert(labels.len() >= 1, f"应找到 Label")
+    return Ok(0)
+}
+
+@test
+fn render_theme_with_document_font_override() -> Result<i32, String> {
+    // 文档级 font 设置应影响渲染
+    let src = "@[font \"Noto Serif CJK SC\"]\n正文内容\n"
+    let out = lex(src)
+    let pr = parse(out)
+    let state = build_document(pr, src)
+    let t = theme_from_document(state)
+    let font = resolve_style(t, "body", 0, "font", None)
+    assert(font == "Noto Serif CJK SC", f"文档级 font 应为 Noto Serif,得到 {font}")
+    return Ok(0)
+}
+
+@test
+fn pipeline_incremental_multi_para_edit() -> Result<i32, String> {
+    // 多段落文档编辑后,所有段落内容应保留
+    let src = "# 文档标题\n第一段内容。\n\n第二段内容。\n\n第三段内容。\n"
+    let out = lex(src)
+    let pr = parse(out)
+    let state = build_document(pr, src)
+    let r = edit_heading_text(state, 1, "修改后的标题", src)
+    // 重新解析
+    let out2 = lex(r.new_source)
+    let pr2 = parse(out2)
+    let state2 = build_document(pr2, r.new_source)
+    // 验证所有段落内容保留
+    let text2 = render_plain_text(state2)
+    assert(text2.contains("第一段内容。"), "第一段应保留")
+    assert(text2.contains("第二段内容。"), "第二段应保留")
+    assert(text2.contains("第三段内容。"), "第三段应保留")
+    return Ok(0)
+}
+
+@test
+fn incr_diff_detects_line_number_shift() -> Result<i32, String> {
+    // 插入行后,后续行的 diff 检测
+    let old = "# A\n旧内容\n# B\n"
+    let new = "# A\n新内容\n额外行\n# B\n"
+    let d = find_changed_range(old, new)
+    assert(d.has_change, "应检测到变化")
+    return Ok(0)
+}
