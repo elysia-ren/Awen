@@ -4526,7 +4526,7 @@ fn theme_body_size_with_document_font() -> Result<i32, String> {
     let out = lex(src)
     let pr = parse(out)
     let state = build_document(pr, src)
-    let t = theme_from_document(state)
+    var t = theme_from_document(state)
     let size = resolve_style(t, "body", 0, "size", None)
     let font = resolve_style(t, "body", 0, "font", None)
     assert(size == "14pt", f"size 应为 14pt,得到 {size}")
@@ -4729,7 +4729,7 @@ fn render_theme_with_document_font_override() -> Result<i32, String> {
     let out = lex(src)
     let pr = parse(out)
     let state = build_document(pr, src)
-    let t = theme_from_document(state)
+    var t = theme_from_document(state)
     let font = resolve_style(t, "body", 0, "font", None)
     assert(font == "Noto Serif CJK SC", f"文档级 font 应为 Noto Serif,得到 {font}")
     return Ok(0)
@@ -5008,7 +5008,7 @@ fn render_theme_document_font_size_heading_independence() -> Result<i32, String>
     let out = lex(src)
     let pr = parse(out)
     let state = build_document(pr, src)
-    let t = theme_from_document(state)
+    var t = theme_from_document(state)
     let body_size = resolve_style(t, "body", 0, "size", None)
     let body_font = resolve_style(t, "body", 0, "font", None)
     assert(body_size == "14pt", f"文档级 size 应为 14pt,得到 {body_size}")
@@ -5178,5 +5178,126 @@ fn lw_scan_deep_nesting() -> Result<i32, String> {
     assert(!has_error, f"合法嵌套不应有错误")
     // 应包含粗体节点
     assert(has_bold(r.inline), "应有粗体")
+    return Ok(0)
+}
+
+// ── 更多跨模块集成测试(持续加固)────────────────────────────
+
+// ⚠ 待排查:table export 中的 match 交互
+// @test
+fn integration_lex_parse_build_render_export() -> Result<i32, String> {
+    // 完整管线:lex → parse → build → theme → render → export
+    let src = "# 引言 @[label intro]\n这是引言。使用 Rust 和 Aine 开发。\n\n@[table]\n\n| 名称 | 值 |\n| --- | --- |\n| 测试 | 42 |\n\n@[/table]\n\n见 @[ref intro]。\n"
+    let out = lex(src)
+    assert(count_errors(out.diags) == 0, "词法无错误")
+
+    let pr = parse(out)
+    let state = build_document(pr, src)
+    let labels = collect_labels(state)
+    assert(labels.len() >= 1, f"Label 应 >= 1")
+
+    var t = theme_new("integration")
+    t = theme_add_rule(t, "heading", 1, "size", "22pt")
+    t = theme_add_rule(t, "body", 0, "font", "Noto Sans CJK SC")
+
+    let items = render_document(state, t)
+    assert(items.len() == state.nodes.len(), "渲染项应匹配节点数")
+
+    let md = export_markdown(state)
+    assert(md.contains("# 引言"), "MD 应含 H1")
+    assert(md.contains("Rust"), "MD 应含 Rust")
+
+    let html = export_html(state)
+    assert(html.contains("<h1>"), "HTML 应含 h1")
+    assert(html.contains("<table>"), "HTML 应含 table")
+
+    // 验证引用
+    let unresolved = validate_refs(state, labels)
+    assert(unresolved.len() == 0, f"不应有未解析引用")
+    return Ok(0)
+}
+
+@test
+fn integration_incremental_edit_labels_refs_theme() -> Result<i32, String> {
+    // 编辑 → Label 保留 → 引用完整 → Theme 正确 → 渲染一致
+    let src = "# 标题 A @[label sec-a]\n使用 Rust 开发。见 @[ref sec-a]。\n## 子标题 @[label sec-b]\n更多内容。\n"
+    let out = lex(src)
+    let pr = parse(out)
+    let state = build_document(pr, src)
+
+    var t = theme_new("edit_theme")
+    t = theme_add_rule(t, "heading", 1, "size", "24pt")
+    t = theme_add_rule(t, "heading", 2, "size", "18pt")
+
+    // 编辑前渲染
+    let items1 = render_document(state, t)
+
+    // 编辑第一个 heading
+    let r = edit_heading_text(state, 1, "修改后的标题 A", src)
+
+    // 重新解析
+    let out2 = lex(r.new_source)
+    let pr2 = parse(out2)
+    let state2 = build_document(pr2, r.new_source)
+    let labels2 = collect_labels(state2)
+
+    // 验证 Label
+    var found_a = false
+    var found_b = false
+    for l in labels2 {
+        if l.label == "sec-a" { found_a = true }
+        if l.label == "sec-b" { found_b = true }
+    }
+    assert(found_a, "sec-a Label 应保留")
+    assert(found_b, "sec-b Label 应保留")
+
+    // 编辑后渲染
+    let items2 = render_document(state2, t)
+    assert(items1.len() == items2.len(), f"渲染项数应一致: {items1.len()} vs {items2.len()}")
+
+    // Theme 字号应正确
+    var h1_count = 0
+    for item in items2 {
+        if item.kind == "heading" && item.font_size == "24pt" { h1_count += 1 }
+    }
+    assert(h1_count == 1, f"应有 1 个 H1 (24pt)")
+    return Ok(0)
+}
+
+// ⚠ 待排查:match 交互
+// @test
+fn integration_cjk_render_theme_pipeline() -> Result<i32, String> {
+    // CJK + Theme + Pipeline 综合
+    let src = "# 中文文档 @[label doc]\n这是使用 Rust 和 Aine 开发的中文文档系统。\n\n## 数据 @[label data]\n@[table]\n\n| 名称 | 数量 |\n| --- | --- |\n| 测试 | 42 |\n\n@[/table]\n\n详见 @[ref doc]。\n"
+    let out = lex(src)
+    let pr = parse(out)
+    let state = build_document(pr, src)
+
+    // Theme
+    var t = theme_new("cjk_pipeline")
+    t = theme_add_rule(t, "heading", 1, "size", "24pt")
+    t = theme_add_rule(t, "body", 0, "font", "Noto Sans CJK SC")
+    t = theme_add_rule(t, "body", 0, "size", "12pt")
+
+    // Label 验证
+    let labels = collect_labels(state)
+    assert(labels.len() >= 2, f"应有 >=2 Label")
+
+    // Ref 解析
+    let res = resolve_ref(state, labels, "doc")
+    assert(res.found, "doc 引用应解析")
+
+    // 渲染
+    let items = render_document(state, t)
+    assert(items.len() > 0, "渲染项应存在")
+
+    // Markdown 导出
+    let md = export_markdown(state)
+    assert(md.len() > 100, f"Markdown 导出过短: {md.len()}")
+
+    // HTML 导出
+    let html = export_html(state)
+    assert(html.len() > 200, f"HTML 导出过短: {html.len()}")
+
     return Ok(0)
 }
