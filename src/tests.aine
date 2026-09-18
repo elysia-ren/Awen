@@ -3343,3 +3343,92 @@ fn render_theme_heading_body_separate() -> Result<i32, String> {
     assert(para_size_found == "11pt", f"para 应为默认 11pt,得到 {para_size_found}")
     return Ok(0)
 }
+
+// ── 更多跨模块集成测试(确保功能完整性)────────────────────
+
+@test
+fn integration_lex_parse_render_all_syntax() -> Result<i32, String> {
+    // 端到端:全语法 corpus 通过完整管线
+    let src = load_corpus("all_syntax.awen")
+    let out = lex(src)
+    let pr = parse(out)
+    let state = build_document(pr, src)
+    var t = theme_new("corpus_test")
+    t = theme_add_rule(t, "heading", 1, "size", "24pt")
+    t = theme_add_rule(t, "heading", 2, "size", "18pt")
+    let items = render_document(state, t)
+    // 渲染项应覆盖所有节点
+    assert(items.len() == state.nodes.len(), f"渲染项应匹配节点数")
+    // 导出 markdown 应非空
+    let md = export_markdown(state)
+    assert(md.len() > 500, f"markdown 导出过短: {md.len()}")
+    // 验证无错误
+    assert(count_errors(out.diags) == 0, "不应有词法错误")
+    // Label 应完整
+    let labels = collect_labels(state)
+    let unresolved = validate_refs(state, labels)
+    assert(unresolved.len() == 0, f"不应有未解析引用: {unresolved}")
+    return Ok(0)
+}
+
+@test
+fn integration_theme_edit_render_cycle() -> Result<i32, String> {
+    // Theme + 编辑 + 渲染:修改 heading 后 theme 仍然正确应用
+    let src = "# 标题 A @[label sec-a]\n内容 A\n## 子标题 @[label sec-b]\n内容 B\n"
+    let out = lex(src)
+    let pr = parse(out)
+    let state = build_document(pr, src)
+    var t = theme_new("cycle")
+    t = theme_add_rule(t, "heading", 1, "size", "24pt")
+    t = theme_add_rule(t, "heading", 2, "size", "18pt")
+
+    // 编辑 heading A 的文本
+    let r = edit_heading_text(state, 1, "修改后的标题 A", src)
+
+    // 重新解析 + 渲染
+    let out2 = lex(r.new_source)
+    let pr2 = parse(out2)
+    let state2 = build_document(pr2, r.new_source)
+    let items = render_document(state2, t)
+
+    // 验证:theme 仍然正确应用
+    var h1_count = 0
+    var h2_count = 0
+    for item in items {
+        if item.kind == "heading" {
+            if item.font_size == "24pt" { h1_count += 1 }
+            if item.font_size == "18pt" { h2_count += 1 }
+        }
+    }
+    assert(h1_count == 1, f"应有 1 个 H1(24pt),得到 {h1_count}")
+    assert(h2_count == 1, f"应有 1 个 H2(18pt),得到 {h2_count}")
+
+    // Label 应保留
+    let labels2 = collect_labels(state2)
+    var found_a = false
+    var found_b = false
+    for l in labels2 {
+        if l.label == "sec-a" { found_a = true }
+        if l.label == "sec-b" { found_b = true }
+    }
+    assert(found_a && found_b, "编辑后 Label 应全部保留")
+    return Ok(0)
+}
+
+@test
+fn render_diff_between_versions() -> Result<i32, String> {
+    // 比较编辑前后两个版本的差异
+    let old_src = "# 旧版本\n旧内容\n"
+    let new_src = "# 新版本\n新内容\n"
+    let d = diff_text(old_src, new_src)
+    assert(has_changes(d), "应检测到差异")
+    // 差异应包含新旧标题
+    var found_old = false
+    var found_new = false
+    for l in d.lines {
+        if l.kind == "del" && l.text.contains("旧版本") { found_old = true }
+        if l.kind == "add" && l.text.contains("新版本") { found_new = true }
+    }
+    assert(found_old && found_new, "diff 应同时包含删除和新增")
+    return Ok(0)
+}
