@@ -31,3 +31,9 @@ fn count_errors(diags: Vec<Diagnostic>) -> i32 {
     }
     return n
 }
+
+
+struct Theme {
+    name: String
+    rules: Vec<StyleRule>
+}
