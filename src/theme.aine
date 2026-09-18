@@ -9,11 +9,6 @@ struct StyleRule {
     value: String         // "20pt" "Noto Sans" "#333" "bold" "1.65"
 }
 
-struct Theme {
-    name: String
-    rules: Vec<StyleRule>
-}
-
 // ── 主题构建 ────────────────────────────────────────────────
 
 fn theme_new(name: String) -> Theme {
