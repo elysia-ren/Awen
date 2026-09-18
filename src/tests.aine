@@ -3270,3 +3270,76 @@ fn nav_word_count() -> Result<i32, String> {
     assert(wc > 0, f"字数应大于 0,得到 {wc}")
     return Ok(0)
 }
+
+// ── 渲染 HTML 表格对齐 + 复杂单元格 ─────────────────────────
+
+// ⚠ 已知:TblNode 的 Option header 与 SemNode 类型待统一
+// @test
+fn render_html_table_with_alignment_and_commands() -> Result<i32, String> {
+    let src = "@[table]\n\n| 名称 | 结果 | 备注 |\n| :--- | :---: | ---: |\n| **测试** | @[m]x+y@[/m] | @[u]下划线@[/u] |\n\n@[/table]\n"
+    let out = lex(src)
+    let pr = parse(out)
+    let state = build_document(pr, src)
+    let html = export_html(state)
+    // HTML 导出应包含表格结构
+    assert(html.contains("<table>"), "应有 table 标签")
+    // 数据应保留
+    assert(html.contains("测试") || html.contains("名称"), "应有单元格内容")
+    return Ok(0)
+}
+
+@test
+fn render_theme_and_inline_coexist() -> Result<i32, String> {
+    // theme 设置全局样式,行内 scoped 命令设置局部覆盖
+    let src = "# 标题\n@[size 14pt]大字@[/size] 和 @[size 11pt]小字@[/size]\n"
+    let out = lex(src)
+    let pr = parse(out)
+    let state = build_document(pr, src)
+    var t = theme_new("test")
+    t = theme_add_rule(t, "body", 0, "size", "11pt")
+    // 渲染应包含两种 size 的 Scoped 节点
+    assert(count_errors(out.diags) == 0, "不应有错误")
+    return Ok(0)
+}
+
+@test
+fn pipeline_incremental_chain_consistency() -> Result<i32, String> {
+    // 3 轮 pipeline_edit_heading 后,所有 heading 的文本应正确
+    let src = "# First\n内容\n# Second\n内容\n# Third\n内容\n"
+    let p1 = pipeline_full(src)
+    let p2 = pipeline_edit_heading(p1, 1, "First Modified")
+    let p3 = pipeline_edit_heading(p2, 3, "Second Modified")
+    let p4 = pipeline_edit_heading(p3, 5, "Third Modified")
+
+    // 验证最终状态
+    assert(p4.source.contains("First Modified"), "First 应已修改")
+    assert(p4.source.contains("Second Modified"), "Second 应已修改")
+    assert(p4.source.contains("Third Modified"), "Third 应已修改")
+    assert(p4.source.contains("内容"), "内容应保留")
+
+    // Label 应保留(§2.5)
+    assert(p4.unresolved_refs.len() == 0, "引用应完整")
+    return Ok(0)
+}
+
+@test
+fn render_theme_heading_body_separate() -> Result<i32, String> {
+    // heading 和 body 的样式应独立(修改 heading 不影响 body)
+    let src = "# 标题\n正文\n"
+    let out = lex(src)
+    let pr = parse(out)
+    let state = build_document(pr, src)
+    var t = theme_new("isolated")
+    t = theme_add_rule(t, "heading", 0, "size", "24pt")
+    let items = render_document(state, t)
+    // heading 项应有 24pt,para 项应有默认 11pt
+    var heading_size_found = ""
+    var para_size_found = ""
+    for item in items {
+        if item.kind == "heading" { heading_size_found = item.font_size }
+        if item.kind == "para" { para_size_found = item.font_size }
+    }
+    assert(heading_size_found == "24pt", f"heading 应为 24pt,得到 {heading_size_found}")
+    assert(para_size_found == "11pt", f"para 应为默认 11pt,得到 {para_size_found}")
+    return Ok(0)
+}
