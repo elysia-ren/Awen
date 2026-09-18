@@ -2,12 +2,7 @@
 // Theme → Role Style → Direct Property 三层级联
 // 用户说"所有一级标题改 20pt"→ 改 theme,不改节点
 
-struct StyleRule {
-    role: String          // "heading" "para" "code" "table" "quote" "footnote"
-    level: i32            // heading 级别(非 heading 为 0)
-    prop: String          // "size" "font" "color" "weight" "spacing"
-    value: String         // "20pt" "Noto Sans" "#333" "bold" "1.65"
-}
+
 
 // ── 主题构建 ────────────────────────────────────────────────
 
