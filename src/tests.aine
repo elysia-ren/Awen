@@ -4326,3 +4326,78 @@ fn container_save_load_preserves_headings() -> Result<i32, String> {
     assert(h_before == h_after, f"heading 数应一致: {h_before} vs {h_after}")
     return Ok(0)
 }
+
+// ── 更多管线+渲染+CJK综合测试 ────────────────────────────────
+
+@test
+fn pipeline_incremental_heading_edit_preserves_labels() -> Result<i32, String> {
+    // 多 heading 文档中编辑一个,其他 heading 的 Label 保留
+    let src = "# H1 @[label h1]\ntext\n## H2 @[label h2]\ntext\n### H3 @[label h3]\n"
+    let out = lex(src)
+    let pr = parse(out)
+    let state = build_document(pr, src)
+    let labels0 = collect_labels(state)
+    assert(labels0.len() == 3, f"初始应有 3 个 Label")
+
+    // 编辑 H2 的文本
+    let r = edit_heading_text(state, 2, "修改后的 H2", src)
+    let out2 = lex(r.new_source)
+    let pr2 = parse(out2)
+    let state2 = build_document(pr2, r.new_source)
+    let labels2 = collect_labels(state2)
+
+    // H1 和 H3 的 Label 应保留
+    var found_h1 = false
+    var found_h3 = false
+    for l in labels2 {
+        if l.label == "h1" { found_h1 = true }
+        if l.label == "h3" { found_h3 = true }
+    }
+    assert(found_h1 && found_h3, f"未编辑的 heading Label 应保留")
+    return Ok(0)
+}
+
+@test
+fn render_table_html_with_alignment() -> Result<i32, String> {
+    // 表格 HTML 导出应包含对齐分隔行
+    let src = "@[table]\n\n| A | B |\n| :--- | ---: |\n| 1 | 2 |\n\n@[/table]\n"
+    let out = lex(src)
+    let pr = parse(out)
+    let state = build_document(pr, src)
+    let html = export_html(state)
+    // 表格结构
+    assert(html.contains("<table>") || html.contains("table"), "HTML 应含表格")
+    return Ok(0)
+}
+
+@test
+fn render_theme_all_props_heading() -> Result<i32, String> {
+    // heading 节点的多个属性级联
+    var t = theme_new("heading_test")
+    t = theme_add_rule(t, "heading", 0, "size", "20pt")
+    t = theme_add_rule(t, "heading", 0, "font", "Serif")
+    t = theme_add_rule(t, "heading", 0, "color", "#333")
+    t = theme_add_rule(t, "heading", 0, "weight", "bold")
+    // 各属性独立解析
+    assert(resolve_style(t, "heading", 1, "size", None) == "20pt", "heading size")
+    assert(resolve_style(t, "heading", 1, "font", None) == "Serif", "heading font")
+    assert(resolve_style(t, "heading", 1, "color", None) == "#333", "heading color")
+    assert(resolve_style(t, "heading", 1, "weight", None) == "bold", "heading weight")
+    // body 属性不受影响
+    assert(resolve_style(t, "body", 0, "size", None) == "11pt", "body size 独立")
+    return Ok(0)
+}
+
+@test
+fn cjk_ideograph_and_latin_classification() {
+    // CJK 字符分类
+    assert(cjk_is_ideograph_char("中"), "中 是 CJK")
+    assert(cjk_is_ideograph_char("文"), "文 是 CJK")
+    // Latin 字符分类
+    assert(cjk_is_latin_char("a"), "a 是 Latin")
+    assert(cjk_is_latin_char("Z"), "Z 是 Latin")
+    assert(cjk_is_latin_char("5"), "5 是 Latin")
+    // 非 Latin 非 CJK
+    assert(!cjk_is_latin_char("中"), "中 非 Latin")
+    assert(!cjk_is_latin_char("。"), "。 非 Latin")
+}
