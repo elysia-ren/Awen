@@ -4856,3 +4856,88 @@ fn pipeline_incremental_full_consistency_multi() -> Result<i32, String> {
     }
     return Ok(0)
 }
+
+// ── 更多综合深度测试 ────────────────────────────────────────
+
+@test
+fn render_html_all_heading_levels_correct() -> Result<i32, String> {
+    let src = "# H1\n## H2\n### H3\n#### H4\n##### H5\n###### H6\n"
+    let out = lex(src)
+    let pr = parse(out)
+    let state = build_document(pr, src)
+    let html = export_html(state)
+    assert(html.contains("<h1>H1</h1>"), "H1 标签")
+    assert(html.contains("<h2>H2</h2>"), "H2 标签")
+    assert(html.contains("<h3>H3</h3>"), "H3 标签")
+    assert(html.contains("<h4>H4</h4>"), "H4 标签")
+    assert(html.contains("<h5>H5</h5>"), "H5 标签")
+    assert(html.contains("<h6>H6</h6>"), "H6 标签")
+    return Ok(0)
+}
+
+@test
+fn render_html_italic_and_strike() -> Result<i32, String> {
+    let src = "_斜体文本_ 和 ~~删除的文本~~\n"
+    let out = lex(src)
+    let pr = parse(out)
+    let state = build_document(pr, src)
+    let html = export_html(state)
+    assert(html.contains("<em>斜体文本</em>"), "应有 em 标签")
+    assert(html.contains("<del>删除的文本</del>"), "应有 del 标签")
+    return Ok(0)
+}
+
+@test
+fn render_html_bold_and_underline() -> Result<i32, String> {
+    let src = "**加粗文本** 和 @[u]下划线文本@[/u]\n"
+    let out = lex(src)
+    let pr = parse(out)
+    let state = build_document(pr, src)
+    let html = export_html(state)
+    assert(html.contains("<strong>加粗文本</strong>"), "应有 strong 标签")
+    assert(html.contains("<u>下划线文本</u>"), "应有 u 标签")
+    return Ok(0)
+}
+
+@test
+fn render_theme_and_labels_together() -> Result<i32, String> {
+    let src = "# 引言 @[label intro]\n使用 Aine 开发。\n## 数据 @[label data]\n"
+    let out = lex(src)
+    let pr = parse(out)
+    let state = build_document(pr, src)
+    var t = theme_new("integration")
+    t = theme_add_rule(t, "heading", 1, "size", "22pt")
+    t = theme_add_rule(t, "heading", 2, "size", "18pt")
+
+    let labels = collect_labels(state)
+    assert(labels.len() == 2, f"应有 2 个 Label")
+
+    let items = render_document(state, t)
+    var h1_size = ""
+    var h2_size = ""
+    for item in items {
+        if item.kind == "heading" {
+            if item.text.contains("引言") { h1_size = item.font_size }
+            if item.text.contains("数据") { h2_size = item.font_size }
+        }
+    }
+    assert(h1_size == "22pt", f"H1 应为 22pt,得到 [{h1_size}]")
+    assert(h2_size == "18pt", f"H2 应为 18pt,得到 [{h2_size}]")
+    return Ok(0)
+}
+
+@test
+fn render_theme_and_cjk_text() -> Result<i32, String> {
+    // CJK 文本和 Theme 级联协同
+    let src = "使用 Rust 和 Aine 开发文档系统。\n"
+    let out = lex(src)
+    let pr = parse(out)
+    let state = build_document(pr, src)
+    var t = theme_new("cjk")
+    t = theme_add_rule(t, "body", 0, "font", "Noto Sans CJK SC")
+    t = theme_add_rule(t, "body", 0, "size", "12pt")
+    let items = render_document(state, t)
+    assert(items[0].font_name == "Noto Sans CJK SC", "CJK 字体")
+    assert(items[0].font_size == "12pt", "字号 12pt")
+    return Ok(0)
+}
