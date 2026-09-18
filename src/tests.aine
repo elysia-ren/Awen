@@ -2754,3 +2754,42 @@ fn export_html_raw_block() -> Result<i32, String> {
     assert(html.contains("print(1)"), "应含代码内容")
     return Ok(0)
 }
+
+// ── 更多渲染边界测试 ────────────────────────────────────────
+
+@test
+fn render_html_heading_levels() -> Result<i32, String> {
+    let src = "# H1\n## H2\n### H3\n"
+    let out = lex(src)
+    let pr = parse(out)
+    let state = build_document(pr, src)
+    let html = export_html(state)
+    assert(html.contains("<h1>"), "应有 h1")
+    assert(html.contains("<h2>"), "应有 h2")
+    assert(html.contains("<h3>"), "应有 h3")
+    return Ok(0)
+}
+
+@test
+fn render_html_scoped_inline() -> Result<i32, String> {
+    let src = "@[u]下划线@[/u] 和 **粗体**\n"
+    let out = lex(src)
+    let pr = parse(out)
+    let state = build_document(pr, src)
+    let html = export_html(state)
+    assert(html.contains("<u>"), "应有 u 标签")
+    assert(html.contains("<strong>"), "应有 strong 标签")
+    return Ok(0)
+}
+
+@test
+fn render_html_comment_excluded() -> Result<i32, String> {
+    let src = "@[comment 不应出现在 HTML]\n正文\n"
+    let out = lex(src)
+    let pr = parse(out)
+    let state = build_document(pr, src)
+    let html = export_html(state)
+    assert(!html.contains("不应出现在 HTML"), "注释不应导出")
+    assert(html.contains("正文"), "正文应导出")
+    return Ok(0)
+}
