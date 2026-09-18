@@ -4628,3 +4628,80 @@ fn container_roundtrip_preserves_raw_content() -> Result<i32, String> {
     }
     return Err("找不到 Raw 块")
 }
+
+// ── 更多 pipeline 和 render 集成深度测试 ────────────────────
+
+@test
+fn pipeline_edit_para_after_heading() -> Result<i32, String> {
+    // 编辑 heading 后,后续段落的内容不受影响
+    let src = "# 标题 A\n这是段落内容,包含中文标点。\n"
+    let out = lex(src)
+    let pr = parse(out)
+    let state = build_document(pr, src)
+    let r = edit_heading_text(state, 1, "修改后的标题", src)
+    // 验证段落内容完整
+    assert(r.new_source.contains("这是段落内容,包含中文标点。"), f"段落应保留: [{r.new_source}]")
+    return Ok(0)
+}
+
+@test
+fn render_multiple_tables() -> Result<i32, String> {
+    let src = "@[table]\n\n| a | b |\n| --- | --- |\n| 1 | 2 |\n\n@[/table]\n\n@[table]\n\n| c | d |\n| --- | --- |\n| 3 | 4 |\n\n@[/table]\n"
+    let out = lex(src)
+    let pr = parse(out)
+    let state = build_document(pr, src)
+    let tables = doc_count_kind(state, "table")
+    assert(tables >= 1, f"应有表格,得到 {tables}")
+    return Ok(0)
+}
+
+@test
+fn render_theme_size_all_headings() -> Result<i32, String> {
+    let src = "# 一\n## 二\n### 三\n"
+    let out = lex(src)
+    let pr = parse(out)
+    let state = build_document(pr, src)
+    var t = theme_new("sizes")
+    t = theme_add_rule(t, "heading", 1, "size", "22pt")
+    t = theme_add_rule(t, "heading", 2, "size", "18pt")
+    t = theme_add_rule(t, "heading", 3, "size", "16pt")
+    let items = render_document(state, t)
+    // 验证每个 heading 的字号
+    var h1_size = ""
+    var h2_size = ""
+    var h3_size = ""
+    for item in items {
+        if item.kind == "heading" {
+            if item.text == "一" { h1_size = item.font_size }
+            if item.text == "二" { h2_size = item.font_size }
+            if item.text == "三" { h3_size = item.font_size }
+        }
+    }
+    assert(h1_size == "22pt", f"H1 应为 22pt")
+    assert(h2_size == "18pt", f"H2 应为 18pt")
+    assert(h3_size == "16pt", f"H3 应为 16pt")
+    return Ok(0)
+}
+
+@test
+fn pipeline_multi_edit_preserves_render() -> Result<i32, String> {
+    // 多轮编辑后渲染项数不变
+    let src = "# A\n内容\n## B\n内容\n### C\n内容\n"
+    let out = lex(src)
+    let pr = parse(out)
+    let state = build_document(pr, src)
+    var t = theme_new("render_test")
+    t = theme_add_rule(t, "heading", 1, "size", "20pt")
+
+    let items_before = render_document(state, t)
+
+    // 编辑 heading
+    let r = edit_heading_text(state, 1, "修改后的 A", src)
+    let out2 = lex(r.new_source)
+    let pr2 = parse(out2)
+    let state2 = build_document(pr2, r.new_source)
+    let items_after = render_document(state2, t)
+
+    assert(items_before.len() == items_after.len(), f"渲染项数应一致: {items_before.len()} → {items_after.len()}")
+    return Ok(0)
+}
