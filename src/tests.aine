@@ -5729,7 +5729,7 @@ fn pipeline_incremental_edit_theme_size() -> Result<i32, String> {
     let out = lex(src)
     let pr = parse(out)
     let state = build_document(pr, src)
-    let t = theme_from_document(state)
+    var t = theme_from_document(state)
     let body_size = resolve_style(t, "body", 0, "size", None)
     assert(body_size == "14pt", f"文档级 size 应为 14pt,得到 {body_size}")
     return Ok(0)
@@ -5746,5 +5746,74 @@ fn pipeline_incremental_theme_numbering() -> Result<i32, String> {
     assert(configs.len() == 2, f"应有 2 个 Numbering 配置,得到 {configs.len()}")
     assert(configs[0].target == "figure", "第一个为 figure")
     assert(configs[1].target == "table", "第二个为 table")
+    return Ok(0)
+}
+
+// ── Theme 级联深度测试 ──────────────────────────────────────
+
+@test
+fn theme_heading_all_levels_cascade() -> Result<i32, String> {
+    var t = theme_new("all_heading")
+    t = theme_add_rule(t, "heading", 1, "size", "26pt")
+    t = theme_add_rule(t, "heading", 2, "size", "22pt")
+    t = theme_add_rule(t, "heading", 3, "size", "18pt")
+    t = theme_add_rule(t, "heading", 4, "size", "16pt")
+    t = theme_add_rule(t, "heading", 5, "size", "14pt")
+    t = theme_add_rule(t, "heading", 6, "size", "12pt")
+    assert(heading_size(t, 1) == "26pt", "H1")
+    assert(heading_size(t, 2) == "22pt", "H2")
+    assert(heading_size(t, 3) == "18pt", "H3")
+    assert(heading_size(t, 4) == "16pt", "H4")
+    assert(heading_size(t, 5) == "14pt", "H5")
+    assert(heading_size(t, 6) == "12pt", "H6")
+    return Ok(0)
+}
+
+@test
+fn theme_body_and_heading_independent() -> Result<i32, String> {
+    var t = theme_new("test")
+    t = theme_add_rule(t, "heading", 0, "size", "24pt")
+    t = theme_add_rule(t, "body", 0, "font", "Serif")
+    t = theme_add_rule(t, "body", 0, "size", "12pt")
+    // heading size 独立于 body
+    assert(resolve_style(t, "heading", 1, "size", None) == "24pt", "heading 用自己的 size")
+    assert(resolve_style(t, "body", 0, "size", None) == "12pt", "body 用自己的 size")
+    // font 来自 body 规则
+    assert(resolve_style(t, "body", 0, "font", None) == "Serif", "body font")
+    return Ok(0)
+}
+
+@test
+fn theme_color_and_weight_defaults() {
+    // 默认值
+    assert(resolve_style(theme_new("empty"), "body", 0, "color", None) == "#000000", "默认颜色")
+    assert(resolve_style(theme_new("empty"), "body", 0, "weight", None) == "normal", "默认字重")
+    // 设置后覆盖
+    var t = theme_new("custom")
+    t = theme_add_rule(t, "body", 0, "color", "#333333")
+    t = theme_add_rule(t, "body", 0, "weight", "bold")
+    assert(resolve_style(t, "body", 0, "color", None) == "#333333", "自定义颜色")
+    assert(resolve_style(t, "body", 0, "weight", None) == "bold", "自定义字重")
+}
+
+@test
+fn render_theme_body_font_size_heading() -> Result<i32, String> {
+    let src = "# 标题\n正文\n"
+    let out = lex(src)
+    let pr = parse(out)
+    let state = build_document(pr, src)
+    var t = theme_new("test")
+    t = theme_add_rule(t, "heading", 1, "size", "24pt")
+    t = theme_add_rule(t, "body", 0, "size", "12pt")
+    let items = render_document(state, t)
+    // heading 用 24pt,para 用 12pt
+    var h_size = ""
+    var p_size = ""
+    for item in items {
+        if item.kind == "heading" { h_size = item.font_size }
+        if item.kind == "para" { p_size = item.font_size }
+    }
+    assert(h_size == "24pt", f"H1 size = {h_size}")
+    assert(p_size == "12pt", f"para size = {p_size}")
     return Ok(0)
 }
