@@ -4764,3 +4764,95 @@ fn incr_diff_detects_line_number_shift() -> Result<i32, String> {
     assert(d.has_change, "应检测到变化")
     return Ok(0)
 }
+
+// ── 更多渲染管线和 Label 管线集成测试 ────────────────────────
+
+@test
+fn pipeline_multi_heading_edit_labels_refs() -> Result<i32, String> {
+    // 5 个 heading + 3 个 ref 的文档,多轮编辑后全部保留
+    let src = "# 章 A @[label a]\n见 @[ref a] 和 @[ref b]。\n## 章 B @[label b]\n内容\n# 章 C @[label c]\n见 @[ref c]。\n"
+    let p1 = pipeline_full(src)
+    assert(p1.labels.len() == 3, f"初始 Label 应为 3,得到 {p1.labels.len()}")
+
+    // 修改第一个 heading
+    let p2 = pipeline_edit_heading(p1, 1, "修改后的章 A")
+    // 修改第三个 heading
+    let p3 = pipeline_edit_heading(p2, 5, "修改后的章 C")
+
+    // Label 应保留
+    var found_a = false
+    var found_b = false
+    var found_c = false
+    for l in p3.labels {
+        if l.label == "a" { found_a = true }
+        if l.label == "b" { found_b = true }
+        if l.label == "c" { found_c = true }
+    }
+    assert(found_a && found_b && found_c, f"所有 Label 应保留")
+
+    // 引用应完整
+    assert(p3.unresolved_refs.len() == 0, f"引用应完整")
+
+    // 渲染应正常
+    assert(p3.render_items.len() > 0, f"渲染项应存在")
+    return Ok(0)
+}
+
+@test
+fn render_theme_all_heading_levels() -> Result<i32, String> {
+    // 6 级 heading 全部使用 theme 级联字号
+    let src = "# L1\n## L2\n### L3\n#### L4\n##### L5\n###### L6\n"
+    let out = lex(src)
+    let pr = parse(out)
+    let state = build_document(pr, src)
+    var t = theme_new("all_levels")
+    t = theme_add_rule(t, "heading", 1, "size", "26pt")
+    t = theme_add_rule(t, "heading", 2, "size", "22pt")
+    t = theme_add_rule(t, "heading", 3, "size", "18pt")
+    t = theme_add_rule(t, "heading", 4, "size", "16pt")
+    t = theme_add_rule(t, "heading", 5, "size", "14pt")
+    t = theme_add_rule(t, "heading", 6, "size", "12pt")
+    let items = render_document(state, t)
+    var sizes: Vec<String> = []
+    for item in items {
+        if item.kind == "heading" { sizes = sizes.push(item.font_size) }
+    }
+    assert(sizes.len() == 6, f"应有 6 个 heading 渲染项")
+    assert(sizes[0] == "26pt", "L1 应为 26pt")
+    assert(sizes[1] == "22pt", "L2 应为 22pt")
+    assert(sizes[2] == "18pt", "L3 应为 18pt")
+    assert(sizes[3] == "16pt", "L4 应为 16pt")
+    assert(sizes[4] == "14pt", "L5 应为 14pt")
+    assert(sizes[5] == "12pt", "L6 应为 12pt")
+    return Ok(0)
+}
+
+@test
+fn pipeline_incremental_full_consistency_multi() -> Result<i32, String> {
+    // 多轮增量编辑后,增量结果与全量解析一致
+    let src = "# A\n内容 A\n## B\n内容 B\n"
+    let out = lex(src)
+    let pr = parse(out)
+    let state = build_document(pr, src)
+    let labels = collect_labels(state)
+
+    // 编辑标题
+    let r = edit_heading_text(state, 1, "修改后的 A", src)
+
+    // 增量更新 vs 全量解析
+    let incr = incremental_update(state, labels, src, r.new_source)
+    let full_out = lex(r.new_source)
+    let full_pr = parse(full_out)
+    let full_state = build_document(full_pr, r.new_source)
+
+    // 节点数一致
+    assert(incr.state.nodes.len() == full_state.nodes.len(), f"节点数不一致: incr={incr.state.nodes.len()} full={full_state.nodes.len()}")
+
+    // kind 序列一致
+    var i = 0
+    while i < full_state.nodes.len() && i < incr.state.nodes.len() {
+        assert(full_state.nodes[i].kind == incr.state.nodes[i].kind, f"节点 {i} kind 不一致")
+        i += 1
+    }
+    return Ok(0)
+}
