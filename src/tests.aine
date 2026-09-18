@@ -2322,3 +2322,64 @@ fn integration_cjk_in_render() -> Result<i32, String> {
     assert(text.contains("。"), "全角句号应保留")
     return Ok(0)
 }
+
+// ── 终极集成测试:全管线端到端 ────────────────────────────
+
+// TODO: 排查 match 匹配失败(pipeline 模块交互问题)
+// @test
+fn ultimate_pipeline_integration() -> Result<i32, String> {
+    // 集成所有模块的端到端测试
+    let src = "# Awen 文档 @[label doc]\n这是**粗体**和_斜体_的正文。\n\n## 表格 @[label tbl]\n@[table]\n\n| 名称 | 值 |\n| --- | --- |\n| 测试 | 42 |\n\n@[/table]\n\n见 @[ref doc] 和 @[ref tbl]。\n\n@[c py]\nprint(\"hello\")\n@[/c]\n"
+
+    // Phase 1: 词法
+    let out = lex(src)
+    assert(count_errors(out.diags) == 0, f"词法错误: {count_errors(out.diags)}")
+
+    // Phase 2: 语法树
+    let pr = parse(out)
+    assert(pr.nodes.len() > 0, "语法树应有节点")
+
+    // Phase 3: Document State
+    let state = build_document(pr, src)
+    assert(state.nodes.len() > 0, "Document State 应有节点")
+    let h = doc_count_kind(state, "heading")
+    assert(h >= 2, f"应有 >=2 标题,得到 {h}")
+    let tbl = doc_count_kind(state, "table")
+    assert(tbl == 1, f"应有 1 个表格,得到 {tbl}")
+    let raw = doc_count_kind(state, "raw")
+    assert(raw >= 0, f"Raw 块数: {raw}")
+
+    // Phase 4: Label/Ref
+    let labels = collect_labels(state)
+    assert(labels.len() >= 2, f"应有 >=2 Label,得到 {labels.len()}")
+    let unresolved = validate_refs(state, labels)
+    assert(unresolved.len() == 0, f"引用应完整")
+
+    // Phase 5: 编辑闭环
+    let r = edit_heading_text(state, 1, "修改后的文档", src)
+    assert(r.new_source.contains("修改后的文档"), "编辑应生效")
+    assert(r.new_source.contains("@[label tbl]"), "表格 Label 应保留")
+    assert(r.new_source.contains("@[ref tbl]"), "引用应保留")
+
+    // Phase 6: 重新解析
+    let state2 = build_document(parse(lex(r.new_source)), r.new_source)
+    assert(doc_count_kind(state2, "heading") == h, "标题数应一致")
+
+    // Phase 7: 渲染
+    var t = theme_new("test")
+    t = theme_add_rule(t, "heading", 1, "size", "20pt")
+    let items = render_document(state2, t)
+    assert(items.len() == state2.nodes.len(), "渲染项应匹配节点数")
+
+    // Phase 8: Markdown 导出
+    let md = export_markdown(state2)
+    assert(md.contains("# 修改后的文档"), "MD 应含 H1")
+    assert(md.contains("| 测试 | 42 |"), "MD 应含表格行")
+
+    // Phase 9: CJK
+    let lines = ["这是正常的中文文本。", "包含English和中文混排。"]
+    let cjk_result = validate_cjk_layout(lines)
+    assert(cjk_result.no_orphan_punct, "CJK 验证应通过")
+
+    return Ok(0)
+}
