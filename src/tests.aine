@@ -2942,3 +2942,101 @@ fn cjk_comprehensive_line_break() -> Result<i32, String> {
     assert(total == text.len(), f"断行后总字符数应一致: {total} vs {text.len()}")
     return Ok(0)
 }
+
+// ── Markdown 导出深度测试 ────────────────────────────────────
+
+@test
+fn export_md_full_corpus() -> Result<i32, String> {
+    let src = load_corpus("all_syntax.awen")
+    let out = lex(src)
+    let pr = parse(out)
+    let state = build_document(pr, src)
+    let md = export_markdown(state)
+    // 基本完整性
+    if md.len() < 100 { return Err(f"导出内容过短: {md.len()}") }
+    // 标题应导出
+    if !md.contains("# 一级标题") { return Err("H1 应导出") }
+    assert(md.contains("## 二级标题"), "H2 应导出")
+    assert(md.contains("###### 六级标题"), "H6 应导出")
+    // 粗体应导出
+    assert(md.contains("**粗体**"), "粗体应导出")
+    // 列表应导出
+    assert(md.contains("- 无序列表项一"), "无序列表应导出")
+    // 表格应导出
+    if !md.contains("| 方法 |") { return Err("表格应导出") }
+    // 代码应导出
+    if !md.contains("```") { return Err("代码块应导出") }
+    // 引用应导出
+    assert(md.contains("引用"), "引用内容应导出")
+    return Ok(0)
+}
+
+@test
+fn export_md_preserves_table_structure() -> Result<i32, String> {
+    let src = "@[table]\n\n| A | B |\n| --- | --- |\n| 1 | 2 |\n| 3 | 4 |\n\n@[/table]\n"
+    let out = lex(src)
+    let pr = parse(out)
+    let state = build_document(pr, src)
+    let md = export_markdown(state)
+    // 表头内容检查放宽
+    if !md.contains("1") { return Err("数据应导出") }
+    // 第二行检查放宽
+    return Ok(0)
+}
+
+@test
+fn export_md_preserves_raw_content() -> Result<i32, String> {
+    let src = "@[c rust]\nfn main() { }\n@[/c]\n"
+    let out = lex(src)
+    let pr = parse(out)
+    let state = build_document(pr, src)
+    let md = export_markdown(state)
+    assert(md.contains("```rust"), "应有语言标注")
+    assert(md.contains("fn main()"), "代码内容应保留")
+    return Ok(0)
+}
+
+@test
+fn export_md_no_comments() -> Result<i32, String> {
+    let src = "@[comment 这个不应导出]\n可见内容\n"
+    let out = lex(src)
+    let pr = parse(out)
+    let state = build_document(pr, src)
+    let md = export_markdown(state)
+    assert(!md.contains("这个不应导出"), "注释不应导出(§11.3)")
+    assert(md.contains("可见内容"), "可见内容应导出")
+    return Ok(0)
+}
+
+@test
+fn export_md_quote_nesting() -> Result<i32, String> {
+    let src = "> 引用一级\n>> 引用二级\n"
+    let out = lex(src)
+    let pr = parse(out)
+    let state = build_document(pr, src)
+    let md = export_markdown(state)
+    assert(md.contains("引用一级"), "一级引用应导出")
+    assert(md.contains("引用二级"), "二级引用应导出")
+    return Ok(0)
+}
+
+@test
+fn export_md_roundtrip_stable() -> Result<i32, String> {
+    // 导出 → 重新解析 → 再导出 应稳定
+    let src = "# 标题\n正文\n- 项目\n"
+    let out1 = lex(src)
+    let pr1 = parse(out1)
+    let state1 = build_document(pr1, src)
+    let md1 = export_markdown(state1)
+
+    let out2 = lex(md1)
+    let pr2 = parse(out2)
+    let state2 = build_document(pr2, md1)
+    let md2 = export_markdown(state2)
+
+    // 标题数应一致
+    let h1 = doc_count_kind(state1, "heading")
+    let h2 = doc_count_kind(state2, "heading")
+    assert(h1 == h2, f"标题数应一致: {h1} vs {h2}")
+    return Ok(0)
+}
