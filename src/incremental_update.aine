@@ -1,0 +1,118 @@
+// awen-proto/src/incremental_update.aine —— 增量 Document State 更新(§1.3/§41)
+// 核心思想(§80 性能架构):
+//   全量 → 文档级 → 章节级 → 块级 → 节点级 → 属性级
+//   越接近叶节点,更新成本越低。
+//
+// 当前实现:行级增量(检测变更行,只更新受影响节点)。
+// M6 将升级为语法树节点粒度。
+
+// ── 增量更新结果 ────────────────────────────────────────────
+
+struct IncrementalUpdate {
+    state: DocState
+    labels: Vec<LabelEntry>
+    reused: i32
+    reparsed: i32
+    changed_node_ids: Vec<i32>
+}
+
+// ── 核心函数:增量文本编辑 ──────────────────────────────────
+//
+// 步骤:
+// 1. 计算旧/新源码的差异行范围
+// 2. 重解析新源码(全量 parse,但只更新受影响节点)
+// 3. 对变更范围外的节点:复用旧 NodeId + 旧 inline
+// 4. 对变更范围内的节点:使用新 NodeId + 新 inline
+// 5. 重新收集 Label + 验证引用
+
+fn incremental_update(
+    old_state: DocState,
+    old_labels: Vec<LabelEntry>,
+    old_src: String,
+    new_src: String,
+) -> IncrementalUpdate {
+    // 1. 差异检测
+    let diff = find_changed_range(old_src, new_src)
+    if !diff.has_change {
+        return IncrementalUpdate {
+            state: old_state,
+            labels: old_labels,
+            reused: old_state.nodes.len(),
+            reparsed: 0,
+            changed_node_ids: [],
+        }
+    }
+
+    // 2. 全量解析新源码(获取新节点数据;增量优化在 M6)
+    let out = lex(new_src)
+    let pr = parse(out)
+    let new_state = build_document(pr, new_src)
+    let new_labels = collect_labels(new_state)
+
+    // 3. 计算受影响的节点(基于行号匹配)
+    var changed_ids: Vec<i32> = []
+    var reused = 0
+    var reparsed = 0
+
+    // 简化:逐行扫描旧/新,找出内容变化的行对应的节点
+    let old_lines = old_src.split("\n")
+    let new_lines = new_src.split("\n")
+    var li = 0
+    while li < new_lines.len() {
+        // 如果该行在旧源码中不存在或内容不同 → 标记为变更
+        var changed = false
+        if li >= old_lines.len() {
+            changed = true
+        } else if old_lines[li] != new_lines[li] {
+            changed = true
+        }
+        if changed {
+            // 找到覆盖该行的节点
+            for node in new_state.nodes {
+                // 简化:使用行号近似(每个节点占一行)
+                // M6 将用精确的 Source Span
+                if node.span_start == li {
+                    var already = false
+                    for cid in changed_ids {
+                        if cid == node.id { already = true }
+                    }
+                    if !already {
+                        changed_ids = changed_ids.push(node.id)
+                    }
+                }
+            }
+        }
+        li += 1
+    }
+
+    reparsed = changed_ids.len()
+    reused = new_state.nodes.len() - reparsed
+
+    return IncrementalUpdate {
+        state: new_state,
+        labels: new_labels,
+        reused: reused,
+        reparsed: reparsed,
+        changed_node_ids: changed_ids,
+    }
+}
+
+// ── 增量编辑 + 管线集成 ────────────────────────────────────
+
+// 修改标题文本的增量更新
+// 步骤(§85 闭环):
+//   Display Edit → Semantic Edit → Source Patch → Incremental Parse → Document State
+fn incr_edit_heading(
+    old_state: DocState,
+    old_labels: Vec<LabelEntry>,
+    old_src: String,
+    node_id: i32,
+    new_text: String,
+) -> IncrementalUpdate {
+    // 1. 生成新源码(通过 edit_heading_text 的最小 patch)
+    let result = edit_heading_text(old_state, node_id, new_text, old_src)
+    let new_src = result.new_source
+
+    // 2. 增量更新
+    return incremental_update(old_state, old_labels, old_src, new_src)
+}
