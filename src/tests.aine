@@ -5436,3 +5436,92 @@ fn render_plain_text_all_elements() -> Result<i32, String> {
     assert(text.contains("code"), "代码")
     return Ok(0)
 }
+
+// ── 更多渲染管线功能验证 ────────────────────────────────────
+
+@test
+fn render_scoped_bold_inside_paragraph() -> Result<i32, String> {
+    // paragraph 中的 @[b]scoped@[/b] 节点
+    let src = "前文 @[b]加粗内容@[/b] 后文\n"
+    let out = lex(src)
+    let pr = parse(out)
+    let state = build_document(pr, src)
+    // paragraph 中的 inline 应包含 Scoped(Bold) 节点
+    var found_scoped = false
+    for node in state.nodes {
+        if node.kind == "para" {
+            for item in node.inline {
+                match item {
+                    Scoped(cmd, c) { if cmd == Bold { found_scoped = true } }
+                    _ { }
+                }
+            }
+        }
+    }
+    assert(found_scoped, "应找到 Scoped(Bold) 节点")
+    return Ok(0)
+}
+
+@test
+fn render_scoped_font_in_paragraph() -> Result<i32, String> {
+    // paragraph 中的 @[font]scoped 节点
+    let src = "前文 @[font \"Serif\"]字体内容@[/font] 后文\n"
+    let out = lex(src)
+    let pr = parse(out)
+    let state = build_document(pr, src)
+    var found_scoped = false
+    for node in state.nodes {
+        if node.kind == "para" {
+            for item in node.inline {
+                match item {
+                    Scoped(cmd, c) { if cmd == Font { found_scoped = true } }
+                    _ { }
+                }
+            }
+        }
+    }
+    assert(found_scoped, "应找到 Scoped(Font) 节点")
+    return Ok(0)
+}
+
+@test
+fn render_scoped_size_in_paragraph() -> Result<i32, String> {
+    let src = "前文 @[size 14pt]大字@[/size] 后文\n"
+    let out = lex(src)
+    let pr = parse(out)
+    let state = build_document(pr, src)
+    var found_scoped = false
+    for node in state.nodes {
+        if node.kind == "para" {
+            for item in node.inline {
+                match item {
+                    Scoped(cmd, c) { if cmd == Size { found_scoped = true } }
+                    _ { }
+                }
+            }
+        }
+    }
+    assert(found_scoped, "应找到 Scoped(Size) 节点")
+    return Ok(0)
+}
+
+@test
+fn render_scoped_color_in_paragraph() -> Result<i32, String> {
+    let src = "前文 @[color \"red\"]红色文字@[/color] 后文\n"
+    let out = lex(src)
+    let pr = parse(out)
+    let state = build_document(pr, src)
+    var found_scoped = false
+    for node in state.nodes {
+        if node.kind == "para" {
+            for item in node.inline {
+                match item {
+                    Scoped(cmd, c) { if cmd == Color { found_scoped = true } }
+                    _ { }
+                }
+            }
+        }
+    }
+    assert(found_scoped, "应找到 Scoped(Color) 节点")
+    return Ok(0)
+}
