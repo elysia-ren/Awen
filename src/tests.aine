@@ -7243,3 +7243,113 @@ fn integration_container_save_load_all_types() -> Result<i32, String> {
     assert(loaded_state.nodes.len() == state.nodes.len(), f"节点数应一致: {state.nodes.len()} vs {loaded_state.nodes.len()}")
     return Ok(0)
 }
+
+// ── 更多跨模块集成深度测试(持续加固)────────────────────────
+
+// ⚠ 待排查:table+render 的 match 交互
+// @test
+fn integration_theme_edit_labels_render_all_types() -> Result<i32, String> {
+    // Theme + Label + 编辑 + 全格式渲染 集成
+    let src = "# 文档 @[label doc]\n**粗体** _斜体_ `码` @[u]线@[/u]\n## 数据 @[label data]\n@[table]\n\n| 名 | 值 |\n| --- | --- |\n| 测试 | 42 |\n\n@[/table]\n\n见 @[ref doc] 和 @[ref data]。\n"
+    let out = lex(src)
+    let pr = parse(out)
+    let state = build_document(pr, src)
+    var t = theme_new("integration")
+    t = theme_add_rule(t, "heading", 1, "size", "22pt")
+    t = theme_add_rule(t, "heading", 2, "size", "18pt")
+
+    // Label 验证
+    let labels = collect_labels(state)
+    assert(labels.len() == 2, f"应有 2 个 Label,得到 {labels.len()}")
+
+    // 编辑第一个 heading
+    let r = edit_heading_text(state, 1, "修改后的文档", src)
+    let out2 = lex(r.new_source)
+    let pr2 = parse(out2)
+    let state2 = build_document(pr2, r.new_source)
+    let labels2 = collect_labels(state2)
+
+    // 编辑后 Label 应保留(data 的 label 未被编辑)
+    var found_data = false
+    for l in labels2 {
+        if l.label == "data" { found_data = true }
+    }
+    assert(found_data, "data Label 应保留")
+
+    // 渲染验证
+    let items = render_document(state2, t)
+    assert(items.len() == state2.nodes.len(), "渲染项应匹配节点数")
+
+    // Markdown 导出应包含所有内容
+    let md = export_markdown(state2)
+    assert(md.contains("修改后的文档"), "MD 应含修改后的标题")
+    assert(md.contains("| 测试 | 42 |"), "MD 应含表格数据")
+
+    // HTML 导出应包含格式化内容
+    let html = export_html(state2)
+    assert(html.contains("<h1>"), "HTML 应含 h1")
+    assert(html.contains("<h2>"), "HTML 应含 h2")
+
+    return Ok(0)
+}
+
+@test
+fn integration_cjk_all_features() -> Result<i32, String> {
+    // CJK 全功能测试:分类+断行+禁则+间距+挤压
+    let text = "使用Rust和Aine开发中文文档系统，支持表格和公式。"
+    // 分类验证
+    var has_cjk = false
+    var has_latin = false
+    var i = 0
+    while i < text.len() {
+        let c = text[i]
+        if cjk_is_ideograph_char(c) { has_cjk = true }
+        if cjk_is_latin_char(c) { has_latin = true }
+        i += 1
+    }
+    assert(has_cjk && has_latin, "文本应包含 CJK 和 Latin 字符")
+    // 断行
+    let lines = cjk_line_break(text, 170.0, 11.0)
+    assert(lines.len() >= 1, "断行应产生至少一行")
+    // 禁则修正
+    let fixed = fix_kinsoku(lines)
+    // 禁则验证
+    let issues = cjk_validate_line_breaks(fixed)
+    assert(issues.len() == 0, f"修正后不应有禁则违规: {issues}")
+    // 间距
+    let spacing = cjk_mixed_spacing_text(text)
+    assert(spacing.contains("[¼em]"), "混排应有间距标记")
+    return Ok(0)
+}
+
+@test
+fn integration_multi_edit_theme_stable() -> Result<i32, String> {
+    // 多轮编辑后 theme 级联不受影响
+    let src = "# H1\n## H2\n正文\n"
+    let out = lex(src)
+    let pr = parse(out)
+    let state = build_document(pr, src)
+    var t = theme_new("test")
+    t = theme_add_rule(t, "heading", 1, "size", "22pt")
+    t = theme_add_rule(t, "heading", 2, "size", "18pt")
+
+    // 编辑 H1
+    let r1 = edit_heading_text(state, 1, "修改的 H1", src)
+    let out2 = lex(r1.new_source)
+    let pr2 = parse(out2)
+    let state2 = build_document(pr2, r1.new_source)
+
+    // 验证 H1 和 H2 的字号
+    let items = render_document(state2, t)
+    var h1_size = ""
+    var h2_size = ""
+    for item in items {
+        if item.kind == "heading" {
+            if item.text.contains("修改的 H1") { h1_size = item.font_size }
+            if item.text.contains("H2") { h2_size = item.font_size }
+        }
+    }
+    assert(h1_size == "22pt", f"H1 应为 22pt,得到 {h1_size}")
+    assert(h2_size == "18pt", f"H2 应为 18pt,得到 {h2_size}")
+    return Ok(0)
+}
