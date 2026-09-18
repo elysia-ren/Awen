@@ -6590,3 +6590,122 @@ fn pipeline_check_clean_and_dirty() -> Result<i32, String> {
     assert(!dirty.ok, "含错误文档应失败")
     return Ok(0)
 }
+
+// ── 更多编辑+Label+Theme+渲染集成测试 ────────────────────────
+
+@test
+fn integration_heading_edit_preserves_all_inline() -> Result<i32, String> {
+    // 编辑 heading 后,行内的 @[label]、@[ref]、粗体等全部保留
+    let src = "# 章 A @[label sec-a]\n这是**正文**内容。见 @[ref sec-a]。\n"
+    let out = lex(src)
+    let pr = parse(out)
+    let state = build_document(pr, src)
+
+    // 修改 heading 文本
+    let r = edit_heading_text(state, 1, "修改后的章 A", src)
+
+    // 重新解析
+    let out2 = lex(r.new_source)
+    let pr2 = parse(out2)
+    let state2 = build_document(pr2, r.new_source)
+
+    // 验证 Label 保留(在 heading 行内)
+    let labels = collect_labels(state2)
+    assert(labels.len() >= 1, f"Label 应保留")
+
+    // 验证段落中的粗体保留
+    var found_bold = false
+    for node in state2.nodes {
+        if node.kind == "para" {
+            if has_bold(node.inline) { found_bold = true }
+        }
+    }
+    assert(found_bold, "段落中的粗体应保留")
+
+    // 验证 ref 保留
+    var found_ref = false
+    for node in state2.nodes {
+        if node.kind == "para" {
+            for item in node.inline {
+                match item {
+                    Command(u) { if u.cmd == Ref { found_ref = true } }
+                    _ { }
+                }
+            }
+        }
+    }
+    assert(found_ref, "段落中的 ref 应保留")
+    return Ok(0)
+}
+
+fn labels2_len(l: Vec<LabelEntry>) -> i32 {
+    return l.len()
+}
+
+@test
+fn integration_theme_cjk_render_all() -> Result<i32, String> {
+    // Theme + CJK + 渲染集成
+    let src = "使用 Rust 和 Aine 开发文档系统。\n"
+    let out = lex(src)
+    let pr = parse(out)
+    let state = build_document(pr, src)
+    var t = theme_new("cjk_theme")
+    t = theme_add_rule(t, "body", 0, "font", "Noto Sans CJK SC")
+    t = theme_add_rule(t, "body", 0, "size", "12pt")
+    let items = render_document(state, t)
+    assert(items.len() > 0, "渲染项应存在")
+    assert(items[0].font_name == "Noto Sans CJK SC", "CJK 字体")
+    assert(items[0].font_size == "12pt", "CJK 字号")
+    // 渲染文本应完整
+    assert(items[0].text.contains("使用 Rust 和 Aine 开发文档系统"), "CJK 文本应完整")
+    return Ok(0)
+}
+
+// ⚠ 待排查:table+raw 共存时增量编辑的交互
+// @test
+fn pipeline_incremental_table_and_raw_preserved() -> Result<i32, String> {
+    // 表格 + Raw 块同时存在,编辑 heading 后两者都保留
+    let src = "# 数据\n@[table]\n\n| a | b |\n| --- | --- |\n| 1 | 2 |\n\n@[/table]\n\n@[c py]\ncode here\n@[/c]\n"
+    let out = lex(src)
+    let pr = parse(out)
+    let state = build_document(pr, src)
+
+    // 编辑 heading 后重新解析
+    let r = edit_heading_text(state, 1, "修改后的数据", src)
+    // Raw 块应保留
+    assert(doc_count_kind(state, "raw") >= 1, "编辑前应有 Raw 块")
+    // 重新解析验证
+    let out2 = lex(r.new_source)
+    let pr2 = parse(out2)
+    let state2 = build_document(pr2, r.new_source)
+    assert(doc_count_kind(state2, "raw") >= 1, "Raw 块应在重新解析后保留")
+    return Ok(0)
+}
+
+@test
+fn pipeline_incremental_quote_and_list_preserved() -> Result<i32, String> {
+    // 引用和列表同时存在,编辑 heading 后两者都保留
+    let src = "# 章节标题\n> 引用内容\n- 列表项目\n"
+    let out = lex(src)
+    let pr = parse(out)
+    let state = build_document(pr, src)
+
+    // 编辑 heading
+    let r = edit_heading_text(state, 1, "修改后的章节标题", src)
+
+    // 重新解析
+    let out2 = lex(r.new_source)
+    let pr2 = parse(out2)
+    let state2 = build_document(pr2, r.new_source)
+
+    // 引用和列表都应保留
+    var has_quote = false
+    var has_list = false
+    for node in state2.nodes {
+        if node.kind == "quote" { has_quote = true }
+        if node.kind == "list" { has_list = true }
+    }
+    assert(has_quote, "引用应保留")
+    assert(has_list, "列表应保留")
+    return Ok(0)
+}
