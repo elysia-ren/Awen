@@ -5100,3 +5100,83 @@ fn pipeline_theme_and_render_after_incremental() -> Result<i32, String> {
     assert(found, "修改后的标题应出现在渲染中")
     return Ok(0)
 }
+
+// ── 更多边缘测试(持续加固)────────────────────────────────
+
+@test
+fn classify_quote_and_list_same_line_prefix() -> Result<i32, String> {
+    // 引用内列表:> - 项目 应识别为 Quote(不是 ListItem)
+    assert(classify("> - 项目") == LcQuote(1), "引用内列表是 Quote")
+    // 多级引用:>>> 三层
+    assert(classify(">>> 三层引用") == LcQuote(3), "三级引用")
+    return Ok(0)
+}
+
+@test
+fn classify_heading_level_boundary() -> Result<i32, String> {
+    // 6 级以内有效
+    assert(classify("###### H6") == LcHeading(6), "H6 有效")
+    // 7 个 # 超出范围 → 文本
+    assert(classify("####### H7") == LcText, "H7 超出范围是文本")
+    return Ok(0)
+}
+
+@test
+fn classify_list_item_variants() -> Result<i32, String> {
+    // 无序列表:- 后有空格
+    assert(classify("- 项目") == LcListItem(false), "无序")
+    // 有序列表:数字. 空格
+    assert(classify("1. 项目") == LcListItem(true), "有序")
+    assert(classify("42. 大编号") == LcListItem(true), "多位数字")
+    // 非列表
+    assert(classify("-5") == LcText, "负数非列表")
+    assert(classify("-foo") == LcText, "-foo 非列表")
+    assert(classify("1.没有空格") == LcText, "无空格非列表")
+    return Ok(0)
+}
+
+@test
+fn classify_blank_and_whitespace() -> Result<i32, String> {
+    assert(classify("") == LcBlank, "空字符串")
+    assert(classify(" ") == LcBlank, "单个空格")
+    assert(classify("\t") == LcBlank, "Tab")
+    assert(classify("   \t  ") == LcBlank, "混合空白")
+    return Ok(0)
+}
+
+@test
+fn classify_divider_variants() -> Result<i32, String> {
+    assert(classify("---") == LcDivider, "---")
+    assert(classify("-----") == LcDivider, "5 个 -")
+    assert(classify("----------") == LcDivider, "10 个 -")
+    assert(classify("---abc") == LcText, "---abc 是文本")
+    return Ok(0)
+}
+
+@test
+fn lw_scan_complex_mixed_content() -> Result<i32, String> {
+    // 复杂混合内容:粗体+斜体+代码+Scoped 嵌套
+    let src = "**粗** 和 _斜_ 和 `码` 和 @[u]下@[/u] 混合"
+    let r = lw_scan_inline(src, 0, [])
+    assert(has_bold(r.inline), "应有粗体")
+    assert(has_italic(r.inline), "应有斜体")
+    let plain = inline_plain(r.inline)
+    assert(plain.contains("粗") && plain.contains("斜") && plain.contains("码"), "内容应保留")
+    return Ok(0)
+}
+
+@test
+fn lw_scan_deep_nesting() -> Result<i32, String> {
+    // 三层嵌套:** 内 _ 内 @[u]
+    let src = "**外层 _中层 @[u]内层@[/u] 中层_ 外层**"
+    let r = lw_scan_inline(src, 0, [])
+    // 应无诊断(合法嵌套)
+    var has_error = false
+    for d in r.diags {
+        if d.severity == SevError { has_error = true }
+    }
+    assert(!has_error, f"合法嵌套不应有错误")
+    // 应包含粗体节点
+    assert(has_bold(r.inline), "应有粗体")
+    return Ok(0)
+}
