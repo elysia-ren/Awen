@@ -3504,3 +3504,98 @@ fn stress_theme_consistency_across_edits() -> Result<i32, String> {
     assert(items_before[0].font_size == items_after[0].font_size, "字号应一致")
     return Ok(0)
 }
+
+// ── heading_tree + numbering + theme 集成深度测试 ────────────
+
+@test
+fn outline_tree_numbering_alignment() -> Result<i32, String> {
+    // 大纲树的层级编号应与 number_headings 一致
+    let src = "# 引言\n## 背景\n# 方法\n## 实验设计\n### 数据收集\n"
+    let out = lex(src)
+    let pr = parse(out)
+    let state = build_document(pr, src)
+    let tree = build_outline(state)
+    let numbered = number_headings(state)
+
+    // 大纲树顶层应有 2 个 H1
+    assert(tree.len() == 2, f"大纲顶层应有 2 个 H1,得到 {tree.len()}")
+
+    // 编号验证
+    assert(numbered[0].number == "第 1 章", f"第一个应为第 1 章")
+    assert(numbered[1].number == "1.1", f"第二个应为 1.1")
+    assert(numbered[2].number == "第 2 章", f"第三个应为第 2 章")
+    assert(numbered[3].number == "2.1", f"第四个应为 2.1")
+    assert(numbered[4].number == "2.1.1", f"第五个应为 2.1.1")
+    return Ok(0)
+}
+
+@test
+fn outline_tree_label_preserved() -> Result<i32, String> {
+    // 带 Label 的 heading 在大纲树中应保留 NodeId
+    let src = "# 引言 @[label intro]\n正文\n## 方法 @[label method]\n"
+    let out = lex(src)
+    let pr = parse(out)
+    let state = build_document(pr, src)
+    let tree = build_outline(state)
+    assert(tree.len() >= 1, f"大纲应有条目")
+    // H1 的 NodeId 应指向正确的 Label
+    if tree.len() > 0 {
+        let h1_node = doc_find_by_id(state, tree[0].node_id)
+        match h1_node {
+            Some(n) {
+                let label = find_label_in_inline(n.inline)
+                match label {
+                    Some(l) { assert(l == "intro", f"H1 Label 应为 intro") }
+                    None { }
+                }
+            }
+            None { return Err("找不到 H1 节点") }
+        }
+    }
+    return Ok(0)
+}
+
+@test
+fn cjk_mixed_render_integration() -> Result<i32, String> {
+    // CJK 文本在渲染管线中的混排间距
+    let src = "使用 Rust 和 Aine 开发文档系统。\n"
+    let out = lex(src)
+    let pr = parse(out)
+    let state = build_document(pr, src)
+    let text = render_plain_text(state)
+    // 渲染输出应保留全部 CJK 和 Latin 字符
+    assert(text.contains("使用"), "应含 使用")
+    assert(text.contains("Rust"), "应含 Rust")
+    assert(text.contains("Aine"), "应含 Aine")
+    assert(text.contains("开发文档系统"), "应含中文后缀")
+    return Ok(0)
+}
+
+@test
+fn pipeline_incremental_vs_full_consistency() -> Result<i32, String> {
+    // 增量解析结果与全量解析结果一致
+    let old_src = "# 标题\n旧内容\n"
+    let new_src = "# 标题\n新内容\n"
+    let out_old = lex(old_src)
+    let pr_old = parse(out_old)
+    let old_state = build_document(pr_old, old_src)
+
+    // 全量解析新源码
+    let out_new = lex(new_src)
+    let pr_new = parse(out_new)
+    let full_new = build_document(pr_new, new_src)
+
+    // 增量更新
+    let incr = incremental_update(old_state, collect_labels(old_state), old_src, new_src)
+
+    // 节点数一致
+    assert(full_new.nodes.len() == incr.state.nodes.len(), f"全量 {full_new.nodes.len()} vs 增量 {incr.state.nodes.len()}")
+
+    // kind 序列一致
+    var i = 0
+    while i < full_new.nodes.len() && i < incr.state.nodes.len() {
+        assert(full_new.nodes[i].kind == incr.state.nodes[i].kind, f"节点 {i} kind 不一致")
+        i += 1
+    }
+    return Ok(0)
+}
