@@ -4183,3 +4183,82 @@ fn nav_get_outline_shows_headings() -> Result<i32, String> {
     assert(outline.contains("章 B"), "大纲应含章 B")
     return Ok(0)
 }
+
+// ── 更多边缘测试 ────────────────────────────────────────────
+
+@test
+fn classify_quote_depth_3() -> Result<i32, String> {
+    assert(classify(">>> 三级") == LcQuote(3), "三级引用")
+    assert(classify(">>>> 四级") == LcQuote(4), "四级引用(非标但可解析)")
+    return Ok(0)
+}
+
+@test
+fn classify_ordered_multi_digit() -> Result<i32, String> {
+    assert(classify("10. 第十项") == LcListItem(true), "两位数字列表")
+    assert(classify("100. 百分项") == LcListItem(true), "三位数字列表")
+    assert(classify("1.没有空格") == LcText, "无空格非列表")
+    return Ok(0)
+}
+
+@test
+fn classify_divider_leading_spaces() -> Result<i32, String> {
+    assert(classify("---") == LcDivider, "无前导空格")
+    assert(classify(" ---") == LcDivider, "1 空格")
+    assert(classify("  ---") == LcDivider, "2 空格")
+    assert(classify("   ---") == LcDivider, "3 空格")
+    assert(classify("    ---") == LcText, "4 空格非分节线")
+    return Ok(0)
+}
+
+@test
+fn escape_at_digit_variants() -> Result<i32, String> {
+    // @ + 多位数字 + 点
+    let r1 = escape_scan("@42. 答案", 0)
+    match r1 {
+        Some(h) { assert(h.text == "42.", f"应转义为 42.") }
+        None { assert(false, "@42. 应转义") }
+    }
+    // @ 后无数字
+    assert(escape_scan("@.", 0) == None, "@. 非转义")
+    return Ok(0)
+}
+
+@test
+fn container_empty_document() -> Result<i32, String> {
+    let out = lex("")
+    let pr = parse(out)
+    let state = build_document(pr, "")
+    assert(state.nodes.len() == 0, f"空文档应无节点,得到 {state.nodes.len()}")
+    assert(doc_node_count(state) == 0, "节点数为 0")
+    return Ok(0)
+}
+
+@test
+fn container_single_line() -> Result<i32, String> {
+    let out = lex("只有一行\n")
+    assert(out.blocks.len() >= 1, "至少有一个块")
+    return Ok(0)
+}
+
+@test
+fn pipeline_incremental_edit_does_not_break_render() -> Result<i32, String> {
+    // 编辑后渲染仍正常
+    let src = "# 标题\n正文\n"
+    let p1 = pipeline_full(src)
+    let p2 = pipeline_edit_heading(p1, 1, "新标题")
+    assert(p2.render_items.len() > 0, "编辑后渲染项应存在")
+    // 渲染项数应一致
+    assert(p1.render_items.len() == p2.render_items.len(), "渲染项数应一致")
+    return Ok(0)
+}
+
+@test
+fn pipeline_theme_rules_persist_after_edit() -> Result<i32, String> {
+    // 编辑后 theme 规则不应丢失
+    let src = "@[font \"Test Font\"]\n# 标题\n正文\n"
+    let p1 = pipeline_full(src)
+    let p2 = pipeline_edit_heading(p1, 1, "新标题")
+    assert(p2.theme.rules.len() > 0, f"编辑后 theme 规则应保留,得到 {p2.theme.rules.len()}")
+    return Ok(0)
+}
