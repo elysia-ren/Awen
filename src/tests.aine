@@ -5377,3 +5377,62 @@ fn pipeline_check_dirty_document_has_errors() -> Result<i32, String> {
     assert(cr.lex_errors > 0, f"应有词法错误")
     return Ok(0)
 }
+
+// ── 更多导出和渲染功能测试 ──────────────────────────────────
+
+@test
+fn export_html_ol_ordered() -> Result<i32, String> {
+    let src = "1. 第一步\n2. 第二步\n3. 第三步\n"
+    let out = lex(src)
+    let pr = parse(out)
+    let state = build_document(pr, src)
+    let html = export_html(state)
+    assert(html.contains("<ol>"), "有序列表应有 ol 标签")
+    assert(html.contains("第一步"), "应含第一步")
+    assert(html.contains("第三步"), "应含第三步")
+    return Ok(0)
+}
+
+@test
+fn export_html_quote_nested() -> Result<i32, String> {
+    let src = "> 引用内容\n"
+    let out = lex(src)
+    let pr = parse(out)
+    let state = build_document(pr, src)
+    let html = export_html(state)
+    assert(html.contains("<blockquote>"), "应有 blockquote 标签")
+    assert(html.contains("引用内容"), "应含引用内容")
+    return Ok(0)
+}
+
+@test
+fn export_html_heading_all_levels_tags() -> Result<i32, String> {
+    let src = "# H1\n## H2\n### H3\n#### H4\n##### H5\n###### H6\n"
+    let out = lex(src)
+    let pr = parse(out)
+    let state = build_document(pr, src)
+    let html = export_html(state)
+    assert(html.contains("<h1>"), "h1 标签")
+    assert(html.contains("<h2>"), "h2 标签")
+    assert(html.contains("<h3>"), "h3 标签")
+    assert(html.contains("<h4>"), "h4 标签")
+    assert(html.contains("<h5>"), "h5 标签")
+    assert(html.contains("<h6>"), "h6 标签")
+    return Ok(0)
+}
+
+@test
+fn render_plain_text_all_elements() -> Result<i32, String> {
+    let src = "# 标题\n正文\n- 项目\n> 引用\n---\n@[c py]\ncode\n@[/c]\n"
+    let out = lex(src)
+    let pr = parse(out)
+    let state = build_document(pr, src)
+    let text = render_plain_text(state)
+    assert(text.contains("标题"), "标题")
+    assert(text.contains("正文"), "正文")
+    assert(text.contains("项目"), "列表")
+    assert(text.contains("引用"), "引用")
+    assert(text.contains("---"), "分节线")
+    assert(text.contains("code"), "代码")
+    return Ok(0)
+}
