@@ -1,0 +1,101 @@
+// json_export.aine —— 管线结果 JSON 序列化(E1)
+// Aine 无 JSON 库;手动拼装。文本中的 " 和 \ 需转义。
+
+fn json_escape(s: String) -> String {
+    var out = ""
+    var i = 0
+    while i < s.len() {
+        let c = s[i]
+        if c == "\"" {
+            out = out + "\\" + "\""
+        } else if c == "\\" {
+            out = out + "\\\\"
+        } else if c == "\n" {
+            out = out + "\\n"
+        } else if c == "\t" {
+            out = out + "\\t"
+        } else {
+            out = out + c
+        }
+        i += 1
+    }
+    return out
+}
+
+fn f64_to_str(v: f64) -> String {
+    // 取整数部分足够 E1 预览;精确序列化留 M5
+    let rounded = v * 100.0
+    let int_part = rounded - (rounded % 1.0)
+    var result = f"{int_part}"
+    // 去掉尾随 .0
+    if result.ends_with(".0") {
+        result = result[0..result.len() - 2].to_string()
+    }
+    return result
+}
+
+// 页面流结果 → JSON 字符串
+fn page_flow_to_json(state: DocState, result: PageFlowResult) -> String {
+    var out = "{"
+    out = out + "\"pages\":" + f"{result.pages}" + ","
+    out = out + "\"lines\":["
+
+    // 遍历节点获取 kind/level,匹配 placed 行
+    var first_line = true
+    for node in state.nodes {
+        let nid = node.id
+        let kind = node.kind
+        let level = node.level
+
+        for l in result.placed {
+            if l.node_id != nid { continue }
+            if !first_line { out = out + "," }
+            first_line = false
+            out = out + "{\"id\":" + f"{nid}"
+            out = out + ",\"page\":" + f"{l.page}"
+            out = out + ",\"y\":" + f"{l.y_mm}"
+            out = out + ",\"kind\":\"" + kind + "\""
+            out = out + ",\"level\":" + f"{level}"
+            out = out + ",\"text\":\"" + json_escape(l.text) + "\"}"
+        }
+    }
+    out = out + "],"
+
+    // 锚点
+    out = out + "\"anchors\":["
+    let ls = collect_labels(state)
+    var first_anchor = true
+    for e in ls {
+        for b in result.boxes {
+            if b.node_id == e.node_id {
+                if !first_anchor { out = out + "," }
+                first_anchor = false
+                out = out + "{\"label\":\"" + json_escape(e.label) + "\",\"page\":" + f"{b.start_page}" + "}"
+            }
+        }
+    }
+    out = out + "],"
+
+    // 大纲(标题列表)
+    out = out + "\"outline\":["
+    var first_outline = true
+    for node in state.nodes {
+        if node.kind != "heading" { continue }
+        if !first_outline { out = out + "," }
+        first_outline = false
+        out = out + "{\"level\":" + f"{node.level}"
+        out = out + ",\"text\":\"" + json_escape(inline_plain(node.inline)) + "\""
+        out = out + ",\"id\":" + f"{node.id}" + "}"
+    }
+    out = out + "]"
+
+    out = out + "}"
+    return out
+}
+
+// 便捷:源码 → 完整 JSON(排版+大纲)
+fn src_to_json(src: String) -> String {
+    let state = build_document(parse(lex(src)), src)
+    let result = page_flow(state)
+    return page_flow_to_json(state, result)
+}

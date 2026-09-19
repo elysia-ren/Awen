@@ -1,0 +1,47 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<title>Awen 预览</title>
+<style>
+* { margin:0; padding:0; box-sizing:border-box; }
+body { font-family:'Noto Sans SC','Source Han Sans SC','Microsoft YaHei',sans-serif; background:#f0f0f0; padding:40px; }
+.page { width:210mm; min-height:297mm; background:white; box-shadow:0 2px 12px rgba(0,0,0,0.15); margin:0 auto 24px; padding:20mm; font-size:11pt; line-height:1.65; color:#1a1a1a; position:relative; }
+.line { min-height:1.2em; }
+.h1 { font-size:1.6em; font-weight:700; margin:0.5em 0 0.3em; }
+.h2 { font-size:1.3em; font-weight:600; margin:0.8em 0 0.3em; }
+.h3 { font-size:1.15em; font-weight:600; margin:0.6em 0 0.3em; }
+.page-num { text-align:center; color:#999; font-size:9pt; margin-top:16px; }
+.info { text-align:center; color:#666; margin-bottom:24px; font-size:13px; }
+</style>
+</head>
+<body>
+<div class="info">Awen E1 预览 · page_flow 分页结果</div>
+<div id="pages"></div>
+<script>
+const DATA = {"pages":3,"lines":[{"id":1,"page":0,"y":0.0,"kind":"obj","level":0,"text":"@[page]"},{"id":2,"page":0,"y":6.402920699999999,"kind":"obj","level":0,"text":"@[margin]"},{"id":3,"page":0,"y":12.805841399999998,"kind":"obj","level":0,"text":"@[font]"},{"id":4,"page":0,"y":19.208762099999998,"kind":"obj","level":0,"text":"@[size]"},{"id":5,"page":0,"y":25.611682799999997,"kind":"obj","level":0,"text":"@[line-spacing]"},{"id":6,"page":0,"y":32.01460349999999,"kind":"obj","level":0,"text":"@[first-line]"},{"id":7,"page":0,"y":38.41752419999999,"kind":"obj","level":0,"text":"@[theme]"},{"id":8,"page":0,"y":44.820444899999984,"kind":"obj","level":0,"text":"@[toc]"},{"id":9,"page":0,"y":51.22336559999998,"kind":"obj","level":0,"text":"@[numbering]"},{"id":10,"page":0,"y":57.626286299999975,"kind":"obj","level":0,"text":"@[numbering]"},{"id":11,"page":0,"y":64.02920699999997,"kind":"obj","level":0,"text":"@[numbering]"},{"id":12,"page":0,"y":70.43212769999997,"kind":"obj","level":0,"text":"@[numbering]"},{"id":13,"page":0,"y":76.83504839999996,"kind":"obj","level":0,"text":"@[numbering]"},{"id":14,"page":0,"y":83.23796909999996,"kind":"heading","level":1,"text":"一级标题 @[label]"},{"id":15,"page":0,"y":96.04381049999995,"kind":"para","level":0,"text":"这是第一章的正文。源码中的物理换行不会产生排版换行,这仍然是一个段落。"},{"id":16,"page":0,"y":102.44673119999995,"kind":"para","level":0,"text":"空行产生新段落。"},{"id":17,"page":0,"y":108.84965189999994,"kind":"heading","level":2,"text":"二级标题 @[标签]"},{"id":18,"page":0,"y":121.65549329999993,"kind":"heading","level":3,"text":"三级标题"},{"id":19,"page":0,"y":128.05841399999994,"kind":"heading","level":4,"text":"四级标题"},{"id":20,"page":0,"y":134.46133469999995,"kind":"heading","level":5,"text":"五级标题"},{"id":21,"page":0,"y":140.86425539999996,"kind":"heading","level":6,"text":"六级标题"},{"id":22,"page":0,"y":147.26717609999997,"kind":"heading","level":2,"text":"行内格式"},{"id":23,"page":0,"y":160.0730175,"kind":"para","level":0,"text":"粗体 与 斜体 与 删除线 与 行内代码 与 下划线 与 长写下划线。"},{"id":24,"page":0,"y":166.4759382,"kind":"para","level":0,"text":"嵌套:粗体中嵌 斜体,以及 短命令粗体 和 长命令粗体。"},{"id":25,"page":0,"y":172.8788589,"kind":"para","level":0,"text":"行内数学 E = mc^2 出现在段落之中。脚注演示@[footnote]。"},{"id":26,"page":0,"y":179.28177960000002,"kind":"para","level":0,"text":"链接:@[link],以及裸 URL 自动识别 https://example.com/docs。"},{"id":27,"page":0,"y":185.68470030000003,"kind":"heading","level":2,"text":"块级对象"},{"id":32,"page":1,"y":40.0,"kind":"raw","level":0,"text":"\\int_0^\\infty e^{-x}\\,dx = 1"},{"id":33,"page":1,"y":46.402920699999996,"kind":"raw","level":0,"text":"a^2 + b^2 = c^2"},{"id":34,"page":1,"y":52.80584139999999,"kind":"raw","level":0,"text":"def hello():"},{"id":34,"page":1,"y":59.20876209999999,"kind":"raw","level":0,"text":"    print(\"Hello, Awen\")  # 代码内部的 @[b] 与 ] 均不参与 Awen 解析"},{"id":35,"page":1,"y":65.61168279999998,"kind":"raw","level":0,"text":"raw content: }{ ] @[ ** _ ~`"},{"id":36,"page":1,"y":72.01460349999998,"kind":"heading","level":2,"text":"引用与列表"},{"id":37,"page":1,"y":84.82044489999997,"kind":"quote","level":0,"text":"引用:一级引用"},{"id":38,"page":1,"y":91.22336559999997,"kind":"quote","level":0,"text":"引用:二级引用"},{"id":39,"page":1,"y":97.62628629999996,"kind":"quote","level":0,"text":"引用:三级引用"},{"id":40,"page":1,"y":104.02920699999996,"kind":"list","level":0,"text":"- 无序列表项一"},{"id":40,"page":1,"y":110.43212769999995,"kind":"list","level":0,"text":"- 无序列表项二"},{"id":41,"page":1,"y":116.83504839999995,"kind":"list","level":0,"text":"1. 有序列表项一"},{"id":41,"page":1,"y":123.23796909999994,"kind":"list","level":0,"text":"2. 有序列表项二"},{"id":42,"page":1,"y":129.64088979999994,"kind":"hr","level":0,"text":"――――――――――"},{"id":43,"page":1,"y":136.04381049999995,"kind":"heading","level":2,"text":"表格 @[label]"},{"id":44,"page":1,"y":148.84965189999997,"kind":"para","level":0,"text":"简单表格:"},{"id":45,"page":1,"y":155.25257259999998,"kind":"table","level":0,"text":"| 方法 | 速度 | 安全性 |"},{"id":45,"page":1,"y":161.6554933,"kind":"table","level":0,"text":"| A | 0.21 | 低 |"},{"id":45,"page":1,"y":168.058414,"kind":"table","level":0,"text":"| B | 0.48 | 中 |"},{"id":46,"page":1,"y":174.4613347,"kind":"para","level":0,"text":"复杂单元格 @[label]:"},{"id":47,"page":1,"y":180.86425540000002,"kind":"table","level":0,"text":"| 姓名 | 备注 |"},{"id":47,"page":1,"y":187.26717610000003,"kind":"table","level":0,"text":"| \"Smith, John\" | 单元格含逗号无需转义 |"},{"id":47,"page":1,"y":193.67009680000004,"kind":"table","level":0,"text":"| A | 合并单元格 |"},{"id":47,"page":1,"y":200.07301750000005,"kind":"table","level":0,"text":"| 粗 | code 与 a+b |"},{"id":48,"page":1,"y":206.47593820000006,"kind":"para","level":0,"text":"表格引用:见 @[ref]。"},{"id":49,"page":1,"y":212.87885890000007,"kind":"heading","level":2,"text":"样式与全角输入"},{"id":50,"page":1,"y":225.6847003000001,"kind":"para","level":0,"text":"彩色文字。"},{"id":51,"page":1,"y":232.0876210000001,"kind":"para","level":0,"text":"局部字体 与 局部字号。"},{"id":52,"page":1,"y":238.4905417000001,"kind":"para","level":0,"text":"全角输入:“微软雅黑” ,以及 @[字体] 与 @[大小] 与 @[图片] 均为合法中文方言。"},{"id":53,"page":1,"y":244.89346240000012,"kind":"para","level":0,"text":"混合方言:同一文档允许中文语法、英文语法、短命令、长命令并存(规范 §6.14)。"},{"id":54,"page":2,"y":0.0,"kind":"heading","level":2,"text":"转义演示"},{"id":55,"page":2,"y":12.805841399999998,"kind":"para","level":0,"text":"# 不是标题**不是粗体**_不是斜体_~~不是删除线~~- 不是列表> 不是引用`不是代码`1. 不是有序"},{"id":55,"page":2,"y":19.208762099999998,"kind":"para","level":0,"text":"列表@[image hero] 按字面显示@[comment 这是正文中的示例] 按字面显示"},{"id":56,"page":2,"y":25.611682799999997,"kind":"heading","level":2,"text":"交叉引用"},{"id":57,"page":2,"y":38.41752419999999,"kind":"para","level":0,"text":"参见章节 @[ref],图片 @[ref],以及二级标题 @[ref]。"}],"anchors":[{"label":"chapter-intro","page":0},{"label":"二级示例","page":0},{"label":"hero.png","page":0},{"label":"架构图","page":0},{"label":"result-table-section","page":1}],"outline":[{"level":1,"text":"一级标题 @[label]","id":14},{"level":2,"text":"二级标题 @[标签]","id":17},{"level":3,"text":"三级标题","id":18},{"level":4,"text":"四级标题","id":19},{"level":5,"text":"五级标题","id":20},{"level":6,"text":"六级标题","id":21},{"level":2,"text":"行内格式","id":22},{"level":2,"text":"块级对象","id":27},{"level":2,"text":"引用与列表","id":36},{"level":2,"text":"表格 @[label]","id":43},{"level":2,"text":"样式与全角输入","id":49},{"level":2,"text":"转义演示","id":54},{"level":2,"text":"交叉引用","id":56}]};
+const pagesDiv = document.getElementById('pages');
+const pageMap = {};
+for (const line of DATA.lines) {
+  if (!pageMap[line.page]) pageMap[line.page] = [];
+  pageMap[line.page].push(line);
+}
+const pIndices = Object.keys(pageMap).map(Number).sort((a,b)=>a-b);
+for (const pi of pIndices) {
+  const pd = document.createElement('div'); pd.className = 'page';
+  for (const line of pageMap[pi]) {
+    const div = document.createElement('div'); div.className = 'line';
+    if (line.kind === 'heading') {
+      div.className = 'line h' + line.level;
+    }
+    div.textContent = line.text;
+    pd.appendChild(div);
+  }
+  const pn = document.createElement('div'); pn.className = 'page-num';
+  pn.textContent = '第 ' + (pi+1) + ' 页';
+  pd.appendChild(pn);
+  pagesDiv.appendChild(pd);
+}
+</script>
+</body>
+</html>
