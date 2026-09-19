@@ -70,11 +70,10 @@ input.findbox{border:1px solid #c9cbce;border-radius:4px;padding:4px 6px;font-si
 .cpalette .cp-more{margin-top:8px;font-size:12px;color:#2a4a66;cursor:pointer;display:flex;align-items:center;gap:5px}
 .cpalette .cp-more:hover{text-decoration:underline}
 /* ── 复合颜色按钮(Word 式一体化)── */
-.splitbtn{display:flex;border-radius:4px}
-.splitbtn:hover{background:#e6e7e9}
-.splitbtn .rbtn{border-radius:0;width:26px}
-.splitbtn .half-caret{width:12px;height:30px;font-size:9px;color:#5a5c60;display:flex;align-items:center;justify-content:center;border-radius:0 4px 4px 0}
-.splitbtn .half-caret:hover{background:#dcdde0}
+.splitbtn{display:flex;border:1px solid #d0d2d5;border-radius:4px;background:#fff;overflow:hidden}
+.splitbtn .rbtn{border-radius:0;width:26px;border-right:1px solid #e3e4e6}
+.splitbtn .half-caret{width:14px;height:30px;font-size:10px;color:#303238;display:flex;align-items:center;justify-content:center;border-radius:0;font-family:Consolas,monospace;font-weight:700}
+.splitbtn .half-caret:hover,.splitbtn .rbtn:hover{background:#e9eaec}
 /* ── 撤销/重做禁用态 ── */
 .rbtn:disabled{opacity:.32;pointer-events:none}
 /* ── 文档名输入 ── */
@@ -89,6 +88,10 @@ input.docname:focus{outline:none;border-color:var(--accent);background:#fff}
 #minibar .sbtn{height:24px;padding:0 6px;font-size:11px}
 /* ── 大纲当前节高亮 ── */
 .outline-item.active{background:#d7e2ec;color:#2a4a66;font-weight:600}
+/* ── 表格行列选择弹层 ── */
+#tblpop{display:none;position:fixed;z-index:130;background:#fff;border:1px solid #c9cbce;border-radius:6px;box-shadow:0 4px 16px rgba(0,0,0,.18);padding:10px;gap:6px;align-items:center}
+#tblpop input{width:44px;height:24px;border:1px solid #c9cbce;border-radius:4px;padding:2px 4px;font-size:12px}
+#tblpop .lbl{font-size:12px;color:#5a5c60}
 /* ── 查找全部高亮 ── */
 ::highlight(findhit){background:#ffe98a;color:#303238}
 /* ── 诊断弹出面板 ── */
@@ -99,7 +102,13 @@ input.docname:focus{outline:none;border-color:var(--accent);background:#fff}
 .diag-warn{color:#8a6d1a;font-weight:600}
 @media print{.tabbar,.ribbon,.sidebar,.statusbar,.titlebar{display:none!important}.app{height:auto}.workspace{overflow:visible;display:block}.pane{overflow:visible;padding:0;background:#fff;gap:0}.sheet{box-shadow:none;page-break-after:always;min-height:auto}}
 .workspace{min-height:0;flex:1;display:flex;overflow:hidden}
-.sidebar{width:180px;background:var(--bg2);border-right:1px solid var(--border);display:flex;flex-direction:column;flex:none;overflow:hidden}
+.sidebar{width:180px;background:var(--bg2);border-right:1px solid var(--border);display:flex;flex-direction:column;flex:none;overflow:hidden;transition:margin-left .18s ease}
+.sidebar.collapsed{margin-left:-180px}
+.side-head{position:relative}
+#sb-close{position:absolute;right:6px;top:9px;width:22px;height:20px;border:none;background:none;cursor:pointer;color:#8a8c90;border-radius:4px;font-size:11px}
+#sb-close:hover{background:#ececee;color:#303238}
+#sb-open{display:none;width:22px;height:28px;border:none;background:none;cursor:pointer;color:#8a8c90;font-size:13px;flex:none}
+#sb-open:hover{color:#303238}
 .side-head{padding:12px 14px 6px;font-size:12px;font-weight:600;color:#74777c;user-select:none}
 .outline{flex:1;overflow-y:auto;padding:2px 8px}
 .outline-item{padding:5px 8px;border-radius:6px;font-size:12px;color:#5d6066;cursor:pointer;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;user-select:none}
@@ -134,6 +143,7 @@ input.docname:focus{outline:none;border-color:var(--accent);background:#fff}
 .paper table th,.paper table td{border:1px solid #d0d2d5;padding:4px 8px;text-align:left;vertical-align:top}
 .paper table th{font-weight:600;background:#f5f5f6}
 .paper .img-ph{width:100%;height:32mm;background:#f0f1f3;border:1px dashed #c5c7ca;display:flex;align-items:center;justify-content:center;color:#999;font-size:10pt}
+.paper img{max-width:100%;display:block}
 .paper .docset{font-family:var(--mono);font-size:8pt;color:#c8cad0;user-select:none}
 .paper .comment-src{background:#fffbe8;color:#b09a3e;font-family:var(--mono);font-size:9pt;border-radius:3px;padding:0 4px}
 .statusbar{height:24px;background:var(--accent);color:#fff;display:flex;align-items:center;padding:0 14px;font-size:12px;gap:16px;flex:none}
@@ -226,7 +236,7 @@ input.docname:focus{outline:none;border-color:var(--accent);background:#fff}
 <div class="ribbon-page" data-page="insert">
 <div class="rgroup"><div class="rg-body">
 <div class="rgrid4">
-<button class="rbtn" onclick="insertBlock('table')" title="插入表格"><span data-icon="table"></span></button>
+<button class="rbtn" onclick="toggleTblPop(this)" title="插入表格"><span data-icon="table"></span></button>
 <button class="rbtn" onclick="insertBlock('image')" title="插入图片"><span data-icon="image"></span></button>
 <button class="rbtn" onclick="insertBlock('link')" title="插入链接"><span data-icon="link"></span></button>
 <button class="rbtn" onclick="insertBlock('hr')" title="插入分隔线"><span data-icon="hr"></span></button>
@@ -279,13 +289,15 @@ input.docname:focus{outline:none;border-color:var(--accent);background:#fff}
 </div>
 </div>
 <div class="workspace">
-<aside class="sidebar">
-<div class="side-head">文档结构</div>
+<aside class="sidebar" id="sidebar">
+<div class="side-head">文档结构<button id="sb-close" onclick="toggleSidebar()" title="收起侧栏">◀</button></div>
 <div class="outline" id="outline"></div>
 </aside>
+<button id="sb-open" onclick="toggleSidebar()" title="展开侧栏">▶</button>
 <main class="pane" id="display-pane" style="flex:1 1 auto"></main>
 <section class="pane" id="syntax-pane" style="display:none;flex:0 0 50%;border-left:1px solid #d7d9dc;background:#f0f1f2"></section>
 </div>
+<div id="tblpop"><span class="lbl">行</span><input id="tbl-rows" type="number" min="1" max="20" value="3"><span class="lbl">列</span><input id="tbl-cols" type="number" min="1" max="8" value="3"><button class="sbtn" onclick="insertTableGrid()">插入</button></div>
 <div id="minibar">
 <div class="mb-row">
 <button class="rbtn b" onclick="fmtCmd('bold')" title="加粗">B</button>
@@ -601,6 +613,11 @@ function makeBlock(b,item){
   el.innerHTML=fmtH(text);
   return el;
 }
+function objHtml(b){
+  var m=b.text.match(/^@\[image\s+([^\]]+)\]/m);
+  if(m&&/^(data:|https?:)/.test(m[1]))return'<img src="'+m[1]+'" alt="图片">';
+  return'<div class="img-ph" contentEditable="false">'+escHtml(b.text.split('\n')[0])+'</div>';
+}
 function blockHtml(b){
   switch(b.kind){
     case 'heading':return'<h'+b.level+'>'+fmtH(b.text)+'</h'+b.level+'>';
@@ -609,7 +626,7 @@ function blockHtml(b){
     case 'ol':return'<ol><li>'+fmtH(b.text)+'</li></ol>';
     case 'quote':return'<blockquote><p>'+fmtH(b.text)+'</p></blockquote>';
     case 'table':return tableHtml(b.rows);
-    case 'obj':return'<div class="img-ph" contentEditable="false">'+escHtml(b.text.split('\n')[0])+'</div>';
+    case 'obj':return objHtml(b);
     default:return'<p>'+fmtH(b.text)+'</p>';
   }
 }
@@ -634,11 +651,12 @@ function renderOutline(){
 function renderStatus(){
   var chars=0, labels=0;
   for(var i=0;i<gNodes.length;i++){
+    if(gNodes[i].kind==='obj')continue;
     if(gNodes[i].text)chars+=displayText(gNodes[i].text).replace(/\s/g,'').length;
     if(gNodes[i].text&&gNodes[i].text.indexOf('label')>=0)labels++;
   }
   document.getElementById('st-words').textContent=chars+' 字';
-  document.getElementById('st-labels').textContent='Label '+labels;
+  document.getElementById('st-labels').textContent='标签 '+labels;
   document.getElementById('st-page').textContent=gPages.length+' 页';
 }
 
@@ -958,12 +976,13 @@ function insertBlock(kind){
     quote:['> 引用内容'],
     hr:['---'],
     link:['@[link 链接文字 url: https://example.com]'],
-    image:['@[image 图片.png]'],
+    image:null,
     table:['@[table demo]','| 列1 | 列2 |','| --- | --- |','| 内容 | 内容 |','@[/table]'],
     toc:['@[toc depth: 2]'],
     comment:['@[comment 批注内容,不参与渲染]'],
     footnote:['@[footnote 1 脚注内容]']
   };
+  if(kind==='image'){pickImageInsert();return}
   var ins=snippets[kind];
   if(inDisplayMode()){
     // 在当前块后插入新块
@@ -1615,7 +1634,7 @@ function caretBlock(){
 }
 
 // ═══ 功能区图标(内联 SVG,16×16 currentColor)═══
-var SW='fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"';
+var SW='fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"';
 var ICONS={
   undo:'<svg viewBox="0 0 16 16"><path d="M6.5 3 3.5 6l3 3" '+SW+'/><path d="M3.5 6h5.5a3.5 3.5 0 0 1 3.5 3.5V12" '+SW+'/></svg>',
   redo:'<svg viewBox="0 0 16 16"><path d="M9.5 3l3 3-3 3" '+SW+'/><path d="M12.5 6H7A3.5 3.5 0 0 0 3.5 9.5V12" '+SW+'/></svg>',
@@ -1644,6 +1663,83 @@ var ICONS={
 function showRibbon(page){
   document.querySelectorAll('.tab').forEach(function(t){t.classList.toggle('active',t.dataset.page===page)});
   document.querySelectorAll('.ribbon-page').forEach(function(p){p.classList.toggle('active',p.dataset.page===page)});
+}
+
+// ═══ 侧栏收起/展开 ═══
+function toggleSidebar(){
+  var sb=document.getElementById('sidebar');
+  var ob=document.getElementById('sb-open');
+  sb.classList.toggle('collapsed');
+  ob.style.display=sb.classList.contains('collapsed')?'block':'none';
+}
+
+// ═══ 表格行列选择 ═══
+var tblPopAnchor=null;
+function toggleTblPop(btn){
+  var pop=document.getElementById('tblpop');
+  var open=pop.style.display!=='flex';
+  if(open){
+    var r=btn.getBoundingClientRect();
+    pop.style.left=r.left+'px';
+    pop.style.top=(r.bottom+6)+'px';
+  }
+  pop.style.display=open?'flex':'none';
+  tblPopAnchor=caretBlock();
+}
+document.addEventListener('click',function(e){
+  var pop=document.getElementById('tblpop');
+  if(pop&&pop.style.display==='flex'&&!e.target.closest('#tblpop')&&!e.target.closest('[onclick^="toggleTblPop"]'))pop.style.display='none';
+});
+function insertTableGrid(){
+  var rows=parseInt(document.getElementById('tbl-rows').value)||3;
+  var cols=parseInt(document.getElementById('tbl-cols').value)||3;
+  rows=Math.max(1,Math.min(20,rows)); cols=Math.max(1,Math.min(8,cols));
+  var ins=['@[table demo]'];
+  var head='|',sep='|';
+  for(var c=0;c<cols;c++){head+=' 列'+(c+1)+' |';sep+=' --- |'}
+  ins.push(head);ins.push(sep);
+  for(var r=1;r<rows;r++){
+    var row='|';
+    for(var c2=0;c2<cols;c2++)row+=' 内容 |';
+    ins.push(row);
+  }
+  ins.push('@[/table]');
+  var lines=gSrc.split('\n');
+  var at=lines.length;
+  var bel=inDisplayMode()?caretBlock():null;
+  if(bel){var b=nodeByBid(bel.dataset.bid);if(b)at=b.srcEnd}
+  if(at<lines.length&&lines[at].trim()!=='')ins=ins.concat(['']);
+  if(at>0&&lines[at-1].trim()!=='')ins=[''].concat(ins);
+  lines.splice.apply(lines,[at,0].concat(ins));
+  document.getElementById('tblpop').style.display='none';
+  setSrc(lines.join('\n'));
+}
+
+// ═══ 真实图片:选本地文件,嵌入 data URI ═══
+function pickImageInsert(){
+  var inp=document.createElement('input');
+  inp.type='file'; inp.accept='image/*';
+  inp.onchange=function(){
+    var f=inp.files[0];
+    if(!f)return;
+    if(f.size>1024*1024){alert('图片超过 1MB,原型阶段请使用小图');return}
+    var rd=new FileReader();
+    rd.onload=function(){
+      insertRawLine('@[image '+rd.result+']');
+    };
+    rd.readAsDataURL(f);
+  };
+  inp.click();
+}
+function insertRawLine(line){
+  var bel=inDisplayMode()?caretBlock():null;
+  var lines=gSrc.split('\n');
+  var at=lines.length;
+  if(bel){var b=nodeByBid(bel.dataset.bid);if(b)at=b.srcEnd}
+  if(at<lines.length&&lines[at].trim()!=='')line=line+'\n';
+  if(at>0&&lines[at-1].trim()!=='')line='\n'+line;
+  lines.splice(at,0,line);
+  setSrc(lines.join('\n'));
 }
 
 // ═══ 全局快捷键(对照 Word)═══
@@ -1710,7 +1806,7 @@ renderOutline=function(){
   if(norm!==src){ render(norm); recordHist(norm,false); }
   recordHist(gSrc,false);
   if(gSrc.indexOf('@[first-line')>=0){ var b=document.getElementById('btn-firstline'); if(b)b.classList.add('on') }
-  docDirty=false; updateTitle(); updateUndoButtons(); updateDiagBar();
+  docDirty=false; updateTitle(); updateUndoButtons(); updateDiagBar(); updateCaretPos();
   document.getElementById('docname').addEventListener('input',updateTitle);
   var en=document.getElementById('export-name');
   if(en)en.addEventListener('input',function(){en.dataset.touched='1'});
