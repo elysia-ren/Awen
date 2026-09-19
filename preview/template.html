@@ -18,6 +18,14 @@ input.findbox{border:1px solid #c9cbce;border-radius:4px;padding:4px 6px;font-si
 .brand{font-weight:700;font-size:15px;color:#1a1c1f}
 .docname{font-size:13px;color:var(--fg2)}
 /* ── Word/WPS 功能区:标签栏 + 紧凑图标网格 + 分组名 ── */
+.filetabs{display:flex;align-items:center;gap:2px;flex:none;overflow-x:auto;max-width:60%;height:100%}
+.ftab{display:flex;align-items:center;gap:6px;height:26px;padding:0 8px 0 12px;border-radius:5px;font-size:12px;color:#5a5c60;cursor:pointer;flex:none;border:1px solid transparent}
+.ftab:hover{background:#e9eaec}
+.ftab.active{background:#fff;color:#1a1c1f;font-weight:600;border-color:var(--border)}
+.ftab .fdirty{width:7px;height:7px;border-radius:50%;background:#c0392b;display:none}
+.ftab.dirty .fdirty{display:inline-block}
+.ftab .fclose{width:16px;height:16px;display:flex;align-items:center;justify-content:center;border-radius:3px;color:#8a8c90;font-size:11px}
+.ftab .fclose:hover{background:#dcdde0;color:#303238}
 .tabbar{height:32px;background:var(--bg2);border-bottom:1px solid var(--border);display:flex;align-items:center;padding:0 10px;gap:2px;flex:none;user-select:none}
 .tab{font-size:13px;color:#5a5c60;padding:5px 16px;border-radius:5px;cursor:pointer}
 .tab:hover{background:#e9eaec}
@@ -153,6 +161,27 @@ input.docname:focus{outline:none;border-color:var(--accent);background:#fff}
 .statusbar .item{white-space:nowrap}
 .statusbar #st-diag{cursor:pointer}
 .statusbar .spacer{flex:1}
+.src-wrap{display:flex;height:100%;overflow:hidden;flex:1}
+.gutter{width:46px;flex:none;overflow:hidden;text-align:right;padding:0 6px 0 2px;color:#9aa0a6;font-size:10.5pt;line-height:1.8;background:var(--bg2);border-right:1px solid #e3e4e6;user-select:none;white-space:pre}
+.gutter .ln.cur{color:#2a4a66;font-weight:700;background:#e8eef4}
+.splitter{width:7px;flex:none;cursor:col-resize;background:var(--bg2);border-left:1px solid var(--border2);border-right:1px solid var(--border2)}
+.splitter:hover{background:#d7e2ec}
+.findbar-pop{display:none;position:fixed;top:120px;right:24px;z-index:150;width:340px;background:#fff;border:1px solid #c9cbce;border-radius:8px;box-shadow:0 8px 28px rgba(0,0,0,.2);overflow:hidden}
+.findbar-pop .fb-head{height:34px;background:var(--bg3);border-bottom:1px solid var(--border2);display:flex;align-items:center;padding:0 10px;font-size:12px;font-weight:600;color:#3d3f43}
+.findbar-pop .fb-head .x{margin-left:auto;cursor:pointer;color:#8a8c90;padding:0 4px}
+.findbar-pop .fb-body{padding:10px 12px}
+.findbar-pop .fb-row{display:flex;gap:6px;margin-bottom:8px;align-items:center}
+.findbar-pop input[type=text]{flex:1;border:1px solid #c9cbce;border-radius:4px;padding:5px 8px;font-size:12px;outline:none}
+.findbar-pop label{font-size:12px;color:#5d6066;display:flex;align-items:center;gap:3px;flex:none}
+
+.paper .codeblock{background:#f5f6f7;border:1px solid #e0e1e4;border-radius:4px;padding:8px 12px;position:relative}
+.paper .code-lang{font-size:9pt;color:#8a8c90;font-family:var(--sans);position:absolute;top:2px;right:8px}
+.paper .codeblock pre{margin:0;font-family:var(--mono);font-size:10pt;line-height:1.6;color:#303238;white-space:pre-wrap;word-break:break-all}
+.paper .mathblock{border:1px solid #d7e2ec;border-radius:4px;padding:8px 12px;background:#f8fafc;position:relative}
+.paper .math-label{font-size:9pt;color:#8a8c90;font-family:var(--sans);position:absolute;top:2px;right:8px}
+.paper .math-content{font-family:Georgia,serif;font-style:italic;font-size:12pt;color:#2a4a66}
+.paper .lblref-block{background:#eef4f8;color:#2a4a66;font-size:9pt;font-family:var(--sans);border-radius:3px;padding:2px 8px;display:inline-block}
+.paper .ref-block{background:#f0f4f0;color:#3a6a3a;font-size:9pt;font-family:var(--sans);border-radius:3px;padding:2px 8px;display:inline-block}
 </style>
 </head>
 <body>
@@ -162,6 +191,7 @@ input.docname:focus{outline:none;border-color:var(--accent);background:#fff}
 <input class="docname" id="docname" value="未命名文档" title="点击修改文档名">
 <div style="margin-left:auto"><button class="rbtn" style="width:auto;padding:0 8px;gap:4px;font-size:12px" onclick="doSave()" title="保存 (Ctrl+S)"><span data-icon="save"></span>保存</button></div>
 </div>
+<div class="filetabs" id="filetabs"></div>
 <div class="tabbar">
 <div class="tab active" data-page="home" onclick="showRibbon('home')">开始</div>
 <div class="tab" data-page="insert" onclick="showRibbon('insert')">插入</div>
@@ -171,6 +201,7 @@ input.docname:focus{outline:none;border-color:var(--accent);background:#fff}
 <button class="active" data-mode="display">显示</button>
 <button data-mode="syntax">语法</button>
 <button data-mode="split">分屏</button>
+<button data-mode="swapsplit" title="左右交换" style="padding:4px 8px" onclick="swapSplit()">⇄</button>
 </div>
 </div>
 <div class="ribbon">
@@ -227,15 +258,23 @@ input.docname:focus{outline:none;border-color:var(--accent);background:#fff}
 <button class="rbtn" onclick="toggleFind()" title="查找和替换 (Ctrl+F)"><span data-icon="search"></span></button>
 </div><div class="rg-label">编辑</div></div>
 </div>
-<div class="ribbon-page" data-page="findbar" style="min-height:0;height:auto;display:none;align-items:center;gap:8px;padding:6px 14px">
-<input class="findbox" id="findbox" placeholder="查找内容" oninput="findCount()" onkeydown="findKey(event)">
-<input class="replacebox" id="replacebox" placeholder="替换为">
-<label style="display:flex;align-items:center;gap:3px;font-size:12px;color:#5d6066;flex:none"><input type="checkbox" id="cb-case">区分大小写</label>
-<button class="sbtn" onclick="findNext()">查找下一处</button>
+<div class="findbar-pop" id="findbar">
+<div class="fb-head"><span>查找和替换</span><span class="x" onclick="closeFind()">✕</span></div>
+<div class="fb-body">
+<div class="fb-row"><input type="text" id="findbox" placeholder="查找内容" oninput="findCount()" onkeydown="findKey(event)"></div>
+<div class="fb-row"><input type="text" id="replacebox" placeholder="替换为"></div>
+<div class="fb-row" style="justify-content:space-between">
+<label style="display:flex;align-items:center;gap:3px"><input type="checkbox" id="cb-case">区分大小写</label>
+<label style="display:flex;align-items:center;gap:3px"><input type="checkbox" id="cb-down" checked>向下</label>
+<label style="display:flex;align-items:center;gap:3px"><input type="checkbox" id="cb-up">向上</label>
+</div>
+<div class="fb-row" style="justify-content:space-between">
+<button class="sbtn" onclick="findNext()">下一个</button>
+<button class="sbtn" onclick="findPrev()">上一个</button>
 <button class="sbtn" onclick="replaceOne()">替换</button>
 <button class="sbtn" onclick="replaceAll()">全部替换</button>
-<button class="sbtn" onclick="closeFind()">关闭</button>
-<span class="item" id="findmsg" style="font-size:12px;color:#6b6d72"></span>
+</div>
+</div>
 </div>
 <div class="ribbon-page" data-page="insert">
 <div class="rgroup"><div class="rg-body">
@@ -629,6 +668,37 @@ function render(src){
         paper.appendChild(cm);
         paper.appendChild(gapEl()); continue;
       }
+      if(b.kind==='code'){
+        var pre=document.createElement('div');
+        pre.className='codeblock';
+        pre.contentEditable='false';
+        pre.dataset.bid=b.bid; pre.dataset.kind='code';
+        pre.innerHTML='<div class="code-lang">'+b.lang+'</div><pre><code>'+escHtml(b.text)+'</code></pre>';
+        paper.appendChild(pre);
+        paper.appendChild(gapEl()); continue;
+      }
+      if(b.kind==='math'){
+        var mm=document.createElement('div');
+        mm.className='mathblock'; mm.contentEditable='false';
+        mm.dataset.bid=b.bid; mm.dataset.kind='math';
+        mm.innerHTML='<div class="math-label">数学</div><div class="math-content">'+escHtml(b.text)+'</div>';
+        paper.appendChild(mm);
+        paper.appendChild(gapEl()); continue;
+      }
+      if(b.kind==='label'){
+        var lb=document.createElement('div'); lb.className='lblref-block';
+        lb.contentEditable='false'; lb.dataset.bid=b.bid; lb.dataset.kind='label';
+        lb.textContent='📌 标签: '+b.text;
+        paper.appendChild(lb);
+        paper.appendChild(gapEl()); continue;
+      }
+      if(b.kind==='ref'){
+        var rf=document.createElement('div'); rf.className='ref-block';
+        rf.contentEditable='false'; rf.dataset.bid=b.bid; rf.dataset.kind='ref';
+        rf.textContent='↦ 引用: '+b.text;
+        paper.appendChild(rf);
+        paper.appendChild(gapEl()); continue;
+      }
       paper.appendChild(makeBlock(b,item));
       paper.appendChild(gapEl());
     }
@@ -639,6 +709,7 @@ function render(src){
   }
   renderOutline();
   renderStatus();
+  updateGutter();
   var ta=document.getElementById('syntax-src');
   if(ta&&ta.value!==src)ta.value=src;
 }
@@ -832,6 +903,24 @@ var repagTimer=null,lastEditSource=null;
 function onPaperInput(){
   if(repagTimer)clearTimeout(repagTimer);
   repagTimer=setTimeout(applySyncNow,300);
+}
+function swapSplit(){
+  var ws=document.querySelector('.workspace');
+  var dp=document.getElementById('display-pane');
+  var sp=document.getElementById('syntax-pane');
+  if(!dp||!sp)return;
+  if(dp.nextElementSibling===sp){ ws.insertBefore(sp,dp); }
+  else{ ws.insertBefore(dp,sp); }
+}
+function updateGutter(){
+  var g=document.getElementById('gutter');
+  var ta=document.getElementById('syntax-src');
+  if(!g||!ta)return;
+  var n=ta.value.split('\n').length;
+  var out='';
+  for(var i=1;i<=n;i++)out+=i+'\n';
+  if(g.textContent!==out)g.textContent=out;
+  g.scrollTop=ta.scrollTop;
 }
 function applySyncNow(){
   if(repagTimer){clearTimeout(repagTimer);repagTimer=null}
@@ -1531,13 +1620,37 @@ function buildSyntaxPane(){
   var sheet=document.createElement('div');
   sheet.className='sheet';
   var src=document.createElement('div');
-  src.className='src-paper';
+  src.className='src-wrap';
+  var gutter=document.createElement('div');
+  gutter.id='gutter'; gutter.className='gutter';
   var ta=document.createElement('textarea');
   ta.id='syntax-src'; ta.spellcheck=false;
-  ta.style.cssText='width:100%;height:'+(PAGE_H-2*MARGIN-2)+'mm;border:0;outline:0;resize:none;background:transparent;font:inherit;color:inherit;white-space:pre;overflow:auto';
+  ta.style.cssText='flex:1;height:'+(PAGE_H-2*MARGIN-2)+'mm;border:0;outline:0;resize:none;background:transparent;font:inherit;color:inherit;white-space:pre;overflow:auto';
+  src.appendChild(gutter);
   src.appendChild(ta);
   sheet.appendChild(src);
   pane.appendChild(sheet);
+  ta.addEventListener('scroll',function(){
+    gutter.scrollTop=ta.scrollTop;
+    if(!window.scrollSyncLock&&currentMode==='split'){
+      window.scrollSyncLock='ta';
+      var pane=document.getElementById('display-pane');
+      var ratio=ta.scrollTop/Math.max(1,ta.scrollHeight-ta.clientHeight);
+      pane.scrollTop=ratio*Math.max(1,pane.scrollHeight-pane.clientHeight);
+      setTimeout(function(){window.scrollSyncLock=null},50);
+    }
+  });
+  document.getElementById('display-pane').addEventListener('scroll',function(){
+    if(currentMode!=='split'||window.scrollSyncLock)return;
+    window.scrollSyncLock='dp';
+    var ta2=document.getElementById('syntax-src');
+    if(!ta2)return;
+    var pane2=document.getElementById('display-pane');
+    var ratio=pane2.scrollTop/Math.max(1,pane2.scrollHeight-pane2.clientHeight);
+    ta2.scrollTop=ratio*Math.max(1,ta2.scrollHeight-ta2.clientHeight);
+    gutter.scrollTop=ta2.scrollTop;
+    setTimeout(function(){window.scrollSyncLock=null},50);
+  });
   ta.addEventListener('input',function(){
     lastEditSource='syntax';
     recordHist(ta.value,true);
@@ -1859,6 +1972,54 @@ document.querySelectorAll('.ribbon,.tabbar,#minibar,#float-pal').forEach(functio
   });
 });
 
+// ═══ 多文件管理 ═══
+var openFiles=[];
+var activeFile=-1;
+function renderFileTabs(){
+  var bar=document.getElementById('filetabs');
+  bar.innerHTML='';
+  openFiles.forEach(function(f,i){
+    var t=document.createElement('div');
+    t.className='ftab'+(i===activeFile?' active':'')+(f.dirty?' dirty':'');
+    t.innerHTML='<span class="fdirty"></span><span>'+f.name.replace(/</g,'&lt;')+'</span><span class="fclose" data-i="'+i+'">✕</span>';
+    t.onclick=function(ev){
+      if(ev.target.classList.contains('fclose')){closeFile(i);return}
+      switchFile(i);
+    };
+    bar.appendChild(t);
+  });
+}
+function switchFile(i){
+  if(i===activeFile)return;
+  applySyncNow();
+  openFiles[activeFile].src=gSrc;
+  openFiles[activeFile].dirty=docDirty;
+  activeFile=i;
+  var f=openFiles[i];
+  document.getElementById('docname').value=f.name;
+  setSrc(f.src);
+  docDirty=f.dirty;
+  updateTitle();
+  renderFileTabs();
+}
+function closeFile(i){
+  if(openFiles[i].dirty&&!window.confirm('「'+openFiles[i].name+'」未保存,确定关闭?'))return;
+  openFiles.splice(i,1);
+  if(activeFile>=i)activeFile--;
+  if(activeFile>=openFiles.length)activeFile=openFiles.length-1;
+  if(!openFiles.length){ newDoc(); return }
+  var f=openFiles[activeFile];
+  document.getElementById('docname').value=f.name;
+  setSrc(f.src);
+  docDirty=f.dirty;
+  updateTitle();
+  renderFileTabs();
+}
+function addFileTab(name){
+  openFiles.push({name:name,src:gSrc,dirty:docDirty});
+  activeFile=openFiles.length-1;
+}
+
 // ═══ 全局快捷键(对照 Word)═══
 document.addEventListener('keydown',function(e){
   var mod=e.ctrlKey||e.metaKey;
@@ -1919,8 +2080,6 @@ renderOutline=function(){
   if(DOC_DATA&&DOC_DATA.source)src=DOC_DATA.source;
   buildSyntaxPane();
   setSrc(src);
-  // 序列化规范化一次(尾随换行等),消除首编辑差异
-  recordHist(gSrc,false);
   if(gSrc.indexOf('@[first-line')>=0){ var b=document.getElementById('btn-firstline'); if(b)b.classList.add('on') }
   docDirty=false; updateTitle(); updateUndoButtons(); updateDiagBar(); updateCaretPos();
   document.getElementById('docname').addEventListener('input',function(){updateTitle('docname')});
