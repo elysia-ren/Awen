@@ -92,17 +92,18 @@ fn layout_build_units(text: String) -> Vec<LayoutUnit> {
 }
 
 // 断行:贪心填充 + 禁则一体化(§10.3);行尾开启标点移入下一行
+// 宽度计算使用 layout_measure_em(含挤压 + 混排间距),非简单逐字累加
 fn layout_line_break(text: String, max_em: f64) -> Vec<String> {
     let units = layout_build_units(text)
     var out: Vec<String> = []
     var cur = ""
-    var cur_w = 0.0
     var k = 0
     while k < units.len() {
         let u = units[k]
-        if cur_w + u.w <= max_em || cur.len() == 0 {
+        // 用 layout_measure_em 计算含挤压和混排间距的真实宽度
+        let test_w = layout_measure_em(cur + u.text)
+        if test_w <= max_em || cur.len() == 0 {
             cur = cur + u.text
-            cur_w = cur_w + u.w
             k += 1
             continue
         }
@@ -113,7 +114,6 @@ fn layout_line_break(text: String, max_em: f64) -> Vec<String> {
             if cjk_is_line_end_forbidden(last) {
                 moved = last + moved
                 cur = cur[0..cur.len() - 1]
-                cur_w = cur_w - layout_em_width(last)
             } else {
                 break
             }
@@ -122,7 +122,6 @@ fn layout_line_break(text: String, max_em: f64) -> Vec<String> {
             out = out.push(cur)
         }
         cur = moved + u.text
-        cur_w = layout_measure_em(cur)
         k += 1
     }
     if cur.len() > 0 {
