@@ -1,0 +1,132 @@
+// layout_width.aine —— 统一宽度模型与词边界断行(M5-d 补齐)
+// D-1:混排间距 ⅛ em;D-2:全角判定全项目唯一实现;D-3:西文按词断行
+// 依据:核心规范 §10.1–10.3;docs/M5_DESIGN.md §2
+
+// 全角判定:表意文字 / CJK 标点符号区 / 全角形式区(D-2 唯一实现)
+fn layout_is_fullwidth(c: String) -> bool {
+    if cjk_is_ideograph(c) { return true }
+    if c >= "、" && c <= "〿" { return true }
+    if c >= "！" && c <= "｝" { return true }
+    return false
+}
+
+fn layout_em_width(c: String) -> f64 {
+    if layout_is_fullwidth(c) { return 1.0 }
+    return 0.5
+}
+
+// 混排间距(D-1):CJK 类与 Latin 类相邻 → ⅛ em
+fn layout_needs_mixed_spacing(a: String, b: String) -> bool {
+    if layout_is_fullwidth(a) && cjk_is_latin(b) { return true }
+    if cjk_is_latin(a) && layout_is_fullwidth(b) { return true }
+    return false
+}
+
+// 标点挤压(§10.1):连续全角标点,后者按半角计
+fn layout_squeezed_width(prev: String, c: String) -> f64 {
+    if layout_is_fullwidth(c) && prev.len() > 0 && cjk_is_punct(prev) && cjk_is_punct(c) {
+        return 0.5
+    }
+    return layout_em_width(c)
+}
+
+// 文本宽度(em):逐字 + 挤压 + 混排间距
+fn layout_measure_em(text: String) -> f64 {
+    var total = 0.0
+    var prev = ""
+    var i = 0
+    while i < text.len() {
+        let c = text[i]
+        total = total + layout_squeezed_width(prev, c)
+        if i + 1 < text.len() {
+            if layout_needs_mixed_spacing(c, text[i + 1]) {
+                total = total + 0.125
+            }
+        }
+        prev = c
+        i += 1
+    }
+    return total
+}
+
+// 断行单元:西文词(D-3 词边界)/ 单字符 / 行首禁则字符粘附前单元
+struct LayoutUnit {
+    text: String
+    w: f64
+}
+
+fn layout_build_units(text: String) -> Vec<LayoutUnit> {
+    var units: Vec<LayoutUnit> = []
+    var i = 0
+    while i < text.len() {
+        let c = text[i]
+        if cjk_is_latin(c) {
+            // 西文词:连续字母数字为不可分单元
+            var word = c
+            var w = layout_em_width(c)
+            i += 1
+            while i < text.len() {
+                let c2 = text[i]
+                if cjk_is_latin(c2) {
+                    word = word + c2
+                    w = w + layout_em_width(c2)
+                    i += 1
+                } else {
+                    break
+                }
+            }
+            units = units.push(LayoutUnit { text: word, w: w })
+            continue
+        }
+        // 行首禁则字符:粘附前一单元(不得开启新行)
+        if units.len() > 0 && cjk_is_line_start_forbidden(c) {
+            let last = units[units.len() - 1]
+            units[units.len() - 1] = LayoutUnit { text: last.text + c, w: last.w + layout_em_width(c) }
+            i += 1
+            continue
+        }
+        units = units.push(LayoutUnit { text: c, w: layout_em_width(c) })
+        i += 1
+    }
+    return units
+}
+
+// 断行:贪心填充 + 禁则一体化(§10.3);行尾开启标点移入下一行
+fn layout_line_break(text: String, max_em: f64) -> Vec<String> {
+    let units = layout_build_units(text)
+    var out: Vec<String> = []
+    var cur = ""
+    var cur_w = 0.0
+    var k = 0
+    while k < units.len() {
+        let u = units[k]
+        if cur_w + u.w <= max_em || cur.len() == 0 {
+            cur = cur + u.text
+            cur_w = cur_w + u.w
+            k += 1
+            continue
+        }
+        // 溢出:行尾开启标点移到下一行(行尾禁则)
+        var moved = ""
+        while cur.len() > 0 {
+            let last = cur[cur.len() - 1]
+            if cjk_is_line_end_forbidden(last) {
+                moved = last + moved
+                cur = cur[0..cur.len() - 1]
+                cur_w = cur_w - layout_em_width(last)
+            } else {
+                break
+            }
+        }
+        if cur.len() > 0 {
+            out = out.push(cur)
+        }
+        cur = moved + u.text
+        cur_w = layout_measure_em(cur)
+        k += 1
+    }
+    if cur.len() > 0 {
+        out = out.push(cur)
+    }
+    return out
+}

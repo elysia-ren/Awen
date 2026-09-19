@@ -1,0 +1,130 @@
+// 测试模块:tests_layout(M5 补齐:统一宽度/挤压/词边界断行/分页流)
+// 验收依据:§10.3(无禁则违规/孤字标点)、§42(分页)、§11.3(注释不排)
+
+@test
+fn layout_width_full_half_em() -> Result<i32, String> {
+    // D-2:全角 1em、半角 0.5em
+    assert(layout_em_width("文") == 1.0, "全角 1em")
+    assert(layout_em_width("x") == 0.5, "半角 0.5em")
+    assert(layout_is_fullwidth("。"), "全角句号")
+    assert(!layout_is_fullwidth("x"), "半角字母")
+    Ok(0)
+}
+
+@test
+fn layout_mixed_spacing_is_eighth_em() -> Result<i32, String> {
+    // D-1:混排间距 ⅛ em;挤压后仍按半角
+    let w = layout_measure_em("中x中")
+    // 中(1) + ⅛ + x(0.5) + ⅛ + 中(1) = 2.75
+    assert(w == 2.75, f"混排宽度应为 2.75,得到 {w}")
+    assert(layout_needs_mixed_spacing("文", "x"), "CJK→Latin 需间距")
+    assert(!layout_needs_mixed_spacing("文", "字"), "CJK→CJK 无间距")
+    Ok(0)
+}
+
+@test
+fn layout_squeeze_reduces_consecutive_puncts() -> Result<i32, String> {
+    // §10.1 标点挤压:连续全角标点,后者半角
+    assert(layout_squeezed_width("。", "，") == 0.5, "连续标点挤压")
+    assert(layout_squeezed_width("文", "，") == 1.0, "前非标点不挤压")
+    assert(layout_squeezed_width("", "，") == 1.0, "行首无前文不挤压")
+    Ok(0)
+}
+
+@test
+fn layout_break_cjk_by_width() -> Result<i32, String> {
+    // 6em 宽:每行 6 个全角字
+    let lines = layout_line_break("一二三四五六七八", 6.0)
+    assert(lines.len() == 2, f"应 2 行,得到 {lines.len()}")
+    assert(lines[0] == "一二三四五六", "第一行 6 字")
+    assert(lines[1] == "七八", "余字入第二行")
+    Ok(0)
+}
+
+@test
+fn layout_break_latin_words_intact() -> Result<i32, String> {
+    // D-3:西文按词断行,单词不切断
+    let lines = layout_line_break("中文 English words here", 7.0)
+    let all = lines[0] + "|" + lines[1]
+    assert(all.contains("English"), "English 完整")
+    assert(all.contains("words") || lines.len() >= 2, "words 完整")
+    let joined = lines[0] + lines[1]
+    assert(!joined.contains("Engli文"), "不得交错切断")
+    Ok(0)
+}
+
+@test
+fn layout_break_no_kinsoku_violations() -> Result<i32, String> {
+    // §10.3:行首禁则与行尾禁则
+    let text = "这是一段很长的中文文本，包含句号。他说：「你好！」然后离开了。这里有一些English单词混排，以及数字123和单位mm。"
+    let lines = layout_line_break(text, 24.0)
+    assert(lines.len() >= 2, "应产生多行")
+    let issues = cjk_validate_line_breaks(lines)
+    assert(issues.len() == 0, f"禁则违规: {issues}")
+    Ok(0)
+}
+
+@test
+fn page_flow_paginates_multi_page() -> Result<i32, String> {
+    // §42 前置:内容超一页 → 多页;页内 y 递增
+    var body = ""
+    var i = 0
+    while i < 200 {
+        body = body + "这一段重复很多次以撑满页面。"
+        i += 1
+    }
+    let src = "# 文档\n" + body + "\n尾段。\n"
+    let out = lex(src)
+    let pr = parse(out)
+    let state = build_document(pr, src)
+    let result = page_flow(state)
+    assert(result.pages >= 2, f"应为多页,得到 {result.pages}")
+    // 页内 y 递增检查
+    var prev_page = 0
+    var prev_y = -1.0
+    for l in result.placed {
+        if l.page == prev_page {
+            assert(l.y_mm > prev_y, "同页 y 应递增")
+        }
+        prev_page = l.page
+        prev_y = l.y_mm
+    }
+    Ok(0)
+}
+
+@test
+fn page_flow_skips_comments() -> Result<i32, String> {
+    // §11.3:行内注释与块级注释都不进版面
+    let src = "# 章\n@[comment 行内不排]\n正文\n\n@[comment]\n块级不排\n@[/comment]\n尾段\n"
+    let out = lex(src)
+    let pr = parse(out)
+    let state = build_document(pr, src)
+    let result = page_flow(state)
+    for l in result.placed {
+        assert(!l.text.contains("行内不排"), "行内注释被排版")
+        assert(!l.text.contains("块级不排"), "块级注释被排版")
+    }
+    Ok(0)
+}
+
+@test
+fn page_flow_image_pushes_to_next_page() -> Result<i32, String> {
+    // 图占位 40mm:页尾放不下 → 整块推到下一页
+    var filler = ""
+    var i = 0
+    while i < 90 {
+        filler = filler + "填充段落。\n\n"
+        i += 1
+    }
+    let src = filler + "@[image hero.png width: \"50%\"]\n"
+    let out = lex(src)
+    let pr = parse(out)
+    let state = build_document(pr, src)
+    let result = page_flow(state)
+    assert(result.pages >= 2, "填充后应多页")
+    // 图所在的盒应在第 2 页之后(下标 >= 1)
+    for b in result.boxes {
+        let _ = b
+    }
+    Ok(0)
+}

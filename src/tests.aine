@@ -27,8 +27,11 @@ module fmt;
 module export_md;
 module seed;
 module incremental_update;
+module layout_width;
+module page_flow;
 
 module tests_common;
+module tests_layout;
 module tests_lex;
 module tests_integration;
 module tests_fmt_inspect;
