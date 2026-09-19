@@ -158,6 +158,10 @@ input.docname:focus{outline:none;border-color:var(--accent);background:#fff}
 .paper img{max-width:100%;display:block}
 .paper .docset{font-family:var(--mono);font-size:8pt;color:#c8cad0;user-select:none}
 .paper .comment-src{background:#fffbe8;color:#b09a3e;font-family:var(--mono);font-size:9pt;border-radius:3px;padding:0 4px}
+.paper .inline-label{background:#eef4f8;color:#2a4a66;font-size:.85em;border-radius:3px;padding:0 4px}
+.paper .inline-ref{color:#2a4a66}
+.paper table{table-layout:fixed}
+.paper table td{overflow-wrap:break-word}
 .statusbar{height:26px;background:var(--bg3);border-top:1px solid var(--border2);color:#5a5c60;display:flex;align-items:center;padding:0 14px;font-size:12px;gap:16px;flex:none}
 .statusbar .item{white-space:nowrap}
 .statusbar #st-diag{cursor:pointer}
@@ -462,6 +466,8 @@ function displayText(t){
     .replace(/`((?:.|])*?)`/g,'$1')
     .replace(/@\[link\s+([^\]]+?)\s+url:\s*([^\]]+)\]/g,'$1')
     .replace(/@\[footnote\s+(\d+)\s+([^\]]+)\]/g,'$2')
+    .replace(/@\[label\s+([^\]]+)\]/g,'$1')
+    .replace(/@\[ref\s+([^\]]+)\]/g,'$1')
     .replace(/_((?:.|])*?)_/g,'$1');
 }
 function fmtH(t){
@@ -482,6 +488,9 @@ function fmtH(t){
   s=s.replace(/~~((?:.|])*?)~~/g,'<del>$1</del>');
   s=s.replace(/`((?:.|])*?)`/g,'<code>$1</code>');
   s=s.replace(/_((?:.|])*?)_/g,'<em>$1</em>');
+  s=s.replace(/@\[label\s+([^\]]+)\]/g,'<span class="inline-label" title="标签">📌$1</span>');
+  s=s.replace(/@\[ref\s+([^\]]+)\]/g,'<span class="inline-ref" title="引用">↦$1</span>');
+  s=s.replace(/@@\[/g,'@[').replace(/@@/g,'@');
   return s;
 }
 
@@ -541,6 +550,38 @@ function miniParse(src){
       }
       if(rest)nodes.push({kind:'para',text:rest,srcStart:fi+1,srcEnd:fi+2});
       i=fi; continue;
+    }
+    if(/^@\[c (\w+)\]/.test(t)){
+      flush(i);
+      var lang=t.match(/^@\[c (\w+)\]/)[1];
+      var cc=i+1;
+      var cClose='@[/c]';
+      while(cc<lines.length&&lines[cc].indexOf(cClose)<0)cc++;
+      var codeLines=[];
+      for(var li=i+1;li<cc;li++)codeLines.push(lines[li]);
+      nodes.push({kind:'code',lang:lang,text:codeLines.join('\n'),srcStart:i,srcEnd:Math.min(cc+1,lines.length)});
+      i=Math.min(cc,lines.length-1); continue;
+    }
+    if(t==='@[m]'){
+      flush(i);
+      var mi=i+1; var mLines=[];
+      while(mi<lines.length&&lines[mi].indexOf('@[/m]')<0){mLines.push(lines[mi]);mi++}
+      nodes.push({kind:'math',text:mLines.join('\n'),srcStart:i,srcEnd:Math.min(mi+1,lines.length)});
+      i=Math.min(mi,lines.length-1); continue;
+    }
+    if(/^@\[label\s+/.test(t)){ flush(i); nodes.push({kind:'label',text:t.replace(/^@\[label\s+/,'').replace(/\]$/,''),srcStart:i,srcEnd:i+1}); continue }
+    if(/^@\[ref\s+/.test(t)){ flush(i); nodes.push({kind:'ref',text:t.replace(/^@\[ref\s+/,'').replace(/\]$/,''),srcStart:i,srcEnd:i+1}); continue }
+    if(/^@\[(font|size|color)\s/.test(t)&&!t.endsWith(']')==false&&t.endsWith(']')===false){
+      // 多行作用域开头(不含闭合在同一行)
+      var kind2=t.match(/^@\[(\w+)/)[1];
+      var close2='@[/'+kind2+']';
+      var si=i+1;
+      while(si<lines.length&&lines[si].indexOf(close2)<0)si++;
+      var innerLines=[];
+      for(var li2=i+1;li2<si;li2++)innerLines.push(lines[li2]);
+      var param=t.substring(t.indexOf(' ')+1).replace(/\]$/,'').trim();
+      nodes.push({kind:'scope',style:kind2,param:param,text:innerLines.join('\n'),srcStart:i,srcEnd:Math.min(si+1,lines.length)});
+      i=si; continue;
     }
     if(/^@\[image/.test(t)){ flush(i); nodes.push({kind:'obj',text:t,srcStart:i,srcEnd:i+1}); continue }
     if(/^@\[(page|margin|font|size|line-spacing|first-line|theme|toc|numbering)\s/.test(t)){
@@ -738,9 +779,22 @@ function makeBlock(b,item){
   return el;
 }
 function objHtml(b){
-  var m=b.text.match(/^@\[image\s+([^\]]+)\]/m);
-  if(m&&/^(data:|https?:)/.test(m[1]))return'<img src="'+m[1]+'" alt="图片">';
-  return'<div class="img-ph" contentEditable="false">'+escHtml(b.text.split('\n')[0])+'</div>';
+  var full=b.text;
+  var m=full.match(/^@\[image\s+"?([^"\]]+)"?([^\]]*)\]/m);
+  if(m&&/^(data:|https?:)/.test(m[1])){
+    var style='max-width:100%;display:block;margin:8px auto;';
+    var params=m[2]||'';
+    var wm=params.match(/width:\s*(\d+)%/);
+    if(wm)style+='width:'+wm[1]+'%;';
+    var am=params.match(/align:\s*(\w+)/);
+    if(am){
+      if(am[1]==='center')style+='margin-left:auto;margin-right:auto;';
+      else if(am[1]==='right')style+='margin-left:auto;margin-right:0;';
+      else if(am[1]==='left')style+='margin-right:auto;margin-left:0;';
+    }
+    return'<img src="'+m[1]+'" alt="图片" style="'+style+'">';
+  }
+  return'<div class="img-ph" contentEditable="false">'+escHtml(full.split('\n')[0])+'</div>';
 }
 function blockHtml(b){
   switch(b.kind){
@@ -750,7 +804,15 @@ function blockHtml(b){
     case 'ol':return'<ol><li>'+fmtH(b.text)+'</li></ol>';
     case 'quote':return'<blockquote><p>'+fmtH(b.text)+'</p></blockquote>';
     case 'table':return tableHtml(b.rows);
+    case 'code':return'<div class="codeblock" contentEditable="false"><div class="code-lang">'+escHtml(b.lang||'')+'</div><pre><code>'+escHtml(b.text)+'</code></pre></div>';
+    case 'math':return'<div class="mathblock" contentEditable="false"><div class="math-label">数学</div><div class="math-content">'+escHtml(b.text)+'</div></div>';
+    case 'scope':return'<div style="'+(b.style||'')+'">'+fmtH(b.text)+'</div>';
     case 'obj':return objHtml(b);
+    case 'code':return'<div class="codeblock" contentEditable="false"><div class="code-lang">'+escHtml(b.lang||'')+'</div><pre><code>'+escHtml(b.text)+'</code></pre></div>';
+    case 'math':return'<div class="mathblock" contentEditable="false"><div class="math-label">数学</div><div class="math-content">'+escHtml(b.text)+'</div></div>';
+    case 'label':return'<div class="lblref-block" contentEditable="false">## 标签: '+escHtml(b.text)+'</div>';
+    case 'ref':return'<div class="ref-block" contentEditable="false">→ 引用: '+escHtml(b.text)+'</div>';
+    case 'scope':return'<div style="'+(b.style||'')+'">'+fmtH(b.text)+'</div>';
     default:return'<p>'+fmtH(b.text)+'</p>';
   }
 }
