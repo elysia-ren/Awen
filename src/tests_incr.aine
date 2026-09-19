@@ -1,0 +1,483 @@
+// 测试模块:tests_incr(M4 审计拆分;由 tests.aine 聚合声明)
+
+@test
+fn incr_find_changed_range() -> Result<i32, String> {
+    // 无变化
+    let d0 = find_changed_range("a\nb\nc", "a\nb\nc")
+    assert(!d0.has_change, "无变化")
+    // 单行修改
+    let d1 = find_changed_range("a\nb\nc", "a\nX\nc")
+    assert(d1.has_change && d1.first == 1 && d1.last == 1, f"单行修改: first={d1.first} last={d1.last}")
+    // 行追加
+    let d2 = find_changed_range("a\nb", "a\nb\nc")
+    assert(d2.has_change, "行追加")
+    // 行删除
+    let d3 = find_changed_range("a\nb\nc", "a\nc")
+    assert(d3.has_change, "行删除")
+    return Ok(0)
+}
+
+@test
+fn incr_no_change_returns_same_state() -> Result<i32, String> {
+    let src = "# 标题\n正文\n"
+    let out = lex(src)
+    let pr = parse(out)
+    let state = build_document(pr, src)
+    let result = incremental_parse(state, src, src)
+    assert(result.reused_count == state.nodes.len(), "无变化应全部复用")
+    assert(result.reparsed_count == 0, "无变化应零重解析")
+    return Ok(0)
+}
+
+@test
+fn diff_no_changes() -> Result<i32, String> {
+    let d = diff_text("a\nb\nc", "a\nb\nc")
+    assert(!has_changes(d), "相同文本无差异")
+    assert(d.same == 3, f"3 行相同")
+    return Ok(0)
+}
+
+@test
+fn diff_detect_modification() -> Result<i32, String> {
+    let d = diff_text("# 旧标题\n内容\n", "# 新标题\n内容\n")
+    assert(has_changes(d), "应有差异")
+    assert(d.added == 1 && d.deleted == 1, f"1 删 1 增")
+    // 差异行应包含新标题
+    var found_new = false
+    for l in d.lines {
+        if l.kind == "add" && l.text.contains("新标题") { found_new = true }
+    }
+    assert(found_new, "新增行应含新标题")
+    return Ok(0)
+}
+
+@test
+fn diff_detect_insertion() -> Result<i32, String> {
+    let d = diff_text("# A\n", "# A\n## B\n")
+    assert(has_changes(d), "应有差异")
+    assert(d.added == 1, f"应新增 1 行")
+    assert(d.deleted == 0, "不应有删除")
+    return Ok(0)
+}
+
+@test
+fn incr_node_id_stability_concept() -> Result<i32, String> {
+    // §1.3:修改一处文本,未受影响区域的 NodeId 不变
+    // 当前通过全量解析后的位置对应来验证概念
+    let src = "# A\npara a\n# B\npara b\n"
+    let out1 = lex(src)
+    let pr1 = parse(out1)
+    let state1 = build_document(pr1, src)
+
+    // 修改 para a 的文本
+    let new_src = "# A\nmodified a\n# B\npara b\n"
+    let out2 = lex(new_src)
+    let pr2 = parse(out2)
+    let state2 = build_document(pr2, new_src)
+
+    // 节点数相同
+    assert(state1.nodes.len() == state2.nodes.len(), "节点数应相同")
+    // 对应位置的 kind 应相同(语义不变)
+    var i = 0
+    while i < state1.nodes.len() {
+        if state1.nodes[i].kind != state2.nodes[i].kind {
+            return Err(f"节点 {i} 类型漂移: {state1.nodes[i].kind} → {state2.nodes[i].kind}")
+        }
+        i += 1
+    }
+    return Ok(0)
+}
+
+@test
+fn incr_changed_range_detection() -> Result<i32, String> {
+    // §1.3:修改一处文本,变更范围只覆盖受影响的行
+    let d = find_changed_range("# A\ntext a\n# B\ntext b\n", "# A\nCHANGED\n# B\ntext b\n")
+    assert(d.has_change, "应检测到变化")
+    assert(d.first == 1, f"变更起始行应为 1,得到 {d.first}")
+    assert(d.last == 1, f"变更结束行应为 1,得到 {d.last}")
+    // 只有行 1 变化,行 0 和行 2-3 的节点应复用
+    return Ok(0)
+}
+
+@test
+fn incr_label_preserved_after_edit() -> Result<i32, String> {
+    // §2.5:Label 跨编辑持续存在
+    // 编辑一个 heading 的文本,不碰 @[label] 的 heading
+    let src = "# 编缉目标\n## 其他 @[label other]\n"
+    let out = lex(src)
+    let pr = parse(out)
+    let state = build_document(pr, src)
+    let labels_before = collect_labels(state)
+    assert(labels_before.len() == 1, f"应有 1 个 Label,得到 {labels_before.len()}")
+
+    // 修改第一个 heading(不含 Label 的)
+    let r = edit_heading_text(state, 1, "已修改", src)
+
+    // 重新解析
+    let out2 = lex(r.new_source)
+    let pr2 = parse(out2)
+    let state2 = build_document(pr2, r.new_source)
+    let labels_after = collect_labels(state2)
+
+    // Label 应保留
+    assert(labels_after.len() == 1, f"编辑后 Label 应保留,得到 {labels_after.len()}")
+    assert(labels_after[0].label == "other", f"Label 值应为 other")
+    return Ok(0)
+}
+
+@test
+fn diff_detects_awen_syntax_changes() -> Result<i32, String> {
+    let old = "# 旧标题\n@[image hero]\n"
+    let new = "# 新标题\n@[image hero]\n@[image extra]\n"
+    let d = diff_text(old, new)
+    assert(has_changes(d), "应检测到语法变化")
+    assert(d.added > 0 && d.deleted > 0, "应检测到增删")
+    return Ok(0)
+}
+
+@test
+fn diff_ignores_whitespace_only_changes_in_raw() -> Result<i32, String> {
+    // Raw 块内容变化应被检测(§6.7 逐字保留)
+    let old = "@[c py]\ncode v1\n@[/c]\n"
+    let new = "@[c py]\ncode v2\n@[/c]\n"
+    let d = diff_text(old, new)
+    assert(has_changes(d), "Raw 内容变化应被检测")
+    return Ok(0)
+}
+
+@test
+fn incr_single_line_edit_preserves_all_other_ids() -> Result<i32, String> {
+    // §1.3:修改一处文本,未受影响区域的 kind+内容应保持
+    let src = "# 标题 A\n段落 1\n段落 2\n## 子标题\n段落 3\n"
+    let out1 = lex(src)
+    let pr1 = parse(out1)
+    let state1 = build_document(pr1, src)
+
+    // 修改段落 1 的文本(不改变行数)
+    let new_src = "# 标题 A\n修改后的段落\n段落 2\n## 子标题\n段落 3\n"
+    let out2 = lex(new_src)
+    let pr2 = parse(out2)
+    let state2 = build_document(pr2, new_src)
+
+    // 节点数应相同
+    assert(state1.nodes.len() == state2.nodes.len(), f"节点数不同: {state1.nodes.len()} vs {state2.nodes.len()}")
+
+    // 所有节点的 kind 和 level 应对应
+    var i = 0
+    while i < state1.nodes.len() {
+        assert(state1.nodes[i].kind == state2.nodes[i].kind, f"节点 {i} kind 漂移")
+        assert(state1.nodes[i].level == state2.nodes[i].level, f"节点 {i} level 漂移")
+        i += 1
+    }
+    return Ok(0)
+}
+
+@test
+fn incr_multi_paragraph_structure_stable() -> Result<i32, String> {
+    let src = "# 标题\n段落一。\n\n段落二。\n\n段落三。\n"
+    let out1 = lex(src)
+    let pr1 = parse(out1)
+    let state1 = build_document(pr1, src)
+    let text1 = render_plain_text(state1)
+
+    // 编辑中间段落
+    let modified = "# 标题\n段落一(修改)。\n\n段落二。\n\n段落三。\n"
+    let out2 = lex(modified)
+    let pr2 = parse(out2)
+    let state2 = build_document(pr2, modified)
+    let text2 = render_plain_text(state2)
+
+    // 结构应稳定(标题数、段落数)
+    assert(doc_count_kind(state1, "heading") == doc_count_kind(state2, "heading"), "标题数漂移")
+    assert(doc_count_kind(state1, "para") == doc_count_kind(state2, "para"), "段落数漂移")
+
+    // 修改后的内容应反映
+    assert(text2.contains("段落一(修改)"), "修改应生效")
+    assert(text2.contains("段落三。"), "未修改段落应保留")
+    return Ok(0)
+}
+
+@test
+fn incr_update_preserves_kind() -> Result<i32, String> {
+    // 修改文本后,所有节点的 kind 应保持一致
+    let src = "# 标题\n段落一\n## 子标题\n段落二\n"
+    let out = lex(src)
+    let pr = parse(out)
+    let old_state = build_document(pr, src)
+    let old_labels = collect_labels(old_state)
+
+    let new_src = "# 标题\n修改后的段落\n## 子标题\n段落二\n"
+    let upd = incremental_update(old_state, old_labels, src, new_src)
+
+    // 验证:新旧状态节点数相同
+    assert(old_state.nodes.len() == upd.state.nodes.len(), f"节点数应一致")
+    // kind 应对应
+    var i = 0
+    while i < old_state.nodes.len() && i < upd.state.nodes.len() {
+        assert(old_state.nodes[i].kind == upd.state.nodes[i].kind, f"节点 {i} kind 漂移")
+        i += 1
+    }
+    return Ok(0)
+}
+
+@test
+fn incr_update_label_preserved() -> Result<i32, String> {
+    // 修改不含 Label 的 heading,其他 heading 的 Label 应保留(§2.5)
+    let src = "# 目标\n## 其他 @[label other]\n"
+    let out = lex(src)
+    let pr = parse(out)
+    let old_state = build_document(pr, src)
+    let old_labels = collect_labels(old_state)
+    assert(old_labels.len() == 1, f"初始应有 1 个 Label")
+
+    let upd = incremental_update(old_state, old_labels, src, "# 修改后\n## 其他 @[label other]\n")
+    assert(upd.labels.len() == 1, f"编辑后 Label 应保留,得到 {upd.labels.len()}")
+    assert(upd.labels[0].label == "other", f"Label 值不变")
+    return Ok(0)
+}
+
+@test
+fn incr_incremental_matches_full_parse() -> Result<i32, String> {
+    // 增量更新的结果应与全量解析一致
+    let old_src = "# A\n旧内容\n## B\n子内容\n"
+    let new_src = "# A\n新内容\n## B\n子内容\n"
+
+    // 全量解析(参考)
+    let out_full = lex(new_src)
+    let pr_full = parse(out_full)
+    let state_full = build_document(pr_full, new_src)
+
+    // 增量更新
+    let out_old = lex(old_src)
+    let pr_old = parse(out_old)
+    let state_old = build_document(pr_old, old_src)
+    let incr = incremental_update(state_old, collect_labels(state_old), old_src, new_src)
+
+    // 节点数一致
+    assert(state_full.nodes.len() == incr.state.nodes.len(), f"节点数不一致: full={state_full.nodes.len()} incr={incr.state.nodes.len()}")
+
+    // kind 序列一致
+    var i = 0
+    while i < state_full.nodes.len() && i < incr.state.nodes.len() {
+        assert(state_full.nodes[i].kind == incr.state.nodes[i].kind, f"节点 {i} kind 不一致")
+        i += 1
+    }
+    return Ok(0)
+}
+
+@test
+fn incr_edit_heading_incremental() -> Result<i32, String> {
+    // 增量编辑 heading 后,未编辑 heading 的内容应不变
+    let src = "# 标题 A\n段落 A\n# 标题 B\n段落 B\n"
+    let out1 = lex(src)
+    let pr1 = parse(out1)
+    let state1 = build_document(pr1, src)
+    let labels1 = collect_labels(state1)
+
+    // 增量编辑 heading A
+    let upd = incremental_update(state1, labels1, src, "# 修改后的 A\n段落 A\n# 标题 B\n段落 B\n")
+
+    // 验证未编辑的 heading B 保留
+    var found_b = false
+    for node in upd.state.nodes {
+        if node.kind == "heading" {
+            let text = inline_plain(node.inline)
+            if text.contains("标题 B") { found_b = true }
+        }
+    }
+    assert(found_b, "heading B 应保留")
+    return Ok(0)
+}
+
+@test
+fn incr_delete_line_detection() -> Result<i32, String> {
+    // 删除一行后,差异检测应正确
+    let d = find_changed_range("a\nb\nc\nd", "a\nc\nd")
+    assert(d.has_change, "应检测到删除")
+    // b 被删除,在行 1
+    assert(d.first >= 1, f"变更起始应 >= 1")
+    return Ok(0)
+}
+
+@test
+fn incr_append_line_detection() -> Result<i32, String> {
+    // 尾部追加新行
+    let d = find_changed_range("a\nb", "a\nb\nc")
+    assert(d.has_change, "应检测到追加")
+    return Ok(0)
+}
+
+@test
+fn incr_multi_edit_consistency() -> Result<i32, String> {
+    // 多次编辑后,增量更新的语义应与全量解析一致
+    let src = "# A\ntext 1\n\n## B\ntext 2\n\n# C\ntext 3\n"
+    let out = lex(src)
+    let pr = parse(out)
+    let state = build_document(pr, src)
+
+    // 连续修改 3 个标题
+    let r1 = edit_heading_text(state, 1, "A_v2", src)
+    let r2 = edit_heading_text(r1.new_state, 3, "B_v2", r1.new_source)
+    let r3 = edit_heading_text(r2.new_state, 5, "C_v2", r2.new_source)
+
+    // 全量解析新源码作为参考
+    let full_out = lex(r3.new_source)
+    let full_pr = parse(full_out)
+    let full_state = build_document(full_pr, r3.new_source)
+
+    // 节点数一致
+    assert(r3.new_state.nodes.len() == full_state.nodes.len(), "节点数应一致")
+
+    // 标题数一致
+    assert(doc_count_kind(r3.new_state, "heading") == doc_count_kind(full_state, "heading"), "标题数一致")
+
+    // 所有标题文本应包含 v2
+    for node in r3.new_state.nodes {
+        if node.kind == "heading" {
+            let txt = inline_plain(node.inline)
+            assert(txt.contains("v2"), f"标题 [{txt}] 应包含 v2")
+        }
+    }
+    return Ok(0)
+}
+
+@test
+fn incr_label_across_edit_types() -> Result<i32, String> {
+    // 多种编辑类型后 Label 均保留(§2.5)
+    let src = "# A @[label sec-a]\n## B @[label sec-b]\n正文 @[ref sec-a]。\n"
+    let out = lex(src)
+    let pr = parse(out)
+    let state = build_document(pr, src)
+    let labels1 = collect_labels(state)
+    assert(labels1.len() == 2, f"初始应有 2 个 Label,得到 {labels1.len()}")
+
+    // 编辑 heading A 的文本(保留 label)
+    let r = edit_heading_text(state, 1, "修改后的 A", src)
+    let out2 = lex(r.new_source)
+    let pr2 = parse(out2)
+    let state2 = build_document(pr2, r.new_source)
+    let labels2 = collect_labels(state2)
+
+    // sec-b 的 Label 应不受影响
+    var found_b = false
+    for l in labels2 {
+        if l.label == "sec-b" { found_b = true }
+    }
+    assert(found_b, f"sec-b Label 应保留")
+    return Ok(0)
+}
+
+@test
+fn incr_add_paragraph_preserves_headings() -> Result<i32, String> {
+    // 添加新段落后,已有 heading 编号不变
+    let src = "# 章 A\n## 节 A1\n# 章 B\n"
+    let out = lex(src)
+    let pr = parse(out)
+    let state = build_document(pr, src)
+    let numbered_before = number_headings(state)
+
+    // 在末尾添加段落
+    let new_src = src + "\n新增段落。\n"
+    let out2 = lex(new_src)
+    let pr2 = parse(out2)
+    let state2 = build_document(pr2, new_src)
+    let numbered_after = number_headings(state2)
+
+    // 原有 heading 编号不变
+    var i = 0
+    while i < numbered_before.len() && i < numbered_after.len() {
+        assert(numbered_before[i].number == numbered_after[i].number, f"编号 {i} 不一致")
+        i += 1
+    }
+    return Ok(0)
+}
+
+@test
+fn incr_edit_heading_does_not_affect_siblings_labels() -> Result<i32, String> {
+    // 修改 heading A,验证 heading B 的 Label 保留
+    let src = "# 标题 A @[label sec-a]\n正文 A\n## 标题 B @[label sec-b]\n正文 B\n"
+    let out = lex(src)
+    let pr = parse(out)
+    let state = build_document(pr, src)
+
+    // 修改 heading A
+    let r = edit_heading_text(state, 1, "修改后的 A", src)
+    let out2 = lex(r.new_source)
+    let pr2 = parse(out2)
+    let state2 = build_document(pr2, r.new_source)
+    let labels2 = collect_labels(state2)
+
+    // sec-b 不应受影响
+    var found_b = false
+    for l in labels2 {
+        if l.label == "sec-b" { found_b = true }
+    }
+    assert(found_b, "sec-b 应保留")
+    return Ok(0)
+}
+
+@test
+fn incr_incremental_matches_full_after_edit() -> Result<i32, String> {
+    // 增量更新与全量解析结果一致(§1.3 概念验证)
+    let old_src = "# A\n旧内容\n## B\n子内容 B\n"
+    let new_src = "# A\n新内容\n## B\n子内容 B\n"
+    let out_old = lex(old_src)
+    let pr_old = parse(out_old)
+    let old_state = build_document(pr_old, old_src)
+    let old_labels = collect_labels(old_state)
+
+    let incr = incremental_update(old_state, old_labels, old_src, new_src)
+
+    // 全量解析新源码作为参考
+    let out_new = lex(new_src)
+    let pr_new = parse(out_new)
+    let full_state = build_document(pr_new, new_src)
+
+    // 节点数一致
+    assert(incr.state.nodes.len() == full_state.nodes.len(), f"节点数不一致")
+    // kind 序列一致
+    var i = 0
+    while i < full_state.nodes.len() && i < incr.state.nodes.len() {
+        assert(full_state.nodes[i].kind == incr.state.nodes[i].kind, f"节点 {i} kind 不一致")
+        i += 1
+    }
+    return Ok(0)
+}
+
+@test
+fn incr_diff_detects_line_number_shift() -> Result<i32, String> {
+    // 插入行后,后续行的 diff 检测
+    let old = "# A\n旧内容\n# B\n"
+    let new = "# A\n新内容\n额外行\n# B\n"
+    let d = find_changed_range(old, new)
+    assert(d.has_change, "应检测到变化")
+    return Ok(0)
+}
+
+@test
+fn incr_edit_heading_multi_level_labels() -> Result<i32, String> {
+    // 多级 heading 的 Label 在编辑后保留
+    let src = "# L1 @[label l1]\n内容\n## L2 @[label l2]\n### L3 @[label l3]\n"
+    let out = lex(src)
+    let pr = parse(out)
+    let state = build_document(pr, src)
+    let labels1 = collect_labels(state)
+    assert(labels1.len() == 3, f"初始应有 3 个 Label")
+
+    // 修改 L2 的文本
+    let r = edit_heading_text(state, 2, "修改后的 L2", src)
+    let out2 = lex(r.new_source)
+    let pr2 = parse(out2)
+    let state2 = build_document(pr2, r.new_source)
+    let labels2 = collect_labels(state2)
+
+    // l1 和 l3 的 Label 应保留(只修改了 l2 的文本)
+    var found_l1 = false
+    var found_l3 = false
+    for l in labels2 {
+        if l.label == "l1" { found_l1 = true }
+        if l.label == "l3" { found_l3 = true }
+    }
+    assert(found_l1 && found_l3, "未编辑的 heading Label 应保留")
+    return Ok(0)
+}

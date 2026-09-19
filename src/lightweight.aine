@@ -1,12 +1,13 @@
 // awen-proto/src/lightweight.aine —— 轻量层分类与行内扫描
 // 完全无分号版本(2026-09-04 重建)
-// ⚠ Aine 已知限制:
-//   1. match 臂内 continue 不生效 → 用旗标
-//   2. Text 是 UI 内建名 → 用 AwTxt
+// ⚠ Aine 已知限制(2026-09-19 修订):
+//   1. match 臂内 continue/break 曾为空操作,2026-09-04 已修复(GRAMMAR.md §2);
+//      本文件的 continue 直写已恢复
+//   2. Text 是 UI 内建名 → 用 AwTxt(N0001 会警告变体与 UI 组件冲突)
 //   3. Bold 与 ExplicitCommand::Bold 冲突 → 用 IBold
 //   4. Atom 与 LwAtom 变体冲突 → 用 LwAtom
-//   5. 模块函数内 IText 构造返回 Nil → 用 mk_text() 包装
-//   6. 不使用 .unwrap()/.is_some()/.is_none() → 用 match
+//   5. 模块函数内 IText 构造返回 Nil → 用 AwTxt() 包装
+//   6. .unwrap() 新版可用,本项目仍统一用 match
 
 enum Inline {
     AwTxt(String)
@@ -72,7 +73,7 @@ fn inline_plain(items: Vec<Inline>) -> String {
     return out
 }
 
-fn mk_text(s: String) -> Inline {
+fn AwTxt(s: String) -> Inline {
     return AwTxt(s)
 }
 
@@ -319,18 +320,14 @@ fn lw_atomize(chars: String, line_no: i32, diags: Vec<Diagnostic>) -> AtomOut {
                 atoms = lw_flush(atoms, text)
                 text = ""
                 let lit = lw_scan_literal_object(chars, i)
-                var handled = false
                 match lit {
                     Some(end) {
                         atoms.push(AtText(chars[i + 1..end]))
                         i = end
-                        handled = true
+                        continue
                     }
                     None {
                     }
-                }
-                if handled {
-                    continue
                 }
                 diags2.push(diag_warning("@@[ 未闭合", line_no))
                 text = "@"
@@ -341,18 +338,14 @@ fn lw_atomize(chars: String, line_no: i32, diags: Vec<Diagnostic>) -> AtomOut {
                 atoms = lw_flush(atoms, text)
                 text = ""
                 let hit = lw_read_close_tag(chars, i)
-                var handled = false
                 match hit {
                     Some(h) {
                         atoms.push(AtClose(h.cmd, chars[i..h.end]))
                         i = h.end
-                        handled = true
+                        continue
                     }
                     None {
                     }
-                }
-                if handled {
-                    continue
                 }
                 diags2.push(diag_warning("关闭标签缺少 ']'", line_no))
                 atoms.push(AtText(chars[i..chars.len()]))
@@ -363,7 +356,6 @@ fn lw_atomize(chars: String, line_no: i32, diags: Vec<Diagnostic>) -> AtomOut {
                 atoms = lw_flush(atoms, text)
                 text = ""
                 let hp = parse_header(chars, i)
-                var handled = false
                 match hp {
                     Ok(hp2) {
                         let u = hp2.cu
@@ -375,7 +367,6 @@ fn lw_atomize(chars: String, line_no: i32, diags: Vec<Diagnostic>) -> AtomOut {
                                 Some(cs) {
                                     atoms.push(AtRawSeg(u.cmd, lw_code_lang(u), chars[i + consumed..cs.start], chars[i..cs.end]))
                                     i = cs.end
-                                    handled = true
                                     closed = true
                                 }
                                 None {
@@ -385,7 +376,6 @@ fn lw_atomize(chars: String, line_no: i32, diags: Vec<Diagnostic>) -> AtomOut {
                                 diags2.push(diag_warning(f"行内 {u.name_raw} 缺少关闭标签", line_no))
                                 atoms.push(AtText(chars[i..i + consumed]))
                                 i += consumed
-                                handled = true
                             }
                         } else {
                             let close_opt = lw_find_inline_close(chars, i + consumed, u.cmd)
@@ -400,8 +390,8 @@ fn lw_atomize(chars: String, line_no: i32, diags: Vec<Diagnostic>) -> AtomOut {
                             let opens = (is_scoped(u.cmd) || u.cmd == Cell) && has_close
                             atoms.push(AtCmd(u, chars[i..i + consumed], opens))
                             i += consumed
-                            handled = true
                         }
+                        continue
                     }
                     Err(e) {
                         var d = diag_error(e.msg, line_no)
@@ -414,9 +404,6 @@ fn lw_atomize(chars: String, line_no: i32, diags: Vec<Diagnostic>) -> AtomOut {
                         }
                         diags2.push(d)
                     }
-                }
-                if handled {
-                    continue
                 }
                 var j = i + 2
                 while j < chars.len() && chars[j] != "]" {
@@ -438,20 +425,16 @@ fn lw_atomize(chars: String, line_no: i32, diags: Vec<Diagnostic>) -> AtomOut {
                 continue
             }
             let esc_opt = escape_scan(chars, i)
-            var esc_handled = false
             match esc_opt {
                 Some(h) {
                     atoms = lw_flush(atoms, text)
                     text = ""
                     atoms.push(AtText(h.text))
                     i += h.consumed
-                    esc_handled = true
+                    continue
                 }
                 None {
                 }
-            }
-            if esc_handled {
-                continue
             }
             text = text + "@"
             i += 1
@@ -461,18 +444,14 @@ fn lw_atomize(chars: String, line_no: i32, diags: Vec<Diagnostic>) -> AtomOut {
             atoms = lw_flush(atoms, text)
             text = ""
             let close_opt = lw_find_char(chars, i + 1, "`")
-            var handled = false
             match close_opt {
                 Some(j) {
                     atoms.push(AtCode(chars[i + 1..j]))
                     i = j + 1
-                    handled = true
+                    continue
                 }
                 None {
                 }
-            }
-            if handled {
-                continue
             }
             text = "`"
             i += 1
@@ -572,7 +551,7 @@ fn lw_literalize(atoms: Vec<LwAtom>) -> Vec<Inline> {
     for a in atoms {
         out = out + lw_atom_raw(a)
     }
-    return [mk_text(out)]
+    return [AwTxt(out)]
 }
 
 fn lw_merge_texts(items: Vec<Inline>) -> Vec<Inline> {
@@ -604,13 +583,13 @@ fn lw_merge_texts(items: Vec<Inline>) -> Vec<Inline> {
                     }
                 }
                 if last_is_txt {
-                    let combined = mk_text(last_val + txt_val)
+                    let combined = AwTxt(last_val + txt_val)
                     merged = lw_vec_set_inline(merged, merged.len() - 1, combined)
                     did_merge = true
                 }
             }
             if !did_merge {
-                merged.push(mk_text(txt_val))
+                merged.push(AwTxt(txt_val))
             }
         }
     }
@@ -703,7 +682,7 @@ fn lw_resolve(atoms: Vec<LwAtom>, diags: Vec<Diagnostic>, line_no: i32) -> ScanO
         if a_type == 1 {
             let fi = frames.len() - 1
             let f = frames[fi]
-            let new_children = f.children.push(mk_text(a_text))
+            let new_children = f.children.push(AwTxt(a_text))
             let new_f = Frame { kind: f.kind, children: new_children }
             frames = lw_vec_set(frames, fi, new_f)
         } else if a_type == 2 {
@@ -746,7 +725,7 @@ fn lw_resolve(atoms: Vec<LwAtom>, diags: Vec<Diagnostic>, line_no: i32) -> ScanO
                 diags2.push(diag_warning(f"未匹配的关闭标签 {a_close_lit}", line_no))
                 let fi = frames.len() - 1
                 let f = frames[fi]
-                let new_children = f.children.push(mk_text(a_close_lit))
+                let new_children = f.children.push(AwTxt(a_close_lit))
                 let new_f = Frame { kind: f.kind, children: new_children }
                 frames = lw_vec_set(frames, fi, new_f)
             }
@@ -757,7 +736,7 @@ fn lw_resolve(atoms: Vec<LwAtom>, diags: Vec<Diagnostic>, line_no: i32) -> ScanO
                 frames = lw_vec_drop_last(frames)
                 let fi = frames.len() - 1
                 let pf = frames[fi]
-                var node = mk_text(a_literal)
+                var node = AwTxt(a_literal)
                 if a_kind == MkBold {
                     node = IBold(f.children)
                 } else if a_kind == MkItalic {
@@ -778,7 +757,7 @@ fn lw_resolve(atoms: Vec<LwAtom>, diags: Vec<Diagnostic>, line_no: i32) -> ScanO
             } else {
                 let fi = frames.len() - 1
                 let f = frames[fi]
-                let new_children = f.children.push(mk_text(a_literal))
+                let new_children = f.children.push(AwTxt(a_literal))
                 let new_f = Frame { kind: f.kind, children: new_children }
                 frames = lw_vec_set(frames, fi, new_f)
             }

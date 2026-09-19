@@ -1,0 +1,6 @@
+module t_mod_a;
+
+@test
+fn test_in_entry_file() -> Result<i32, String> {
+    Ok(0)
+}

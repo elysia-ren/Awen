@@ -1,0 +1,218 @@
+// 测试模块:tests_cjk(M4 审计拆分;由 tests.aine 聚合声明)
+
+@test
+fn cjk_ideograph_detection() {
+    assert(cjk_is_ideograph("中"), "中 是 CJK")
+    assert(cjk_is_ideograph("文"), "文 是 CJK")
+    assert(!cjk_is_ideograph("a"), "a 非 CJK")
+    assert(!cjk_is_ideograph("1"), "1 非 CJK")
+    assert(cjk_is_punct("。"), "。 是 CJK 标点")
+    assert(cjk_is_punct("，"), "， 是 CJK 标点")
+    assert(!cjk_is_punct("中"), "中 非标点")
+}
+
+@test
+fn cjk_line_start_end_forbidden() {
+    // 行首禁则
+    assert(cjk_is_line_start_forbidden("。"), "。 不可在行首")
+    assert(cjk_is_line_start_forbidden("，"), "， 不可在行首")
+    assert(!cjk_is_line_start_forbidden("中"), "中 可在行首")
+    assert(!cjk_is_line_start_forbidden("a"), "a 可在行首")
+    // 行尾禁则
+    assert(cjk_is_line_end_forbidden("「"), "「 不可在行尾")
+    assert(cjk_is_line_end_forbidden("（"), "（ 不可在行尾")
+    assert(!cjk_is_line_end_forbidden("。"), "。 可在行尾")
+}
+
+@test
+fn cjk_validate_breaks() -> Result<i32, String> {
+    // 合法断行
+    let good = ["这是一段中文文本", "另一行内容"]
+    let issues0 = cjk_validate_line_breaks(good)
+    assert(issues0.len() == 0, "合法断行无违规")
+    // 行首禁则违规
+    let bad = ["这是一段文本", "。句号在行首"]
+    let issues1 = cjk_validate_line_breaks(bad)
+    assert(issues1.len() > 0, "应检测到行首禁则")
+    return Ok(0)
+}
+
+@test
+fn cjk_mixed_spacing() {
+    // 中西文混排:中+英 之间应有间距
+    let mixed = cjk_mixed_spacing_text("使用Rust开发")
+    assert(mixed.contains("[¼em]"), "中西文之间应有间距标记")
+    // 纯中文无间距
+    let pure = cjk_mixed_spacing_text("纯中文文本")
+    assert(!pure.contains("[¼em]"), "纯中文无间距标记")
+}
+
+@test
+fn layout_cjk_line_break() -> Result<i32, String> {
+    // 内容宽度 170mm(A4 去边距),字号 11pt
+    // 每行约 170 / (11 * 0.353) ≈ 43 个字符
+    let lines = cjk_line_break("这是一段很长的中文文本用于测试断行功能是否正确工作", 170.0, 11.0)
+    assert(lines.len() >= 1, "应至少有一行")
+    var total_chars = 0
+    for l in lines { total_chars += l.len() }
+    assert(total_chars == "这是一段很长的中文文本用于测试断行功能是否正确工作".len(), "断行不丢失字符")
+    return Ok(0)
+}
+
+@test
+fn layout_mixed_width() -> Result<i32, String> {
+    // 纯 CJK 宽度 > 纯 Latin 宽度(同字符数)
+    let w_cjk = mixed_text_width("中中中中", 11.0)
+    let w_latin = mixed_text_width("aaaa", 11.0)
+    assert(w_cjk > w_latin, "CJK 全角宽度应大于 Latin 半角")
+    // 混排应有额外间距
+    let w_mixed = mixed_text_width("中a中a", 11.0)
+    assert(w_mixed > 0.0, "混排宽度应大于零")
+    return Ok(0)
+}
+
+@test
+fn layout_kinsoku_fix() -> Result<i32, String> {
+    // 模拟断行:第一行末尾是「(行尾禁则),第二行开头是文字
+    let lines = ["这是一段文字「", "引用内容。"]
+    let fixed = fix_kinsoku(lines)
+    // 「 应被带到第二行
+    assert(fixed[1].starts_with("「"), "禁则字符应移到下一行")
+    return Ok(0)
+}
+
+@test
+fn layout_validate_cjk() -> Result<i32, String> {
+    // 合法排版
+    let good = ["这是正常的中文文本", "没有禁则违规"]
+    let v1 = validate_cjk_layout(good)
+    assert(v1.no_line_start_forbidden, "无行首禁则违规")
+    assert(v1.no_line_end_forbidden, "无行尾禁则违规")
+    // 违规:行首标点
+    let bad = ["这是正常文本", "。句号在行首"]
+    let v2 = validate_cjk_layout(bad)
+    assert(!v2.no_line_start_forbidden, "应检测到行首禁则")
+    return Ok(0)
+}
+
+@test
+fn cjk_punctuation_squeeze() {
+    let squeezed = cjk_squeeze_punctuation("「你好」，他说。")
+    assert(squeezed.contains("[挤半角]"), "连续标点应触发挤压标记")
+}
+
+@test
+fn cjk_mixed_spacing_edges() {
+    // 纯 Latin 无间距
+    let pure_latin = cjk_mixed_spacing_text("hello world")
+    assert(!pure_latin.contains("[¼em]"), "纯 Latin 无间距")
+    // 纯 CJK 无间距
+    let pure_cjk = cjk_mixed_spacing_text("中文文本")
+    assert(!pure_cjk.contains("[¼em]"), "纯 CJK 无间距")
+    // 混排有间距
+    let mixed = cjk_mixed_spacing_text("使用Rust开发")
+    assert(mixed.contains("[¼em]"), "混排应有间距")
+}
+
+@test
+fn cjk_mixed_spacing_space_no_double_gap() {
+    // ⚠ 回归(§20 混排间距):直接相邻 → 插 ¼em;
+    //   已有空格 → 原样保留,不得再插(避免双倍空隙)
+    let adjacent = cjk_mixed_spacing_text("中文English混排")
+    assert(adjacent.contains("文[¼em]E"), "CJK→Latin 相邻应加间距")
+    assert(adjacent.contains("h[¼em]混"), "Latin→CJK 相邻应加间距")
+    let spaced = cjk_mixed_spacing_text("中文 English 混排")
+    assert(spaced.contains("中文 English 混排"), "已有空格应原样保留")
+    assert(!spaced.contains("[¼em]"), "已有空格不应再插 ¼em")
+}
+
+@test
+fn cjk_kinsoku_comprehensive() {
+    // 行首禁则字符集
+    assert(cjk_is_line_start_forbidden("。"), "。")
+    assert(cjk_is_line_start_forbidden("！"), "！")
+    assert(cjk_is_line_start_forbidden("」"), "」")
+    assert(!cjk_is_line_start_forbidden("「"), "「 可在行首")
+    // 行尾禁则字符集
+    assert(cjk_is_line_end_forbidden("「"), "「")
+    assert(cjk_is_line_end_forbidden("（"), "（")
+    assert(!cjk_is_line_end_forbidden("」"), "」 可在行尾")
+}
+
+@test
+fn cjk_comprehensive_line_break() -> Result<i32, String> {
+    // 长文本断行 + 禁则修正
+    let text = "这是一段很长的中文文本用于测试断行功能，包含了多个句子。每个句子都应该正确地断行，不应该在标点前面断开。"
+    let lines = cjk_line_break(text, 170.0, 11.0)
+    let fixed = fix_kinsoku(lines)
+    let issues = cjk_validate_line_breaks(fixed)
+    assert(issues.len() == 0, f"修正后不应有禁则违规: {issues}")
+    // 总字符数应保持
+    var total = 0
+    for l in fixed { total += l.len() }
+    assert(total == text.len(), f"断行后总字符数应一致: {total} vs {text.len()}")
+    return Ok(0)
+}
+
+@test
+fn cjk_mixed_render_integration() -> Result<i32, String> {
+    // CJK 文本在渲染管线中的混排间距
+    let src = "使用 Rust 和 Aine 开发文档系统。\n"
+    let out = lex(src)
+    let pr = parse(out)
+    let state = build_document(pr, src)
+    let text = render_plain_text(state)
+    // 渲染输出应保留全部 CJK 和 Latin 字符
+    assert(text.contains("使用"), "应含 使用")
+    assert(text.contains("Rust"), "应含 Rust")
+    assert(text.contains("Aine"), "应含 Aine")
+    assert(text.contains("开发文档系统"), "应含中文后缀")
+    return Ok(0)
+}
+
+@test
+fn cjk_ideograph_and_latin_classification() {
+    // CJK 字符分类
+    assert(cjk_is_ideograph_char("中"), "中 是 CJK")
+    assert(cjk_is_ideograph_char("文"), "文 是 CJK")
+    // Latin 字符分类
+    assert(cjk_is_latin_char("a"), "a 是 Latin")
+    assert(cjk_is_latin_char("Z"), "Z 是 Latin")
+    assert(cjk_is_latin_char("5"), "5 是 Latin")
+    // 非 Latin 非 CJK
+    assert(!cjk_is_latin_char("中"), "中 非 Latin")
+    assert(!cjk_is_latin_char("。"), "。 非 Latin")
+}
+
+@test
+fn cjk_punct_comprehensive() {
+    // 行首禁则:所有 CJK 闭合标点
+    let line_start_forbidden = ["。", "，", "、", "；", "？", "！", "」", "』", "）", "】"]
+    for c in line_start_forbidden {
+        assert(cjk_is_line_start_forbidden(c), f"[{c}] 应为行首禁则")
+    }
+    // 行尾禁则:CJK 开启标点
+    let line_end_forbidden = ["「", "『", "（", "【"]
+    for c in line_end_forbidden {
+        assert(cjk_is_line_end_forbidden(c), f"[{c}] 应为行尾禁则")
+    }
+    // 非标点字符
+    assert(!cjk_is_line_start_forbidden("中"), "中 非禁则")
+    assert(!cjk_is_line_start_forbidden("a"), "a 非禁则")
+}
+
+@test
+fn cjk_validate_no_violation_clean_text() -> Result<i32, String> {
+    let lines = ["这是第一行正常的中文文本。", "这是第二行。", "第三行也没有问题。"]
+    let issues = cjk_validate_line_breaks(lines)
+    assert(issues.len() == 0, f"正常文本不应有禁则违规: {issues}")
+    return Ok(0)
+}
+
+@test
+fn cjk_line_end_forbidden_punct() -> Result<i32, String> {
+    let lines = ["这是一段文字「", "这是另一段。"]
+    let issues = cjk_validate_line_breaks(lines)
+    assert(issues.len() > 0, f"行尾「 应触发禁则")
+    return Ok(0)
+}

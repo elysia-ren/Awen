@@ -100,10 +100,11 @@ fn export_html_raw(node: SemNode) -> String {
 
 fn export_html_table(node: SemNode) -> String {
     var out = "<table>\n"
+    // 表头:tbl_header 是单行,元素即 cell(每个 cell 是 Vec<Inline>)
     if node.tbl_header.len() > 0 {
         out = out + "  <thead>\n  <tr>\n"
-        for cell in node.tbl_header[0] {
-            out = out + "    <th>" + export_html_inline([cell]) + "</th>\n"
+        for cell in node.tbl_header {
+            out = out + "    <th>" + export_html_inline(cell) + "</th>\n"
         }
         out = out + "  </tr>\n  </thead>\n"
     }
@@ -112,7 +113,7 @@ fn export_html_table(node: SemNode) -> String {
         for row in node.tbl_rows {
             out = out + "  <tr>\n"
             for cell in row {
-                out = out + "    <td>" + export_html_inline([cell]) + "</td>\n"
+                out = out + "    <td>" + export_html_inline(cell) + "</td>\n"
             }
             out = out + "  </tr>\n"
         }

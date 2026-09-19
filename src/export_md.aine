@@ -2,18 +2,24 @@
 // 将 Document State 导出为 Markdown 格式
 // 用于与其他工具互操作、AI 理解、版本控制 diff
 
-fn export_md_heading(node: SemNode) -> String {
-    var hashes = ""
-    var i = 0
-    while i < node.level {
-        hashes = hashes + "#"
-        i += 1
+// ── Markdown 行内渲染(§8.6 互操作)─────────────────────────
+// MD 原生标记(**、_、~~、`)应保留;Awen 扩展(@[u]/@[m] 等 Scoped)
+// 无 MD 等价物 → 降级为内容;命令(@[ref]/@[label])输出完整形式以保往返。
+fn export_md_inline(items: Vec<Inline>) -> String {
+    var out = ""
+    for it in items {
+        match it {
+            AwTxt(s) { out = out + s }
+            IBold(c) { out = out + "**" + export_md_inline(c) + "**" }
+            Italic(c) { out = out + "_" + export_md_inline(c) + "_" }
+            Strike(c) { out = out + "~~" + export_md_inline(c) + "~~" }
+            Scoped(cmd, c) { out = out + export_md_inline(c) }
+            CodeSpan(s) { out = out + "`" + s + "`" }
+            Command(u) { out = out + f"@[{u.name_raw}" + render_args(u) + "]" }
+            RawInline(cmd, lang, content) { out = out + content }
+        }
     }
-    return hashes + " " + inline_render_marked(node.inline)
-}
-
-fn export_md_paragraph(node: SemNode) -> String {
-    return inline_render_marked(node.inline)
+    return out
 }
 
 fn export_md_list(node: SemNode) -> String {
@@ -22,9 +28,9 @@ fn export_md_list(node: SemNode) -> String {
     for item in node.list_items {
         idx += 1
         if node.list_ordered {
-            out = out + f"{idx}. " + inline_plain(item) + "\n"
+            out = out + f"{idx}. " + export_md_inline(item) + "\n"
         } else {
-            out = out + "- " + inline_plain(item) + "\n"
+            out = out + "- " + export_md_inline(item) + "\n"
         }
     }
     return out
@@ -37,33 +43,32 @@ fn export_md_quote(node: SemNode) -> String {
         prefix = prefix + ">"
         i += 1
     }
-    return prefix + " " + inline_plain(node.inline)
+    return prefix + " " + export_md_inline(node.inline)
 }
 
 fn export_md_table(node: SemNode) -> String {
     var out = ""
-    // 表头
+    // 表头:tbl_header 是单行,元素即 cell(每个 cell 是 Vec<Inline>)
     if node.tbl_header.len() > 0 {
-        let header = node.tbl_header[0]
         out = out + "|"
-        for cell in header {
-            out = out + " " + inline_plain([cell]) + " |"
+        for cell in node.tbl_header {
+            out = out + " " + inline_plain(cell) + " |"
         }
         out = out + "\n"
         // 对齐分隔行
         out = out + "|"
         var k = 0
-        while k < header.len() {
+        while k < node.tbl_header.len() {
             out = out + " --- |"
             k += 1
         }
         out = out + "\n"
     }
-    // 数据行
+    // 数据行:每行是 cell 列表
     for row in node.tbl_rows {
         out = out + "|"
         for cell in row {
-            out = out + " " + inline_plain([cell]) + " |"
+            out = out + " " + inline_plain(cell) + " |"
         }
         out = out + "\n"
     }
@@ -106,9 +111,9 @@ fn export_markdown(state: DocState) -> String {
                 hashes = hashes + "#"
                 h += 1
             }
-            out = out + hashes + " " + inline_plain(node.inline) + "\n\n"
+            out = out + hashes + " " + export_md_inline(node.inline) + "\n\n"
         } else if node.kind == "para" {
-            out = out + inline_plain(node.inline) + "\n\n"
+            out = out + export_md_inline(node.inline) + "\n\n"
         } else if node.kind == "list" {
             out = out + export_md_list(node) + "\n"
         } else if node.kind == "quote" {

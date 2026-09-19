@@ -1,0 +1,159 @@
+// 测试模块:tests_refs(M4 审计拆分;由 tests.aine 聚合声明)
+
+@test
+fn refs_collect_labels_from_headings() -> Result<i32, String> {
+    let src = "# 章 A @[label chap-a]\n## 章 B @[标签 chap-b]\n"
+    let out = lex(src)
+    let pr = parse(out)
+    let state = build_document(pr, src)
+    let labels = collect_labels(state)
+    if labels.len() != 2 { return Err(f"应有 2 个 Label,得到 {labels.len()}") }
+    if labels[0].label != "chap-a" { return Err(f"label[0] 应为 chap-a") }
+    if labels[1].label != "chap-b" { return Err(f"label[1] 应为 chap-b") }
+    return Ok(0)
+}
+
+@test
+fn refs_label_uniqueness() -> Result<i32, String> {
+    let src = "# A @[label dup]\n# B @[label dup]\n"
+    let out = lex(src)
+    let pr = parse(out)
+    let state = build_document(pr, src)
+    let labels = collect_labels(state)
+    let dupes = check_label_uniqueness(labels)
+    if dupes.len() != 1 { return Err(f"应有 1 个重复,得到 {dupes.len()}") }
+    if dupes[0] != "dup" { return Err(f"重复 Label 应为 dup") }
+    return Ok(0)
+}
+
+@test
+fn refs_resolve_and_validate() -> Result<i32, String> {
+    // 有 Label 的文档:ref 应解析成功
+    let src = "# 章 A @[label chap-a]\n见 @[ref chap-a]。\n"
+    let out = lex(src)
+    let pr = parse(out)
+    let state = build_document(pr, src)
+    let labels = collect_labels(state)
+    if labels.len() != 1 { return Err(f"应有 1 个 Label") }
+
+    // Semantic Resolver
+    let res = resolve_ref(state, labels, "chap-a")
+    if !res.found { return Err("ref 应解析成功") }
+    if res.semantic_number != "1" { return Err(f"章节编号应为 1,得到 {res.semantic_number}") }
+
+    // 引用完整性:无未解析引用
+    let unresolved = validate_refs(state, labels)
+    if unresolved.len() != 0 { return Err(f"不应有未解析引用") }
+    return Ok(0)
+}
+
+@test
+fn refs_unresolved_ref_detected() -> Result<i32, String> {
+    let src = "见 @[ref 不存在]。\n"
+    let out = lex(src)
+    let pr = parse(out)
+    let state = build_document(pr, src)
+    let labels = collect_labels(state)
+    let unresolved = validate_refs(state, labels)
+    if unresolved.len() != 1 { return Err(f"应有 1 个未解析引用") }
+    if unresolved[0] != "不存在" { return Err(f"未解析引用应为 [不存在]") }
+    return Ok(0)
+}
+
+@test
+fn validate_clean_document() -> Result<i32, String> {
+    let src = "# 章 A @[label chap-a]\n见 @[ref chap-a]。\n"
+    let out = lex(src)
+    let pr = parse(out)
+    let state = build_document(pr, src)
+    let labels = collect_labels(state)
+    let issues = validate_document(state, labels)
+    // 过滤掉 V005(引用完整性由 resolve 处理)
+    var errors = 0
+    for i in issues {
+        if i.severity == SevError { errors += 1 }
+    }
+    assert(errors == 0, f"干净文档不应有错误,得到 {errors}")
+    return Ok(0)
+}
+
+@test
+fn validate_detects_duplicate_label() -> Result<i32, String> {
+    let src = "# A @[label dup]\n# B @[label dup]\n"
+    let out = lex(src)
+    let pr = parse(out)
+    let state = build_document(pr, src)
+    let labels = collect_labels(state)
+    let issues = validate_document(state, labels)
+    var found_dupe = false
+    for i in issues {
+        if i.code == "V001" { found_dupe = true }
+    }
+    assert(found_dupe, "应检测到重复 Label")
+    return Ok(0)
+}
+
+@test
+fn validate_detects_unresolved_ref() -> Result<i32, String> {
+    let src = "见 @[ref 不存在]。\n"
+    let out = lex(src)
+    let pr = parse(out)
+    let state = build_document(pr, src)
+    let labels = collect_labels(state)
+    let issues = validate_document(state, labels)
+    var found_ref = false
+    for i in issues {
+        if i.code == "V005" { found_ref = true }
+    }
+    assert(found_ref, "应检测到未解析引用")
+    return Ok(0)
+}
+
+@test
+fn label_heading_edit_preserves_inline_suffix() -> Result<i32, String> {
+    // edit_heading_text 应保留 @[label xxx] 后缀(§87 修复验证)
+    let src = "# 旧标题 @[label h1]\n内容\n"
+    let out = lex(src)
+    let pr = parse(out)
+    let state = build_document(pr, src)
+    let r = edit_heading_text(state, 1, "新标题", src)
+    // Label 后缀应保留
+    assert(r.new_source.contains("@[label h1]"), f"Label 后缀应保留: [{r.new_source}]")
+    assert(r.new_source.contains("新标题"), "新文本应存在")
+    return Ok(0)
+}
+
+@test
+fn label_ref_resolution_after_multiple_edits() -> Result<i32, String> {
+    // 多次编辑后 ref 解析仍应正确
+    let src = "# 引言 @[label intro]\n内容\n见 @[ref intro]。\n## 方法 @[label method]\n"
+    let out = lex(src)
+    let pr = parse(out)
+    let state = build_document(pr, src)
+    let labels1 = collect_labels(state)
+    assert(labels1.len() == 2, f"初始 Label 应为 2")
+
+    // 修改引言 heading
+    let r = edit_heading_text(state, 1, "修改后的引言", src)
+    let out2 = lex(r.new_source)
+    let pr2 = parse(out2)
+    let state2 = build_document(pr2, r.new_source)
+    let labels2 = collect_labels(state2)
+
+    // method 的 Label 应不受影响
+    var found_method = false
+    for l in labels2 {
+        if l.label == "method" { found_method = true }
+    }
+    assert(found_method, "method Label 应保留")
+
+    // ref intro 应仍可解析(如果 intro label 因编辑丢失,应有诊断)
+    let res = resolve_ref(state2, labels2, "method")
+    assert(res.found, "method ref 应可解析")
+    return Ok(0)
+}
+
+@test
+fn labels2_len(l: Vec<LabelEntry>) -> i32 {
+    return l.len()
+}

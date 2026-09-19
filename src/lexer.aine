@@ -1,5 +1,6 @@
 // awen-proto/src/lexer.aine —— 词法编排(核心规范 §6/§9/§11)
-// ⚠ Aine 限制:match 臂内 continue 不可靠,主循环采用"先行自增行号"结构。
+// 注:match 臂内 break/continue 曾为空操作,2026-09-04 已修复;
+// 主循环的"先行自增行号"结构是设计选择,保留。
 
 enum Block {
     Blank
@@ -137,7 +138,7 @@ fn lex(src: String) -> LexOutput {
                 continue
             }
             diags.push(diag_error("表格块内只能包含表格行或 @[/table]", lineno - 1))
-            blocks.push(LexedBlock { line: lineno - 1, block: Paragraph([mk_text(line)]) })
+            blocks.push(LexedBlock { line: lineno - 1, block: Paragraph([AwTxt(line)]) })
             continue
         }
         // 常规行分类
@@ -198,7 +199,7 @@ fn lex_command_line(chars: String, lineno: i32, diags: Vec<Diagnostic>, raw: Opt
                 None { }
             }
             diags.push(mut_d)
-            blocks.push(LexedBlock { line: lineno, block: Paragraph([mk_text(chars)]) })
+            blocks.push(LexedBlock { line: lineno, block: Paragraph([AwTxt(chars)]) })
             return CmdOutcome { blocks: blocks, diags: diags, raw: raw, table: table }
         }
         Ok(hp2) => {
@@ -234,7 +235,6 @@ fn lex_command_line(chars: String, lineno: i32, diags: Vec<Diagnostic>, raw: Opt
                 }
             }
             if is_single {
-                // unwrap() 不可靠,用 match
                 match single {
                     Some(cu) {
                         blocks.push(LexedBlock { line: lineno, block: BlkObject(cu) })
