@@ -30,6 +30,7 @@ module incremental_update;
 module undo;
 module layout_width;
 module inline_edit;
+module inline_span;
 module page_flow;
 
 module tests_common;
@@ -37,6 +38,7 @@ module tests_property;
 module tests_layout;
 module tests_incremental;
 module tests_inline_edit;
+module tests_inline_span;
 module tests_editor;
 module tests_lex;
 module tests_integration;

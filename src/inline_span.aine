@@ -1,0 +1,148 @@
+// inline_span.aine —— 行内源码区间映射(P2-1;核心规范 §3.4;总方案 §37)
+//
+// 将源码行拆分为连续的 (起点, 终点, 类别, 文本) 区间列表:
+// 编辑器据此实现"显示选区 ↔ 源码区间"双向映射(§3.1 映射链的最细粒度)。
+// 区间覆盖整行(无间隙),拼接所有区间的 text == 原行文本。
+
+struct InlineSpanEntry {
+    // 源码起始字符偏移(含)
+    start: i32
+    // 源码结束字符偏移(不含)
+    end: i32
+    // "plain" / "bold" / "italic" / "strike" / "code"
+    kind: String
+    // 源码原文(含标记字符)
+    text: String
+}
+
+// 判断一行中指定位置是否以 marker 开头
+fn span_starts_with(text: String, pos: i32, marker: String) -> bool {
+    if pos + marker.len() > text.len() { return false }
+    return text[pos..pos + marker.len()] == marker
+}
+
+// 标记对读取结果
+struct SpanPair {
+    found: bool
+    // 内容起点(不含开启标记)
+    body_start: i32
+    // 整体终点(含闭合标记)
+    pair_end: i32
+}
+
+// 从 pos 开始读取闭合标记对的内容区间
+fn span_read_pair(text: String, pos: i32, open: String, close: String) -> SpanPair {
+    if !span_starts_with(text, pos, open) {
+        return SpanPair { found: false, body_start: 0, pair_end: 0 }
+    }
+    let body_start = pos + open.len()
+    var j = body_start
+    while j + close.len() <= text.len() {
+        if text[j..j + close.len()] == close {
+            return SpanPair { found: true, body_start: body_start, pair_end: j + close.len() }
+        }
+        j += 1
+    }
+    return SpanPair { found: false, body_start: 0, pair_end: 0 }
+}
+
+// 行内区间映射:将一行拆为连续的格式化区间列表(§3.4 属性级 Span 的行内部分)
+fn inline_span_map(line: String) -> Vec<InlineSpanEntry> {
+    var out: Vec<InlineSpanEntry> = []
+    var i = 0
+    var plain_start = 0
+
+    // 辅助:刷出 plain 区间
+    // Aine 无闭包捕获 → 内联处理
+
+    while i < line.len() {
+        // 四种标记对(优先级:code > bold > strike > italic)
+        if span_starts_with(line, i, "`") {
+            let pair = span_read_pair(line, i, "`", "`")
+            if pair.found {
+                if plain_start < i {
+                    out = out.push(InlineSpanEntry { start: plain_start, end: i, kind: "plain", text: line[plain_start..i] })
+                }
+                out = out.push(InlineSpanEntry { start: i, end: pair.pair_end, kind: "code", text: line[i..pair.pair_end] })
+                i = pair.pair_end
+                plain_start = i
+                continue
+            }
+        }
+        if span_starts_with(line, i, "**") {
+            let pair = span_read_pair(line, i, "**", "**")
+            if pair.found {
+                if plain_start < i {
+                    out = out.push(InlineSpanEntry { start: plain_start, end: i, kind: "plain", text: line[plain_start..i] })
+                }
+                out = out.push(InlineSpanEntry { start: i, end: pair.pair_end, kind: "bold", text: line[i..pair.pair_end] })
+                i = pair.pair_end
+                plain_start = i
+                continue
+            }
+        }
+        if span_starts_with(line, i, "~~") {
+            let pair = span_read_pair(line, i, "~~", "~~")
+            if pair.found {
+                if plain_start < i {
+                    out = out.push(InlineSpanEntry { start: plain_start, end: i, kind: "plain", text: line[plain_start..i] })
+                }
+                out = out.push(InlineSpanEntry { start: i, end: pair.pair_end, kind: "strike", text: line[i..pair.pair_end] })
+                i = pair.pair_end
+                plain_start = i
+                continue
+            }
+        }
+        if span_starts_with(line, i, "_") {
+            let pair = span_read_pair(line, i, "_", "_")
+            if pair.found {
+                if plain_start < i {
+                    out = out.push(InlineSpanEntry { start: plain_start, end: i, kind: "plain", text: line[plain_start..i] })
+                }
+                out = out.push(InlineSpanEntry { start: i, end: pair.pair_end, kind: "italic", text: line[i..pair.pair_end] })
+                i = pair.pair_end
+                plain_start = i
+                continue
+            }
+        }
+        i += 1
+    }
+
+    // 末尾 plain
+    if plain_start < line.len() {
+        out = out.push(InlineSpanEntry { start: plain_start, end: line.len(), kind: "plain", text: line[plain_start..line.len()] })
+    }
+    return out
+}
+
+// 显示偏移 → 源码偏移(§3.1 正向映射的行内部分)
+// display_pos 是不含标记字符的纯文本偏移
+fn display_to_source(line: String, display_pos: i32) -> i32 {
+    let spans = inline_span_map(line)
+    var display_acc = 0
+    for sp in spans {
+        let span_len = sp.end - sp.start
+        if sp.kind == "plain" {
+            if display_pos <= display_acc + span_len {
+                return sp.start + (display_pos - display_acc)
+            }
+            display_acc = display_acc + span_len
+        } else {
+            // 格式化区间内的内容字符
+            let inner_len = span_len - 2 * marker_len_for(sp.kind)
+            if display_pos <= display_acc + inner_len {
+                return sp.start + marker_len_for(sp.kind) + (display_pos - display_acc)
+            }
+            display_acc = display_acc + inner_len
+        }
+    }
+    return line.len()
+}
+
+fn marker_len_for(kind: String) -> i32 {
+    if kind == "bold" { return 2 }
+    if kind == "strike" { return 2 }
+    if kind == "italic" { return 1 }
+    if kind == "code" { return 1 }
+    return 0
+}

@@ -1,0 +1,73 @@
+// 测试模块:tests_inline_span(P2-1:行内源码区间映射)
+
+@test
+fn span_map_plain_text_single_span() -> Result<i32, String> {
+    let spans = inline_span_map("纯文本无格式")
+    assert(spans.len() == 1, f"应 1 个区间,得到 {spans.len()}")
+    assert(spans[0].kind == "plain", "应为 plain")
+    assert(spans[0].start == 0 && spans[0].end == 6, "覆盖整行")
+    Ok(0)
+}
+
+@test
+fn span_map_identifies_bold_region() -> Result<i32, String> {
+    let line = "前置 **粗体** 后置"
+    let spans = inline_span_map(line)
+    var found_bold = false
+    for sp in spans {
+        if sp.kind == "bold" {
+            found_bold = true
+            // 源码原文含标记
+            assert(sp.text == "**粗体**", f"粗体原文: {sp.text}")
+        }
+    }
+    assert(found_bold, "应识别粗体区间")
+    Ok(0)
+}
+
+@test
+fn span_map_roundtrip_concatenation() -> Result<i32, String> {
+    // 区间拼接 == 原行文本(无间隙覆盖)
+    let line = "前置 **粗体** 中 _斜体_ 后 `代码` 尾"
+    let spans = inline_span_map(line)
+    var joined = ""
+    for sp in spans {
+        joined = joined + sp.text
+    }
+    assert(joined == line, f"拼接不一致: {joined}")
+    Ok(0)
+}
+
+@test
+fn span_map_display_to_source_mapping() -> Result<i32, String> {
+    // 显示偏移 → 源码偏移(§3.1 映射链)
+    let line = "**粗体内容**"
+    // 显示偏移 0(粗体的第一个字符)→ 源码偏移 2(跳过 **)
+    let s0 = display_to_source(line, 0)
+    assert(s0 == 2, f"显示 0 → 源码 {s0}(期望 2)")
+    // 显示偏移 2(粗体的最后一个字符后)→ 源码偏移 4
+    let s2 = display_to_source(line, 2)
+    assert(s2 == 4, f"显示 2 → 源码 {s2}(期望 4)")
+    Ok(0)
+}
+
+@test
+fn span_map_mixed_formats() -> Result<i32, String> {
+    let line = "**粗** _斜_ `码` ~~删~~"
+    let spans = inline_span_map(line)
+    var bold_n = 0
+    var italic_n = 0
+    var code_n = 0
+    var strike_n = 0
+    for sp in spans {
+        if sp.kind == "bold" { bold_n += 1 }
+        if sp.kind == "italic" { italic_n += 1 }
+        if sp.kind == "code" { code_n += 1 }
+        if sp.kind == "strike" { strike_n += 1 }
+    }
+    assert(bold_n == 1, f"粗体 {bold_n}")
+    assert(italic_n == 1, f"斜体 {italic_n}")
+    assert(code_n == 1, f"代码 {code_n}")
+    assert(strike_n == 1, f"删除线 {strike_n}")
+    Ok(0)
+}
