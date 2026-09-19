@@ -1,0 +1,108 @@
+// 测试模块:tests_editor(P2-4 Undo/Redo;P2-3 页码收敛)
+
+// 应用补丁到源码(纯字符串重建;真正的状态重建走 build_document)
+fn ed_apply(src: String, p: TextPatch) -> String {
+    return src[0..p.start] + p.new + src[p.start + p.old.len()..src.len()]
+}
+
+@test
+fn undo_stack_push_pop_roundtrip() -> Result<i32, String> {
+    var st = undo_new()
+    let p1 = TextPatch { start: 0, old: "", new: "前缀:" }
+    st = undo_push(st, p1)
+    assert(undo_can_back(st), "应可撤销")
+
+    let step = undo_step_back(st)
+    assert(step.ok, "应弹出补丁")
+    st = step.stack
+    assert(!undo_can_back(st), "撤销后 undo 栈空")
+    assert(undo_can_forward(st), "应可重做")
+
+    let fwd = undo_step_forward(st)
+    assert(fwd.ok, "应可重做")
+    assert(fwd.patch.new == "前缀:", "重放补丁内容一致")
+    Ok(0)
+}
+
+@test
+fn undo_contiguous_inserts_merge() -> Result<i32, String> {
+    // §4.4:连续同类文本输入(位置衔接的纯插入)合并为一个 Undo 单元
+    var st = undo_new()
+    st = undo_push_insert(st, 6, "你")
+    st = undo_push_insert(st, 7, "好")
+    assert(undo_can_back(st), "应有单元")
+
+    let step = undo_step_back(st)
+    // 一次撤销移除整个"你好"单元(弹出的是原补丁,撤销时调用方再 invert)
+    assert(step.patch.start == 6 && step.patch.old == "" && step.patch.new == "你好",
+           f"应合并为你好单元: old={step.patch.old} new={step.patch.new}")
+    Ok(0)
+}
+
+@test
+fn undo_push_insert_breaks_on_position_gap() -> Result<i32, String> {
+    var st = undo_new()
+    st = undo_push_insert(st, 6, "你")
+    // 位置不衔接 → 各自成单元
+    st = undo_push_insert(st, 9, "好")
+    let s1 = undo_step_back(st)
+    assert(s1.patch.new == "好", "后入先出:先弹[好]")
+    let s2 = undo_step_back(s1.stack)
+    assert(s2.patch.new == "你", "再弹[你]")
+    Ok(0)
+}
+
+// P-06 风格:混合操作 → 连续 Undo → 逐字节还原
+@test
+fn undo_full_restore_byte_exact() -> Result<i32, String> {
+    // P-06:混合操作(改名/插入/删除)→ 连续 Undo → 逐字节还原
+    let src = "# 章 @[label c]\n正文段落。\n"
+
+    var rope = src
+    let state = build_document(parse(lex(rope)), rope)
+    var h_id = -1
+    for n in state.nodes {
+        if n.kind == "heading" { h_id = n.id }
+    }
+    var st = undo_new()
+
+    // ① 标题改名(管线编辑)
+    let r1 = edit_heading_text(state, h_id, "新章名", rope)
+    st = undo_push(st, r1.patch)
+    rope = r1.new_source
+
+    // ② 尾部连续插入(§4.4 合并为一个单元)
+    let at = rope.len()
+    st = undo_push_insert(st, at, "追加甲")
+    rope = rope[0..at] + "追加甲" + rope[at..rope.len()]
+
+    // ③ 删除"正文"开头(行内查找,字符边界)
+    var body_start = -1
+    var si = 0
+    while si + 4 <= rope.len() {
+        if rope[si..si + 4] == "正文" {
+            body_start = si
+            break
+        }
+        si += 1
+    }
+    let old4 = rope[body_start..body_start + 4]
+    st = undo_push(st, TextPatch { start: body_start, old: old4, new: "" })
+    rope = rope[0..body_start] + rope[body_start + 4..rope.len()]
+
+    assert(rope != src, "前置:编辑后应不同")
+
+    // 连续 Undo:每步 invert 应用,不得失配(§4.1)
+    var guard = 0
+    while undo_can_back(st) {
+        let step = undo_step_back(st)
+        st = step.stack
+        let inv = patch_invert(step.patch)
+        assert(rope[inv.start..inv.start + inv.old.len()] == inv.old,
+               f"撤销失配(§4.1): guard={guard}")
+        rope = rope[0..inv.start] + inv.new + rope[inv.start + inv.old.len()..rope.len()]
+        guard += 1
+    }
+    assert(rope == src, f"P-06:Undo 至起点应逐字节相等; guard={guard}")
+    Ok(0)
+}

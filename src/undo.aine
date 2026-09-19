@@ -1,0 +1,107 @@
+// undo.aine —— Undo/Redo 双栈(P2-4;核心规范 §4)
+//
+// 正确性核心 = User Syntax 文本 Patch 及其逆(§4.1);
+// 语义元数据只作合并优化,缺失不影响 Undo 正确性(§4.2);
+// §4.4:连续同类文本输入(位置衔接的纯插入)合并为一个 Undo 单元。
+//
+// 应用方模式(补丁应用统一走既有管线,不在此处重建状态):
+//   1. 编辑:edit → patch → undo_push
+//   2. 撤销:step_back → 取弹出的补丁 → invert → 应用到源码 → 重建状态
+//   3. 重做:step_forward → 取补丁 → 原样应用 → 重建状态
+//
+// ⚠ Aine 限制:结构体字段不可赋值 → 栈操作一律"构造新栈返回"。
+
+struct UndoStack {
+    undo: Vec<TextPatch>
+    redo: Vec<TextPatch>
+    // §4.4 合并单元的容量上限保护(防无限增长;栈深上限由此间接约束)
+    limit: i32
+}
+
+struct UndoStep {
+    stack: UndoStack
+    // 弹出的补丁(撤销 = 原补丁;重做 = 重放补丁);ok = false 表示无步可走
+    ok: bool
+    patch: TextPatch
+}
+
+fn undo_new() -> UndoStack {
+    return UndoStack { undo: [], redo: [], limit: 4096 }
+}
+
+// 普通编辑入栈:压入 undo,清空 redo(分叉即弃)
+fn undo_push(st: UndoStack, p: TextPatch) -> UndoStack {
+    var undo = st.undo.push(p)
+    var redo: Vec<TextPatch> = []
+    if undo.len() > st.limit {
+        // 丢最旧(保留栈深上限)
+        var shifted: Vec<TextPatch> = []
+        var i = 1
+        while i < undo.len() {
+            shifted = shifted.push(undo[i])
+            i += 1
+        }
+        undo = shifted
+    }
+    return UndoStack { undo: undo, redo: redo, limit: st.limit }
+}
+
+// 插入类编辑的统一入栈:§4.4 连续同类文本输入(位置衔接的纯插入)
+// 自动并入栈顶单元;否则作为新单元入栈(内部仍清空 redo)
+fn undo_push_insert(st: UndoStack, at: i32, text: String) -> UndoStack {
+    if st.undo.len() > 0 {
+        let top = st.undo[st.undo.len() - 1]
+        if top.old.len() == 0 && top.start + top.new.len() == at {
+            let merged = TextPatch { start: top.start, old: top.old, new: top.new + text }
+            var undo: Vec<TextPatch> = []
+            var i = 0
+            while i < st.undo.len() - 1 {
+                undo = undo.push(st.undo[i])
+                i += 1
+            }
+            undo = undo.push(merged)
+            return UndoStack { undo: undo, redo: st.redo, limit: st.limit }
+        }
+    }
+    return undo_push(st, TextPatch { start: at, old: "", new: text })
+}
+
+// 撤销簿记:弹出最近补丁(调用方以 invert 走事务,原补丁入 redo)
+fn undo_step_back(st: UndoStack) -> UndoStep {
+    if st.undo.len() == 0 {
+        return UndoStep { stack: st, ok: false, patch: TextPatch { start: 0, old: "", new: "" } }
+    }
+    var undo: Vec<TextPatch> = []
+    var i = 0
+    while i < st.undo.len() - 1 {
+        undo = undo.push(st.undo[i])
+        i += 1
+    }
+    let p = st.undo[st.undo.len() - 1]
+    var redo = st.redo.push(p)
+    return UndoStep { stack: UndoStack { undo: undo, redo: redo, limit: st.limit }, ok: true, patch: p }
+}
+
+// 重做簿记:弹出 redo 补丁(调用方原样应用),并压回 undo 栈
+fn undo_step_forward(st: UndoStack) -> UndoStep {
+    if st.redo.len() == 0 {
+        return UndoStep { stack: st, ok: false, patch: TextPatch { start: 0, old: "", new: "" } }
+    }
+    var redo: Vec<TextPatch> = []
+    var i = 0
+    while i < st.redo.len() - 1 {
+        redo = redo.push(st.redo[i])
+        i += 1
+    }
+    let p = st.redo[st.redo.len() - 1]
+    var undo = st.undo.push(p)
+    return UndoStep { stack: UndoStack { undo: undo, redo: redo, limit: st.limit }, ok: true, patch: p }
+}
+
+fn undo_can_back(st: UndoStack) -> bool {
+    return st.undo.len() > 0
+}
+
+fn undo_can_forward(st: UndoStack) -> bool {
+    return st.redo.len() > 0
+}
