@@ -1,0 +1,56 @@
+// inline_edit.aine —— 行内编辑操作(P2-2;总方案 §36–38;核心规范 §3.5)
+//
+// 显示侧粗斜切换的源码级实现:在选区边界插入/移除标记对(**、_、~~),
+// 保证最小修改(总方案 §37:只触碰标记字符,正文逐字不变)。
+// ⚠ Aine:字符串按字符索引;偏移均为字符下标。
+
+// 切换结果(值语义;Aine 不支持元组返回)
+struct ToggleResult {
+    text: String
+    sel_start: i32
+    sel_end: i32
+}
+
+// 包围对位置
+struct WrapPair {
+    found: bool
+    open_start: i32
+    close_end: i32
+}
+
+fn find_wrap_pair(text: String, sel_start: i32, sel_end: i32, marker: String) -> WrapPair {
+    let mlen = marker.len()
+    if sel_start >= mlen && sel_end + mlen <= text.len() {
+        let pre = text[sel_start - mlen..sel_start]
+        let post = text[sel_end..sel_end + mlen]
+        if pre == marker && post == marker {
+            return WrapPair { found: true, open_start: sel_start - mlen, close_end: sel_end + mlen }
+        }
+    }
+    return WrapPair { found: false, open_start: 0, close_end: 0 }
+}
+
+fn toggle_wrap(text: String, sel_start: i32, sel_end: i32, marker: String) -> ToggleResult {
+    let pair = find_wrap_pair(text, sel_start, sel_end, marker)
+    if pair.found {
+        // 已包围 → 移除标记对,保留标记间内容(选区不变)
+        let inner = text[pair.open_start + marker.len()..pair.close_end - marker.len()]
+        let new_text = text[0..pair.open_start] + inner + text[pair.close_end..text.len()]
+        return ToggleResult { text: new_text, sel_start: pair.open_start, sel_end: pair.open_start + inner.len() }
+    }
+    // 未包围 → 插入标记对,选区平移(mlen 前后各加)
+    let new_text = text[0..sel_start] + marker + text[sel_start..sel_end] + marker + text[sel_end..text.len()]
+    return ToggleResult { text: new_text, sel_start: sel_start, sel_end: sel_end + 2 * marker.len() }
+}
+
+fn toggle_bold(text: String, sel_start: i32, sel_end: i32) -> ToggleResult {
+    return toggle_wrap(text, sel_start, sel_end, "**")
+}
+
+fn toggle_italic(text: String, sel_start: i32, sel_end: i32) -> ToggleResult {
+    return toggle_wrap(text, sel_start, sel_end, "_")
+}
+
+fn toggle_strike(text: String, sel_start: i32, sel_end: i32) -> ToggleResult {
+    return toggle_wrap(text, sel_start, sel_end, "~~")
+}

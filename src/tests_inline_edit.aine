@@ -1,0 +1,55 @@
+// 测试模块:tests_inline_edit(P2-2:粗斜切换,最小修改 §37/§3.5)
+
+@test
+fn toggle_bold_on_inserts_markers() -> Result<i32, String> {
+    let r = toggle_bold("hello world", 0, 5)
+    assert(r.text == "**hello** world", f"结果: {r.text}")
+    assert(r.sel_start == 0 && r.sel_end == 9, "选区覆盖含标记")
+    Ok(0)
+}
+
+@test
+fn toggle_bold_on_removes_markers() -> Result<i32, String> {
+    let r = toggle_bold("**hello** world", 2, 7)
+    assert(r.text == "hello world", f"结果: {r.text}")
+    assert(r.sel_start == 0 && r.sel_end == 5, "选区还原")
+    Ok(0)
+}
+
+@test
+fn toggle_italic_roundtrip() -> Result<i32, String> {
+    let a = toggle_italic("重要结论", 0, 4)
+    assert(a.text == "_重要结论_", "斜体包裹")
+    let b = toggle_italic(a.text, 1, 5)
+    assert(b.text == "重要结论", "斜体还原")
+    Ok(0)
+}
+
+@test
+fn toggle_strike_roundtrip() -> Result<i32, String> {
+    let a = toggle_strike("旧内容", 0, 3)
+    assert(a.text == "~~旧内容~~", "删除线包裹")
+    let b = toggle_strike(a.text, 2, 5)
+    assert(b.text == "旧内容", "删除线还原")
+    Ok(0)
+}
+
+@test
+fn toggle_in_paragraph_context() -> Result<i32, String> {
+    let src = "前置内容 目标文字 后置内容"
+    let r = toggle_bold(src, 5, 9)
+    assert(r.text[0..5] == src[0..5], "前缀不变")
+    assert(r.text[13..r.text.len()] == src[9..src.len()], "后缀不变")
+    assert(r.text[5..13] == "**目标文字**", "中间为粗体包裹")
+    Ok(0)
+}
+
+@test
+fn toggle_bold_cjk_no_half_char_issues() -> Result<i32, String> {
+    let src = "中文测试文字"
+    let r = toggle_bold(src, 0, 4)
+    assert(r.text == "**中文测试**文字", f"CJK: {r.text}")
+    let r2 = toggle_bold(r.text, 2, 6)
+    assert(r2.text == src, "还原")
+    Ok(0)
+}
