@@ -73,6 +73,24 @@ fn inline_plain(items: Vec<Inline>) -> String {
     return out
 }
 
+// 标记文本:保留格式标记(**、_、~~),剥离行内命令
+fn inline_marked_text(items: Vec<Inline>) -> String {
+    var out = ""
+    for it in items {
+        match it {
+            AwTxt(s) { out = out + s }
+            IBold(c) { out = out + "**" + inline_marked_text(c) + "**" }
+            Italic(c) { out = out + "_" + inline_marked_text(c) + "_" }
+            Strike(c) { out = out + "~~" + inline_marked_text(c) + "~~" }
+            CodeSpan(s) { out = out + "`" + s + "`" }
+            Scoped(cmd, c) { out = out + inline_marked_text(c) }
+            RawInline(cmd, lang, content) { out = out + content }
+            Command(u) { out = out + "@[" + u.name_raw + "]" }
+        }
+    }
+    return out
+}
+
 // 显示文本:剥离行内命令(§11.3:label/footnote/link/ref 等是元数据,不是内容)
 fn inline_display_text(items: Vec<Inline>) -> String {
     var out = ""

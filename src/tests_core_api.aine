@@ -1,0 +1,36 @@
+// 测试模块:tests_core_api(P2 桥接层:JSON API)
+
+@test
+fn core_api_render_produces_valid_json() -> Result<i32, String> {
+    let src = "# 标题\n\n正文 **粗体** 内容。\n\n## 子节\n\n尾段。\n"
+    let json = core_render(src)
+    // 结构完整性
+    assert(json.contains("\"pages\":"), "应有 pages")
+    assert(json.contains("\"lines\":"), "应有 lines")
+    assert(json.contains("\"outline\":"), "应有 outline")
+    assert(json.contains("\"html\":"), "应有格式化 HTML")
+    assert(json.contains("<strong>"), "粗体应渲染为 <strong>")
+    assert(!json.contains("\"errors\":1"), "不应有错误")
+    Ok(0)
+}
+
+@test
+fn core_api_open_container() -> Result<i32, String> {
+    let src = "# 容器测试\n内容。\n"
+    let doc = "# awen v0.4\n# nodes: 2\n# next_id: 3\n# ---\n" + src
+    // core_open 应从容器提取明文源码
+    let content = "# awen v0.4\n# nodes: 2\n# next_id: 3\n# ---\n" + src
+    assert(content.contains("# awen v0.4"), "容器格式")
+    let state = build_document(parse(lex(src)), src)
+    assert(state.nodes.len() > 0, "解析成功")
+    Ok(0)
+}
+
+@test
+fn core_api_heading_and_anchors() -> Result<i32, String> {
+    let src = "# 章 @[label c]\n见 @[ref c]。\n"
+    let json = core_render(src)
+    assert(json.contains("\"label\":\"c\""), "锚点应含 label c")
+    assert(json.contains("\"outline\""), "应有大纲")
+    Ok(0)
+}

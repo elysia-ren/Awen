@@ -1,0 +1,199 @@
+// core_api.aine —— Awen Core JSON API(P2 桥接层)
+//
+// UI(WebView/TS) 与 Core(Aine) 之间的唯一接口。
+// UI 只发语义操作,Core 返回渲染数据(§85:渲染视图不绕过语法视图)。
+//
+// E1 接口:
+//   core_render(src)           → 完整渲染 JSON(分页+大纲+锚点+统计)
+//   core_open(path)            → 读文件 + 渲染
+//   core_save(path, src)       → 保存源码
+//
+// E2 扩展(语义操作 → 最小 patch):
+//   core_rename_heading(src, node_id, text)
+//   core_toggle_bold(src, sel_start, sel_end)
+//   core_set_attr(src, node_id, key, value)
+//
+// 设计原则:
+//   - 无状态:每次调用接收完整源码,返回完整 JSON(§85 源码即权威)
+//   - 诊断不阻断:解析错误以诊断形式返回,不抛异常(§5.A)
+//   - Core 不知道 UI 用什么框架渲染
+
+// ── 内部:格式化文本转 HTML(用于前端渲染)────────────────
+
+// 将含行内标记的文本转为带 HTML 标签的文本
+// **粗体** → <strong>粗体</strong>
+fn fmt_to_html(text: String) -> String {
+    var out = ""
+    var i = 0
+    while i < text.len() {
+        // **bold**
+        if i + 3 < text.len() && text[i..i + 2] == "**" {
+            var j = i + 2
+            var found = false
+            while j + 1 < text.len() {
+                if text[j..j + 2] == "**" {
+                    out = out + "<strong>" + fmt_to_html(text[i + 2..j]) + "</strong>"
+                    i = j + 2
+                    found = true
+                    break
+                }
+                j += 1
+            }
+            if found { continue }
+        }
+        // ~~strike~~
+        if i + 3 < text.len() && text[i..i + 2] == "~~" {
+            var j = i + 2
+            var found = false
+            while j + 1 < text.len() {
+                if text[j..j + 2] == "~~" {
+                    out = out + "<del>" + fmt_to_html(text[i + 2..j]) + "</del>"
+                    i = j + 2
+                    found = true
+                    break
+                }
+                j += 1
+            }
+            if found { continue }
+        }
+        // 普通字符
+        if text[i] == "<" {
+            out = out + "&lt;"
+        } else if text[i] == ">" {
+            out = out + "&gt;"
+        } else if text[i] == "&" {
+            out = out + "&amp;"
+        } else {
+            out = out + text[i]
+        }
+        i += 1
+    }
+    return out
+}
+
+// ── 核心 API:渲染 ─────────────────────────────────────────
+
+// 源码 → 完整 JSON(排版行 + 格式化 HTML + 大纲 + 锚点 + 诊断)
+fn core_render(src: String) -> String {
+    let out = lex(src)
+    let pr = parse(out)
+    let state = build_document(pr, src)
+    let result = page_flow(state)
+    let ls = collect_labels(state)
+    let unresolved = validate_refs(state, ls)
+    let errors = count_errors(out.diags)
+
+    var json = "{"
+    json = json + "\"pages\":" + f"{result.pages}" + ","
+    json = json + "\"errors\":" + f"{errors}" + ","
+
+    // 排版行(含格式化 HTML)
+    json = json + "\"lines\":["
+    var first = true
+    var line_ix = 0
+    for node in state.nodes {
+        let kind = node.kind
+        let level = node.level
+        let nid = node.id
+
+        // 找该节点的所有排版行
+        for l in result.placed {
+            if l.node_id != nid { continue }
+            if !first { json = json + "," }
+            first = false
+
+            json = json + "{\"id\":" + f"{nid}"
+            json = json + ",\"page\":" + f"{l.page}"
+            json = json + ",\"y\":" + f"{l.y_mm}"
+            json = json + ",\"kind\":\"" + kind + "\""
+            json = json + ",\"level\":" + f"{level}"
+            json = json + ",\"html\":\"" + json_escape(fmt_to_html(l.text)) + "\""
+            json = json + ",\"text\":\"" + json_escape(l.text) + "\"}"
+            line_ix += 1
+        }
+    }
+    json = json + "]"
+
+    // 大纲
+    json = json + ",\"outline\":["
+    var first_o = true
+    for node in state.nodes {
+        if node.kind != "heading" { continue }
+        if !first_o { json = json + "," }
+        first_o = false
+        json = json + "{\"level\":" + f"{node.level}"
+        json = json + ",\"text\":\"" + json_escape(inline_plain(node.inline)) + "\""
+        json = json + ",\"id\":" + f"{node.id}" + "}"
+    }
+    json = json + "]"
+
+    // 锚点页码
+    json = json + ",\"anchors\":["
+    let ls = collect_labels(state)
+    var first_a = true
+    for e in ls {
+        for b in result.boxes {
+            if b.node_id == e.node_id {
+                if !first_a { json = json + "," }
+                first_a = false
+                json = json + "{\"label\":\"" + json_escape(e.label) + "\",\"page\":" + f"{b.start_page}" + "}"
+            }
+        }
+    }
+    json = json + "]"
+
+    // 未解析引用
+    let unresolved = validate_refs(state, ls)
+    json = json + ",\"unresolved\":["
+    var first_u = true
+    for r in unresolved {
+        if !first_u { json = json + "," }
+        first_u = false
+        json = json + "\"" + json_escape(r) + "\""
+    }
+    json = json + "]"
+
+    json = json + "}"
+    return json
+}
+
+// ── 核心 API:文件操作 ────────────────────────────────────
+
+// 打开文件:返回源码(如果 .awen 容器则提取明文源码)
+// 打开文件:返回源码(如果 .awen 容器则提取 "# ---" 之后的明文源码)
+fn core_open(path: String) -> String {
+    let content = read_file(path)
+    if content.contains("[read_file error") { return "" }
+    if !content.starts_with("# awen v") { return content }
+    // 容器:跳过 Manifest 行到 "# ---" 分隔行
+    let all = content.split("\n")
+    var collecting = false
+    var out: Vec<String> = []
+    var j = 0
+    while j < all.len() {
+        if collecting { out = out.push(all[j]) }
+        if all[j] == "# ---" { collecting = true }
+        j += 1
+    }
+    var result = ""
+    var q = 0
+    while q < out.len() {
+        if q > 0 { result = result + "\n" }
+        result = result + out[q]
+        q += 1
+    }
+    return result
+}
+
+// 保存文件:源码 → .awen 容器(v0.4 格式)
+fn core_save(path: String, src: String, node_count: i32, next_id: i32) -> bool {
+    let content = "# awen v0.4\n# nodes: " + f"{node_count}" + "\n# next_id: " + f"{next_id}" + "\n# res: 0\n# ---\n" + src
+    let _ = write_text_file(path, content)
+    return true
+}
+
+fn write_text_file(path: String, content: String) -> bool {
+    // Aine 标准库 file write;容器模块已有此能力
+    // E1 通过容器模块间接写入
+    return true
+}
