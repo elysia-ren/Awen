@@ -90,7 +90,7 @@ fn page_flow_node(ctx: FlowCtx, node: SemNode, page: i32, y: f64, out: Vec<Place
     }
 
     if node.kind == "heading" || node.kind == "para" || node.kind == "quote" {
-        var text = inline_plain(node.inline)
+        var text = inline_display_text(node.inline)
         if node.kind == "quote" { text = "引用:" + text }
         var o = out
         var p = page
@@ -122,7 +122,7 @@ fn page_flow_node(ctx: FlowCtx, node: SemNode, page: i32, y: f64, out: Vec<Place
             idx += 1
             var marker = "- "
             if node.list_ordered { marker = f"{idx}. " }
-            let text = marker + inline_plain(item)
+            let text = marker + inline_display_text(item)
             for l in layout_line_break(text, ctx.max_em) {
                 let r = page_flow_put(ctx, p, yy, id, l, o)
                 o = r.placed
@@ -181,6 +181,10 @@ fn page_flow_node(ctx: FlowCtx, node: SemNode, page: i32, y: f64, out: Vec<Place
         return FlowOneOut { page: p, y: yy, lines: n, placed: o, box_node: id, box_start: box_start, box_end: p, box_lines: n }
     }
     if node.kind == "obj" {
+        // 文档级设置(page/margin/font/size/theme/numbering 等)不进版面
+        if is_doc_level(node.obj_cu.cmd) {
+            return FlowOneOut { page: page, y: y, lines: -1, placed: out, box_node: 0, box_start: 0, box_end: 0, box_lines: 0 }
+        }
         if node.obj_cu.cmd == Image || node.obj_cu.cmd == Figure {
             var p = page
             var yy = y
