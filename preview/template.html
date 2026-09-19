@@ -5,65 +5,69 @@
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>Awen</title>
 <style>
-:root{--serif:Georgia,"Times New Roman","Noto Serif SC","Source Han Serif SC","Microsoft YaHei",serif;--sans:"Segoe UI","Microsoft YaHei",system-ui,sans-serif;--mono:"Cascadia Code","Consolas",monospace;--bg:#f3f4f6;--bg2:#fafafa;--bg3:#f7f7f8;--border:#dedfe2;--border2:#d9dade;--fg2:#6b6d72;--accent:#4b6f8d}
+:root{--serif:Georgia,"Times New Roman","Noto Serif SC","Source Han Serif SC","Microsoft YaHei",serif;--sans:"Segoe UI","Microsoft YaHei",system-ui,sans-serif;--mono:"Cascadia Code","Consolas",monospace;--bg:#e8e9eb;--bg2:#fafafa;--bg3:#f7f7f8;--border:#dedfe2;--border2:#d9dade;--fg2:#6b6d72;--accent:#4b6f8d}
 *{box-sizing:border-box;margin:0;padding:0}
 html,body{height:100%;overflow:hidden}
 body{font-family:var(--sans);background:var(--bg);color:#24262a;font-size:14px}
 button{font:inherit;border:0;background:none;color:inherit;cursor:pointer}
+select{font:inherit;border:1px solid #d5d7da;border-radius:4px;background:#fff;padding:3px 4px;font-size:12px;color:#3d3f43;outline:none;cursor:pointer}
+input[type=color]{width:22px;height:22px;border:1px solid #d5d7da;border-radius:4px;background:#fff;padding:1px;cursor:pointer}
 .app{height:100vh;display:flex;flex-direction:column}
-.titlebar{height:40px;background:var(--bg2);border-bottom:1px solid var(--border);display:flex;align-items:center;padding:0 14px;gap:12px;flex:none;user-select:none}
+.titlebar{height:38px;background:var(--bg2);border-bottom:1px solid var(--border);display:flex;align-items:center;padding:0 14px;gap:12px;flex:none;user-select:none}
 .brand{font-weight:700;font-size:15px;color:#1a1c1f}
 .docname{font-size:13px;color:var(--fg2)}
-.toolbar{height:42px;background:var(--bg3);border-bottom:1px solid var(--border2);display:flex;align-items:center;padding:0 12px;gap:4px;flex:none;user-select:none;overflow-x:auto}
-.tbtn{height:28px;min-width:28px;padding:0 7px;border-radius:5px;display:flex;align-items:center;justify-content:center;font-size:12px;color:#3d3f43;white-space:nowrap;flex:none}
-.tbtn:hover{background:#e8e9eb}
-.tbtn.bold{font-weight:700}.tbtn.italic{font-style:italic}.tbtn.strike{text-decoration:line-through}
-.tsep{height:20px;width:1px;background:#ddd;margin:0 4px;flex:none}
+.ribbon{background:var(--bg3);border-bottom:1px solid var(--border2);flex:none;user-select:none}
+.ribbon-row{display:flex;align-items:center;padding:4px 10px;gap:4px;overflow-x:auto}
+.rgroup{display:flex;align-items:center;gap:2px;padding:0 8px;border-right:1px solid #e3e4e6;height:26px}
+.rgroup:last-child{border-right:0}
+.tbtn{height:24px;min-width:24px;padding:0 6px;border-radius:4px;display:flex;align-items:center;justify-content:center;font-size:12px;color:#3d3f43;white-space:nowrap;flex:none}
+.tbtn:hover{background:#e4e5e7}
+.tbtn.b{font-weight:700}.tbtn.i{font-style:italic}.tbtn.s{text-decoration:line-through}.tbtn.u{text-decoration:underline}
 .view-tabs{margin-left:auto;display:flex;background:#e9eaec;padding:3px;border-radius:7px;gap:2px;flex:none}
 .view-tabs button{font-size:12px;padding:4px 12px;border-radius:5px;color:#6b6d72}
 .view-tabs button.active{background:#fff;color:#222;box-shadow:0 1px 2px rgba(0,0,0,.08)}
 .workspace{min-height:0;flex:1;display:flex;overflow:hidden}
-.sidebar{width:210px;background:var(--bg2);border-right:1px solid var(--border);display:flex;flex-direction:column;flex:none;overflow:hidden}
+.sidebar{width:190px;background:var(--bg2);border-right:1px solid var(--border);display:flex;flex-direction:column;flex:none;overflow:hidden}
 .side-head{padding:12px 14px 6px;font-size:12px;font-weight:600;color:#74777c;user-select:none}
 .outline{flex:1;overflow-y:auto;padding:2px 8px}
-.outline-item{padding:6px 8px;border-radius:6px;font-size:12px;color:#5d6066;cursor:pointer;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;user-select:none}
+.outline-item{padding:5px 8px;border-radius:6px;font-size:12px;color:#5d6066;cursor:pointer;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;user-select:none}
 .outline-item:hover{background:#ececee;color:#2d3035}
 .outline-item.lv1{font-weight:600;color:#2d3035}
-.outline-item.lv2{padding-left:20px}
-.outline-item.lv3{padding-left:32px}
-.outline-item.lv4{padding-left:44px}
-.editor-area{min-width:0;flex:1;display:flex;flex-direction:column;background:#e8e9eb;overflow:hidden}
-.editor-scroll{min-height:0;flex:1;overflow-y:auto;display:flex;justify-content:center;padding:28px 32px 60px}
-.paper{width:min(820px,100%);min-height:1100px;background:#fff;position:relative;box-shadow:0 1px 4px rgba(0,0,0,.12),0 0 1px rgba(0,0,0,.06);padding:72px 80px 90px;font-family:var(--serif);font-size:15px;line-height:1.9;color:#303238}
-.paper .docset{font-family:var(--mono);font-size:10px;color:#c8cad0;margin:1px 0;user-select:none}
-.paper h1{font-size:28px;line-height:1.3;font-weight:700;color:#1a1c1f;margin:0 0 6px}
-.paper h2{font-size:18px;font-weight:700;color:#2a2c30;margin:28px 0 8px}
-.paper h3{font-size:15px;font-weight:650;color:#2d3035;margin:20px 0 6px}
-.paper h4{font-size:14px;font-weight:600;margin:14px 0 4px}
-.paper h5{font-size:13px;font-weight:600;margin:12px 0 4px}
-.paper h6{font-size:12px;font-weight:600;margin:10px 0 2px;color:#888}
-.paper p{margin:8px 0;text-indent:2em}
-.paper strong{font-weight:700}
-.paper em{font-style:italic}
-.paper del{text-decoration:line-through;color:#999}
-.paper code{font-family:var(--mono);font-size:.87em;background:#f0f1f2;padding:1px 5px;border-radius:3px}
-.paper hr{border:none;border-top:1px solid #ccc;margin:18px 0}
-.paper blockquote{border-left:3px solid #c8cad0;padding:8px 16px;margin:12px 0;color:#5a5c60;font-size:.95em}
-.paper blockquote p{text-indent:0;margin:0}
-.paper ul,.paper ol{margin:6px 0;padding-left:8px;list-style:none}
-.paper ul li,.paper ol li{margin:3px 0;padding-left:20px;text-indent:-20px}
-.paper ul li::before{content:"• ";color:#999}
-.paper table{width:100%;border-collapse:collapse;font-size:13px;margin:16px 0}
-.paper table th,.paper table td{border:1px solid #d0d2d5;padding:8px 10px;text-align:left}
+.outline-item.lv2{padding-left:18px}
+.outline-item.lv3{padding-left:30px}
+.outline-item.lv4{padding-left:42px}
+.pane{min-width:0;flex:1;overflow-y:auto;background:var(--bg);display:flex;flex-direction:column;align-items:center;padding:24px 0 80px;gap:16px}
+/* ── A4 纸张:真实几何(§30),显示与语法共用同一页面模型 ── */
+.sheet{width:210mm;min-height:297mm;background:#fff;box-shadow:0 1px 4px rgba(0,0,0,.14),0 0 1px rgba(0,0,0,.08);padding:20mm;position:relative;flex:none}
+.sheet .folio{position:absolute;bottom:8mm;left:0;right:0;text-align:center;font-size:9pt;color:#b5b7bb;font-family:var(--sans)}
+.paper{font-family:var(--serif);font-size:11pt;line-height:1.9;color:#303238;line-break:strict;outline:none}
+.paper [contenteditable="true"]:focus{background:rgba(75,111,141,.05);box-shadow:0 0 0 1px rgba(75,111,141,.25)}
+.paper [contenteditable="true"]:empty::before{content:attr(data-ph);color:#c0c2c6}
+.paper .gap{height:0.55em}
+.paper h1{font-size:22pt;line-height:1.4;font-weight:700;color:#1a1c1f}
+.paper h2{font-size:15pt;font-weight:700;color:#2a2c30}
+.paper h3{font-size:13pt;font-weight:650;color:#2d3035}
+.paper h4{font-size:12pt;font-weight:600}
+.paper h5{font-size:11pt;font-weight:600}
+.paper h6{font-size:10.5pt;font-weight:600;color:#888}
+.paper p{text-indent:2em}
+.paper p.cont{text-indent:0}
+.paper strong,.paper b{font-weight:700}
+.paper em,.paper i{font-style:italic}
+.paper del,.paper s,.paper strike{text-decoration:line-through;color:#999}
+.paper u{text-decoration:underline}
+.paper code{font-family:var(--mono);font-size:.87em;background:#f0f1f2;padding:1px 4px;border-radius:3px}
+.paper hr{border:none;border-top:1px solid #ccc;margin:.8em 0}
+.paper blockquote{border-left:3px solid #c8cad0;padding:2px 14px;color:#5a5c60;font-size:.95em}
+.paper blockquote p{text-indent:0}
+.paper ul,.paper ol{margin:0;padding-left:2em}
+.paper li{text-indent:0}
+.paper table{width:100%;border-collapse:collapse;font-size:10.5pt}
+.paper table th,.paper table td{border:1px solid #d0d2d5;padding:4px 8px;text-align:left}
 .paper table th{font-weight:600;background:#f5f5f6}
-.paper .img-ph{width:100%;height:160px;background:#f0f1f3;border:1px dashed #c5c7ca;display:flex;align-items:center;justify-content:center;color:#999;font-size:13px;margin:14px 0}
-.pageblock{position:relative;padding-bottom:40px}
-.page-no{position:absolute;bottom:8px;left:0;right:0;text-align:center;font-size:11px;color:#b5b7bb}
-.syntax-panel{display:none;min-width:0;flex:0 0 50%;background:#fff;border-left:1px solid #d7d9dc;overflow:hidden;flex-direction:column}
-.syntax-panel.visible{display:flex}
-.syntax-header{height:36px;border-bottom:1px solid #e0e1e4;display:flex;align-items:center;justify-content:space-between;padding:0 14px;font-size:12px;color:#666;flex:none}
-.syntax-editor{flex:1;display:flex;flex-direction:column;overflow:hidden}
-.syntax-editor textarea{flex:1;resize:none;border:0;outline:0;padding:20px 24px;font:13px/1.75 var(--mono);color:#303238;background:#fff;tab-size:2}
+.paper .img-ph{width:100%;height:32mm;background:#f0f1f3;border:1px dashed #c5c7ca;display:flex;align-items:center;justify-content:center;color:#999;font-size:10pt}
+.paper .docset{font-family:var(--mono);font-size:8pt;color:#c8cad0;user-select:none;text-indent:0}
+.paper .comment-src{background:#fffbe8;color:#b09a3e;font-family:var(--mono);font-size:9pt;text-indent:0;border-radius:3px;padding:0 4px}
 .statusbar{height:24px;background:var(--accent);color:#fff;display:flex;align-items:center;padding:0 14px;font-size:12px;gap:16px;flex:none}
 .statusbar .item{white-space:nowrap;opacity:.9}
 .statusbar .spacer{flex:1}
@@ -74,27 +78,61 @@ button{font:inherit;border:0;background:none;color:inherit;cursor:pointer}
 <div class="titlebar">
 <div class="brand">Awen</div>
 <div class="docname" id="docname">未命名文档</div>
-<div style="margin-left:auto;display:flex;gap:8px">
-<button class="tbtn" onclick="doSave()">保存</button>
+<div style="margin-left:auto"><button class="tbtn" onclick="doSave()">保存</button></div>
 </div>
+<div class="ribbon">
+<div class="ribbon-row">
+<div class="rgroup">
+<button class="tbtn" onclick="doUndo()" title="撤销 Ctrl+Z">↩</button>
+<button class="tbtn" onclick="doRedo()" title="重做 Ctrl+Y">↪</button>
 </div>
-<div class="toolbar">
-<button class="tbtn" onclick="doUndo()" title="撤销 (Ctrl+Z)">↩ 撤销</button>
-<button class="tbtn" onclick="doRedo()" title="重做 (Ctrl+Y)">↪ 重做</button>
-<div class="tsep"></div>
-<button class="tbtn bold" onclick="doWrap('**')" title="粗体"><b>B</b></button>
-<button class="tbtn italic" onclick="doWrap('_')" title="斜体"><i>I</i></button>
-<button class="tbtn strike" onclick="doWrap('~~')" title="删除线"><s>S</s></button>
-<button class="tbtn" onclick="doWrap('`')" title="行内代码">`</button>
-<div class="tsep"></div>
-<button class="tbtn" onclick="insertText('\n\n---\n\n')">─ 分隔线</button>
-<button class="tbtn" onclick="insertText('\n\n> 引用内容\n\n')">❝ 引用</button>
-<button class="tbtn" onclick="insertText('\n\n@[image hero.png]\n\n')">🖼 图片</button>
-<button class="tbtn" onclick="insertText('\n\n@[table]\n\n| 列1 | 列2 |\n| --- | --- |\n| 内容 | 内容 |\n\n@[/table]\n\n')">▦ 表格</button>
+<div class="rgroup">
+<select id="sel-style" title="段落样式" onchange="applyStyle(this.value)">
+<option value="" selected>正文</option><option value="1">标题 1</option><option value="2">标题 2</option><option value="3">标题 3</option><option value="4">标题 4</option><option value="5">标题 5</option><option value="6">标题 6</option>
+</select>
+<select id="sel-font" title="字体" onchange="applyFont(this.value)">
+<option value="" selected>字体</option><option value="serif">衬线/宋体</option><option value="sans">黑体/无衬线</option><option value="mono">等宽</option><option value="kai">楷体</option>
+</select>
+<select id="sel-size" title="字号" onchange="applySize(this.value)">
+<option value="" selected>字号</option><option value="9">9 pt</option><option value="10.5">10.5 pt</option><option value="11">11 pt</option><option value="12">12 pt</option><option value="14">14 pt</option><option value="16">16 pt</option><option value="18">18 pt</option><option value="22">22 pt</option>
+</select>
+</div>
+<div class="rgroup">
+<button class="tbtn b" onclick="fmtCmd('bold')" title="粗体 Ctrl+B"><b>B</b></button>
+<button class="tbtn i" onclick="fmtCmd('italic')" title="斜体 Ctrl+I"><i>I</i></button>
+<button class="tbtn u" onclick="fmtCmd('underline')" title="下划线 Ctrl+U"><u>U</u></button>
+<button class="tbtn s" onclick="fmtCmd('strikeThrough')" title="删除线"><s>S</s></button>
+<button class="tbtn" onclick="fmtCmdInline()" title="行内代码" style="font-family:var(--mono)">`</button>
+<button class="tbtn" onclick="fmtCmd('removeFormat')" title="清除格式">✕格式</button>
+</div>
+<div class="rgroup">
+<input type="color" id="col-fore" value="#c0392b" onchange="applyColor(this.value)" title="字符颜色">
+<input type="color" id="col-mark" value="#fff176" onchange="applyMark(this.value)" title="底纹高亮">
+</div>
+<div class="rgroup">
+<button class="tbtn" onclick="fmtCmd('justifyLeft')" title="左对齐">⯇</button>
+<button class="tbtn" onclick="fmtCmd('justifyCenter')" title="居中">≡</button>
+<button class="tbtn" onclick="fmtCmd('justifyRight')" title="右对齐">⯈</button>
+<button class="tbtn" onclick="fmtCmd('justifyFull')" title="两端对齐">☰</button>
+</div>
+<div class="rgroup">
+<button class="tbtn" onclick="listCmd('ul')" title="无序列表">• ≡</button>
+<button class="tbtn" onclick="listCmd('ol')" title="有序列表">1. ≡</button>
+</div>
+<div class="rgroup">
+<button class="tbtn" onclick="insertBlock('quote')" title="引用">❝</button>
+<button class="tbtn" onclick="insertBlock('hr')" title="分隔线">─</button>
+<button class="tbtn" onclick="insertBlock('link')" title="链接">🔗</button>
+<button class="tbtn" onclick="insertBlock('image')" title="图片">🖼</button>
+<button class="tbtn" onclick="insertBlock('table')" title="表格">▦</button>
+<button class="tbtn" onclick="insertBlock('comment')" title="批注(不渲染)">💬</button>
+<button class="tbtn" onclick="insertBlock('footnote')" title="脚注">*ⁿ</button>
+</div>
 <div class="view-tabs">
 <button class="active" data-mode="display">显示</button>
 <button data-mode="syntax">语法</button>
 <button data-mode="split">分屏</button>
+</div>
 </div>
 </div>
 <div class="workspace">
@@ -102,176 +140,680 @@ button{font:inherit;border:0;background:none;color:inherit;cursor:pointer}
 <div class="side-head">文档结构</div>
 <div class="outline" id="outline"></div>
 </aside>
-<main class="editor-area" id="editor-area">
-<div class="editor-scroll"><article class="paper" id="paper"></article></div>
-</main>
-<section class="syntax-panel" id="syntax-panel">
-<div class="syntax-header"><span>Awen 语法</span><span>中文语法</span></div>
-<div class="syntax-editor"><textarea id="syntax-src" spellcheck="false"></textarea></div>
-</section>
+<main class="pane" id="display-pane" style="flex:1 1 auto"></main>
+<section class="pane" id="syntax-pane" style="display:none;flex:0 0 50%;border-left:1px solid #d7d9dc;background:#f0f1f2"></section>
 </div>
 <div class="statusbar">
 <span class="item" id="st-diag">诊断 ✓</span>
-<span class="item" id="st-nodes">—</span>
+<span class="item" id="st-words">—</span>
 <span class="item" id="st-labels">Label —</span>
 <span class="spacer"></span>
+<select id="sel-zoom" style="background:transparent;color:#fff;border-color:rgba(255,255,255,.4)" onchange="applyZoom(this.value)">
+<option value="0.7">70%</option><option value="0.85">85%</option><option value="1" selected>100%</option><option value="1.25">125%</option><option value="1.5">150%</option>
+</select>
 <span class="item" id="st-page">—</span>
 </div>
 </div>
 <script>
-// ── 数据通道:generate_preview.aine 将 /*__JSON__*/{} 替换为核心渲染 JSON ──
+// ═══ 数据通道:generate_preview.aine 将 /*__JSON__*/{} 替换为核心渲染 JSON ═══
 var DOC_DATA = /*__JSON__*/{};
-var DEFAULT_SRC = '# Awen 编辑器\n\n这是一段示例文本。选中文字后点击 **B** 可以加粗。\n\n## 二级标题\n\n第二段内容,在这里输入文字会实时更新预览。\n\n- 列表项一\n- 列表项二\n\n> 引用示例\n';
+var DEFAULT_SRC = '# Awen 迷你编辑器\n\n直接在纸面上打字即可编辑;选中文字后用工具栏加粗、变色。\n\n## 断行规则\n\n中西文混排加八分之一 em 间距,拉丁单词不拆断,行首行尾禁则自动调整,连续标点挤压半宽。\n\n---\n\n> 引用示例\n\n- 列表项一\n- 列表项二\n\n@[table demo]\n| 列1 | 列2 |\n| --- | --- |\n| 内容 | 内容 |\n@[/table]\n';
 
-// ── 工具 ──
+// ═══ 页面模型(§30 A4)+ 断行度量(镜像 layout_width.aine)═══
+var PAGE_W=210, PAGE_H=297, MARGIN=20;
+var FONT_PT=11, PT2MM=0.352778;
+var CHAR_MM=FONT_PT*PT2MM;                 // 1em ≈ 3.881mm
+var CONTENT_W=PAGE_W-MARGIN*2;             // 170mm
+var CONTENT_H=PAGE_H-MARGIN*2;             // 257mm
+var MAX_EM=CONTENT_W/CHAR_MM;              // 行宽 ≈ 43.8em
+var LINE_MM=FONT_PT*PT2MM*1.9;             // 行高 ≈ 7.37mm
+var LINES_PER_PAGE=Math.floor(CONTENT_H/LINE_MM); // ≈ 34 行/页
+
+// 字符分类(镜像 cjk.aine)
+function isIdeo(c){return /[\u3400-\u4DBF\u4E00-\u9FFF]/.test(c)}
+function isLatn(c){return /[A-Za-z0-9]/.test(c)}
+function isCloseP(c){return /[。，、；？！」』）】》〉〕］｝]/.test(c)}   // 行首禁则
+function isOpenP(c){return /[「『（《【〈〔［｛]/.test(c)}               // 行尾禁则
+
+// 混排宽度:全角 1em / 半角 0.5em / CJK↔Latin 边界 +⅛em / 连续标点挤压
+function measureEm(text){
+  var w=0, prev='';
+  for(var i=0;i<text.length;i++){
+    var c=text[i], cw;
+    if(isIdeo(c))cw=1;
+    else if(isCloseP(c))cw=(prev&&isCloseP(prev))?0.5:1;   // 挤压
+    else if(isOpenP(c))cw=1;
+    else if(isLatn(c))cw=0.5;
+    else if(c===' ')cw=0.3;
+    else cw=0.5;
+    if(i>0&&((isIdeo(prev)||isCloseP(prev))&&isLatn(c)||(isLatn(prev)&&(isIdeo(c)||isCloseP(c)))))w+=0.125;
+    w+=cw; prev=c;
+  }
+  return w;
+}
+// 词单元切分:拉丁单词不可拆(D-3 词边界断行)
+function tokenize(text){
+  var toks=[], cur='';
+  for(var i=0;i<text.length;i++){
+    var c=text[i];
+    if(isLatn(c)){ cur+=c; continue }
+    if(cur){ toks.push(cur); cur='' }
+    toks.push(c);
+  }
+  if(cur)toks.push(cur);
+  return toks;
+}
+// 贪心断行 + 禁则修正(镜像 layout_line_break)
+function breakLines(text){
+  var toks=tokenize(text), lines=[], cur='', curW=0;
+  for(var i=0;i<toks.length;i++){
+    var t=toks[i], tw=measureEm(t);
+    var isClose=t.length===1&&isCloseP(t);
+    var isOpen=t.length===1&&isOpenP(t);
+    if(curW+tw<=MAX_EM||cur===''){ cur+=t; curW+=tw }
+    else if(isClose){ cur+=t; lines.push(cur); cur=''; curW=0 }  // 悬挂行尾
+    else if(isOpen&&cur.length>1){
+      var last=cur.charAt(cur.length-1);
+      lines.push(cur.slice(0,-1));
+      cur=last+t; curW=measureEm(cur);
+    }else{ lines.push(cur); cur=t; curW=tw }
+  }
+  if(cur)lines.push(cur);
+  return lines.length?lines:[''];
+}
+
+// ═══ 行内工具 ═══
 function escHtml(s){return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;')}
-function fmtH(t){let s=escHtml(t);s=s.replace(/\*\*(.+?)\*\*/g,'<strong>$1</strong>');s=s.replace(/~~(.+?)~~/g,'<del>$1</del>');s=s.replace(/_(.+?)_/g,'<em>$1</em>');s=s.replace(/`(.+?)`/g,'<code>$1</code>');return s}
+// 行内显示文本:剥标记保留内容(镜像 lightweight.inline_display_text)
+function displayText(t){
+  return t
+    .replace(/@\[(u|color|size|font|mark)\s*[^\]]*\]((?:.|])*?)@\[\/\1\]/g,'$2')
+    .replace(/\*\*((?:.|])*?)\*\*/g,'$1')
+    .replace(/~~((?:.|])*?)~~/g,'$1')
+    .replace(/`((?:.|])*?)`/g,'$1')
+    .replace(/_((?:.|])*?)_/g,'$1');
+}
+// 行内源码 → HTML(scoped 命令渲染为带样式 span)
+function fmtH(t){
+  var s=escHtml(t);
+  s=s.replace(/@\[u\]((?:.|])*?)@\[\/u\]/g,'<u>$1</u>');
+  s=s.replace(/@\[mark\s+([^\]]+)\]((?:.|])*?)@\[\/mark\]/g,'<span style="background:$1">$2</span>');
+  s=s.replace(/@\[color\s+([^\]]+)\]((?:.|])*?)@\[\/color\]/g,'<span style="color:$1">$2</span>');
+  s=s.replace(/@\[size\s+([^\]]+)\]((?:.|])*?)@\[\/size\]/g,'<span style="font-size:$1pt">$2</span>');
+  s=s.replace(/@\[font\s+([^\]]+)\]((?:.|])*?)@\[\/font\]/g,function(m,f,inner){
+    f=f.replace(/"/g,'');
+    var fam=f==='serif'?'var(--serif)':f==='sans'?'var(--sans)':f==='mono'?'var(--mono)':"'"+f+"',serif";
+    return'<span style="font-family:'+fam+'">'+inner+'</span>';
+  });
+  s=s.replace(/\*\*((?:.|])*?)\*\*/g,'<strong>$1</strong>');
+  s=s.replace(/~~((?:.|])*?)~~/g,'<del>$1</del>');
+  s=s.replace(/`((?:.|])*?)`/g,'<code>$1</code>');
+  s=s.replace(/_((?:.|])*?)_/g,'<em>$1</em>');
+  return s;
+}
 
-// ── 解析:块级 ──
+// ═══ 块级解析(带源码行区间,供编辑回写 §85)═══
 function miniParse(src){
-  const lines=src.split('\n');
-  const nodes=[];
-  let para=[];
-  const flush=()=>{if(para.length>0){nodes.push({kind:'para',text:para.join(' ')});para=[]}};
-  for(const line of lines){
-    const t=line.trim();
-    if(t===''){flush();continue}
-    if(t.startsWith('#')){
-      flush();
-      const lvl=Math.min((t.match(/^#+/)||['#'])[0].length,6);
-      nodes.push({kind:'heading',level:lvl,text:t.replace(/^#+\s*/,'')});
+  var lines=src.split('\n'), nodes=[], para=null;
+  function flush(ei){ if(para){ para.srcEnd=ei; nodes.push(para); para=null } }
+  for(var i=0;i<lines.length;i++){
+    var t=lines[i].trim();
+    if(t===''){ flush(i); continue }
+    if(/^#{1,6}\s/.test(t)){
+      flush(i);
+      nodes.push({kind:'heading',level:t.match(/^#+/)[0].length,text:t.replace(/^#+\s*/,''),srcStart:i,srcEnd:i+1});
       continue;
     }
-    if(t==='---'){flush();nodes.push({kind:'hr',text:''});continue}
-    if(t.startsWith('- ')||t.startsWith('* ')){flush();nodes.push({kind:'list',text:t.replace(/^[-*]\s*/,'')});continue}
-    if(/^\d+\.\s/.test(t)){flush();nodes.push({kind:'list',text:t.replace(/^\d+\.\s*/,''),ordered:true});continue}
-    if(t.startsWith('> ')){flush();nodes.push({kind:'quote',text:t.replace(/^>\s*/,'')});continue}
-    if(t.startsWith('|')&&t.endsWith('|')){flush();nodes.push({kind:'trow',text:t});continue}
-    if(t.startsWith('@[comment')){nodes.push({kind:'comment',text:t});continue}
-    if(/^@\[(page|margin|font|size|line-spacing|first-line|theme|toc|numbering)/.test(t)){flush();nodes.push({kind:'docset',text:t});continue}
-    if(t.startsWith('@[')&&!t.startsWith('@@')){flush();nodes.push({kind:'obj',text:t});continue}
-    para.push(t);
+    if(t==='---'){ flush(i); nodes.push({kind:'hr',text:'',srcStart:i,srcEnd:i+1}); continue }
+    if(/^[-*] /.test(t)){ flush(i); nodes.push({kind:'ul',text:t.replace(/^[-*] /,''),srcStart:i,srcEnd:i+1}); continue }
+    if(/^\d+\. /.test(t)){ flush(i); nodes.push({kind:'ol',text:t.replace(/^\d+\. /,''),srcStart:i,srcEnd:i+1}); continue }
+    if(/^> /.test(t)){ flush(i); nodes.push({kind:'quote',text:t.replace(/^>\s*/,''),srcStart:i,srcEnd:i+1}); continue }
+    if(t.charAt(0)==='|'&&t.charAt(t.length-1)==='|'){
+      flush(i);
+      var j=i, rows=[];
+      while(j<lines.length&&lines[j].trim().charAt(0)==='|'){ rows.push(lines[j].trim()); j++ }
+      nodes.push({kind:'table',rows:rows,srcStart:i,srcEnd:j});
+      i=j-1; continue;
+    }
+    if(/^@\[comment/.test(t)){
+      flush(i);
+      var ci=i+1;
+      if(t.indexOf('@[/comment]')<0){
+        while(ci<lines.length&&lines[ci].indexOf('@[/comment]')<0)ci++;
+        ci=Math.min(ci+1,lines.length);
+      }
+      nodes.push({kind:'comment',text:lines.slice(i,ci).join('\n'),srcStart:i,srcEnd:ci});
+      i=ci-1; continue;
+    }
+    if(/^@\[(table|figure)\s/.test(t)||t==='@[table]'){
+      flush(i);
+      var fi=i+1;
+      var closeTag='@[/'+t.match(/^@\[(\w+)/)[1]+']';
+      var selfClosed=t.indexOf(closeTag)>=0;
+      if(!selfClosed){
+        while(fi<lines.length&&lines[fi].indexOf(closeTag)<0)fi++;
+        fi=Math.min(fi+1,lines.length);
+      }
+      nodes.push({kind:'obj',text:lines.slice(i,fi).join('\n'),srcStart:i,srcEnd:fi});
+      i=fi-1; continue;
+    }
+    if(/^@\[image/.test(t)){ flush(i); nodes.push({kind:'obj',text:t,srcStart:i,srcEnd:i+1}); continue }
+    if(/^@\[(page|margin|font|size|line-spacing|first-line|theme|toc|numbering)\s/.test(t)){
+      flush(i); nodes.push({kind:'docset',text:t,srcStart:i,srcEnd:i+1}); continue;
+    }
+    if(!para)para={kind:'para',text:'',srcStart:i};
+    para.text=para.text?(para.text+' '+t):t;
   }
-  flush();
+  flush(lines.length);
   return nodes;
 }
-
-// ── 表格行收集:连续 trow 合并为 table ──
-function collectTables(nodes){
-  const out=[];
-  let rows=[];
-  const flushT=()=>{
-    if(rows.length===0)return;
-    const cells=r=>r.replace(/^\||\|$/g,'').split('|').map(c=>c.trim());
-    let html='<table>';
-    for(let i=0;i<rows.length;i++){
-      const cs=cells(rows[i]);
-      if(cs.every(c=>/^:?-{2,}:?$/.test(c)))continue;
-      html+='<tr>'+cs.map(c=>(i===0?'<th>':'<td>')+fmtH(c)+(i===0?'</th>':'</td>')).join('')+'</tr>';
-    }
-    html+='</table>';
-    out.push({kind:'rawhtml',html:html});
-    rows=[];
-  };
-  for(const n of nodes){
-    if(n.kind==='trow'){rows.push(n.text);continue}
-    flushT();
-    out.push(n);
+function tableHtml(rows){
+  function cells(r){return r.replace(/^\||\|$/g,'').split('|').map(function(c){return c.trim()})}
+  var h='<table>';
+  for(var i=0;i<rows.length;i++){
+    var cs=cells(rows[i]);
+    var isSep=cs.every(function(c){return /^:?-{2,}:?$/.test(c)});
+    if(isSep)continue;
+    h+='<tr>'+cs.map(function(c){return(i===0?'<th>':'<td>')+fmtH(c)+(i===0?'</th>':'</td>')}).join('')+'</tr>';
   }
-  flushT();
+  return h+'</table>';
+}
+
+// ═══ 排版:块 → 行单元 → 分页(核心镜像)═══
+function blockWeight(b){
+  var n;
+  if(b.kind==='hr')n=2;
+  else if(b.kind==='docset')n=0.2;
+  else if(b.kind==='comment')n=1;
+  else if(b.kind==='heading')n=breakLines(displayText(b.text)).length+(b.level<=2?2:1.5);
+  else if(b.kind==='table')n=b.rows.length+2;
+  else if(b.kind==='obj')n=8;
+  else if(b.kind==='ul'||b.kind==='ol')n=breakLines(displayText(b.text)).length+0.4;
+  else if(b.kind==='quote')n=breakLines(displayText(b.text)).length+0.6;
+  else n=breakLines(displayText(b.text)).length+0.3;
+  return Math.max(n,0.5);
+}
+function layoutPages(blocks){
+  var pages=[], cur=[], used=0, bid=0;
+  for(var i=0;i<blocks.length;i++){
+    var b=blocks[i]; b.bid=bid++;
+    var w=blockWeight(b);
+    if(used>0&&used+w>LINES_PER_PAGE&&w<=LINES_PER_PAGE){ pages.push(cur); cur=[]; used=0 }
+    if(w>LINES_PER_PAGE&&b.kind==='para'){
+      // 长段落按断行边界跨页
+      var lines=breakLines(displayText(b.text));
+      var l0=0;
+      while(l0<lines.length){
+        var room=Math.floor(LINES_PER_PAGE-used);
+        if(room<=0){ pages.push(cur); cur=[]; used=0; room=LINES_PER_PAGE }
+        var take=Math.min(room,lines.length-l0);
+        cur.push({b:b,l0:l0,l1:l0+take,partLines:lines});
+        l0+=take; used+=take;
+        if(used>=LINES_PER_PAGE&&l0<lines.length){ pages.push(cur); cur=[]; used=0 }
+      }
+      continue;
+    }
+    cur.push({b:b,whole:true});
+    used+=w;
+  }
+  if(cur.length)pages.push(cur);
+  return pages;
+}
+
+// ═══ 渲染 ═══
+var gSrc='', gPages=[], gNodes=[];
+function render(src){
+  gSrc=src;
+  gNodes=miniParse(src);
+  gPages=layoutPages(gNodes);
+  var pane=document.getElementById('display-pane');
+  pane.innerHTML='';
+  for(var p=0;p<gPages.length;p++){
+    var sheet=document.createElement('div');
+    sheet.className='sheet';
+    var paper=document.createElement('div');
+    paper.className='paper';
+    for(var k=0;k<gPages[p].length;k++){
+      var item=gPages[p][k], b=item.b;
+      if(b.kind==='docset'){
+        var d=document.createElement('div'); d.className='docset'; d.textContent=b.text;
+        paper.appendChild(d); continue;
+      }
+      if(b.kind==='comment'){
+        var cm=document.createElement('div'); cm.className='comment-src';
+        cm.contentEditable='false'; cm.textContent=b.text;
+        paper.appendChild(cm);
+        var gp=document.createElement('div'); gp.className='gap'; paper.appendChild(gp);
+        continue;
+      }
+      paper.appendChild(makeBlock(b,item));
+      var gap=document.createElement('div'); gap.className='gap'; paper.appendChild(gap);
+    }
+    var folio=document.createElement('div');
+    folio.className='folio'; folio.textContent='— '+(p+1)+' —';
+    sheet.appendChild(paper); sheet.appendChild(folio);
+    pane.appendChild(sheet);
+  }
+  renderOutline();
+  renderStatus();
+  var ta=document.getElementById('syntax-src');
+  if(ta&&ta.value!==src)ta.value=src;
+}
+function makeBlock(b,item){
+  if(item.whole||item.l0===undefined){
+    var wrap=document.createElement('div');
+    wrap.innerHTML=blockHtml(b);
+    var inner=wrap.firstElementChild;
+    inner.dataset.bid=b.bid;
+    inner.dataset.ph=b.kind==='heading'?'标题':b.kind==='quote'?'引用':b.kind==='ul'||b.kind==='ol'?'列表项':'段落';
+    if(b.kind!=='table'&&b.kind!=='hr'&&b.kind!=='obj')inner.contentEditable='true';
+    else if(b.kind==='table'){
+      // 单元格可编辑(整表序列化,P-09 的雏形)
+      inner.querySelectorAll('th,td').forEach(function(c){c.contentEditable='true'});
+    }
+    return inner;
+  }
+  // 跨页段落片段
+  var text=item.partLines.slice(item.l0,item.l1).join('');
+  var el=document.createElement('p');
+  el.className=item.l0>0?'cont':'';
+  el.dataset.bid=b.bid;
+  el.dataset.l0=item.l0; el.dataset.l1=item.l1;
+  el.contentEditable='true';
+  el.innerHTML=fmtH(text);
+  return el;
+}
+function blockHtml(b){
+  switch(b.kind){
+    case 'heading':return'<h'+b.level+'>'+fmtH(b.text)+'</h'+b.level+'>';
+    case 'hr':return'<hr>';
+    case 'ul':return'<ul><li>'+fmtH(b.text)+'</li></ul>';
+    case 'ol':return'<ol><li>'+fmtH(b.text)+'</li></ol>';
+    case 'quote':return'<blockquote><p>'+fmtH(b.text)+'</p></blockquote>';
+    case 'table':return tableHtml(b.rows);
+    case 'obj':return'<div class="img-ph">'+escHtml(b.text.split('\n')[0])+'</div>';
+    default:return'<p>'+fmtH(b.text)+'</p>';
+  }
+}
+function renderOutline(){
+  var ol=document.getElementById('outline');
+  ol.innerHTML='';
+  for(var i=0;i<gNodes.length;i++){
+    var n=gNodes[i];
+    if(n.kind!=='heading')continue;
+    (function(n){
+      var d=document.createElement('div');
+      d.className='outline-item lv'+n.level;
+      d.textContent=displayText(n.text);
+      d.onclick=function(){
+        var t=document.querySelector('#display-pane [data-bid="'+n.bid+'"]');
+        if(t)t.scrollIntoView({behavior:'smooth',block:'start'});
+      };
+      ol.appendChild(d);
+    })(n);
+  }
+}
+function renderStatus(){
+  var chars=0, labels=0;
+  for(var i=0;i<gNodes.length;i++){
+    if(gNodes[i].text){ chars+=displayText(gNodes[i].text).replace(/\s/g,'').length }
+    if(gNodes[i].text&&gNodes[i].text.indexOf('label')>=0)labels++;
+  }
+  document.getElementById('st-words').textContent=chars+' 字';
+  document.getElementById('st-labels').textContent='Label '+labels;
+  document.getElementById('st-page').textContent=gPages.length+' 页';
+}
+
+// ═══ DOM → 源码序列化(§85 单一权威:纸上编辑回写源码)═══
+function inlineSource(el){
+  var out='';
+  el.childNodes.forEach(function(n){
+    if(n.nodeType===3){ out+=n.textContent; return }
+    if(n.nodeType!==1)return;
+    var tag=n.tagName, inner=inlineSource(n);
+    if(tag==='STRONG'||tag==='B')out+='**'+inner+'**';
+    else if(tag==='EM'||tag==='I')out+='_'+inner+'_';
+    else if(tag==='DEL'||tag==='S'||tag==='STRIKE')out+='~~'+inner+'~~';
+    else if(tag==='U')out+='@[u]'+inner+'@[/u]';
+    else if(tag==='CODE')out+='`'+inner+'`';
+    else if(tag==='FONT'){
+      if(n.getAttribute('color'))out+='@[color '+n.getAttribute('color')+']'+inner+'@[/color]';
+      else if(n.getAttribute('face'))out+='@[font "'+n.getAttribute('face')+'"]'+inner+'@[/font]';
+      else if(n.getAttribute('size'))out+='@[size '+n.getAttribute('size')+']'+inner+'@[/size]';
+      else out+=inner;
+    }
+    else if(tag==='SPAN'){
+      if(n.dataset.cmd)out+=n.dataset.cmd+inner+(n.dataset.close||'');
+      else out+=inner;
+    }
+    else if(tag==='BR')out+=' ';
+    else out+=inner;
+  });
   return out;
 }
-
-// ── 渲染 ──
-const PAGE_LINES=42;
-function renderDoc(nodes){
-  const paper=document.getElementById('paper');
-  paper.innerHTML='';
-  let pageNum=0,lineCount=0;
-  let block=document.newPageBlock(0);
-  for(const node of nodes){
-    if(node.kind==='comment'||node.kind==='docset')continue;
-    let weight=1,html='';
-    if(node.kind==='heading'){const tag='h'+Math.min(node.level,6);html='<'+tag+'>'+fmtH(node.text)+'</'+tag+'>';weight=node.level<=2?3:2}
-    else if(node.kind==='para'){html='<p>'+fmtH(node.text)+'</p>'}
-    else if(node.kind==='quote'){html='<blockquote><p>'+fmtH(node.text)+'</p></blockquote>'}
-    else if(node.kind==='list'){html=(node.ordered?'<ol>':'<ul>')+'<li>'+fmtH(node.text)+'</li>'+(node.ordered?'</ol>':'</ul>');weight=1.5}
-    else if(node.kind==='rawhtml'){html=node.html;weight=4}
-    else if(node.kind==='hr'){html='<hr>';weight=3}
-    else if(node.kind==='obj'){html='<div class="img-ph">'+escHtml(node.text)+'</div>';weight=8}
-    else{html='<p>'+fmtH(node.text)+'</p>'}
-    const el=document.createElement('div');
-    if(node.kind==='heading')el.dataset.heading=node.text;
-    el.innerHTML=html;
-    block.appendChild(el);
-    lineCount+=weight;
-    if(lineCount>=PAGE_LINES){pageNum++;lineCount=0;block=document.newPageBlock(pageNum);paper.appendChild(block)}
+function blockPrefix(b){
+  if(!b)return'';
+  if(b.kind==='heading')return'#'.repeat(b.level)+' ';
+  if(b.kind==='ul')return'- ';
+  if(b.kind==='ol')return'1. ';
+  if(b.kind==='quote')return'> ';
+  return'';
+}
+// 序列化一个块(含跨页片段),回写源码行区间
+function syncBlock(bid){
+  var parts=document.querySelectorAll('#display-pane [data-bid="'+bid+'"]');
+  if(!parts.length)return;
+  var b=null;
+  for(var i=0;i<gNodes.length;i++){ if(gNodes[i].bid==bid){ b=gNodes[i]; break } }
+  if(!b)return;
+  var text='';
+  var el=parts[0];
+  if(b.kind==='heading')text='#'.repeat(b.level)+' '+inlineSource(el);
+  else if(b.kind==='para')text=inlineSource(el);
+  else if(b.kind==='quote')text='> '+inlineSource(el.querySelector('p')||el);
+  else if(b.kind==='ul')text='- '+inlineSource(el.querySelector('li')||el);
+  else if(b.kind==='ol')text='1. '+inlineSource(el.querySelector('li')||el);
+  else if(b.kind==='table'){
+    var rows=[];
+    el.querySelectorAll('tr').forEach(function(tr){
+      var cells=[];
+      tr.querySelectorAll('th,td').forEach(function(c){cells.push(inlineSource(c))});
+      rows.push('| '+cells.join(' | ')+' |');
+      if(rows.length===1)rows.push('| --- | --- |'.substring(0,2+cells.join(' --- |').length+4));
+    });
+    // 简化:第二行统一分隔
+    if(rows.length>1){
+      var ncol=rows[0].split('|').length-2;
+      rows.splice(1,1,'| '+' --- |'.repeat(ncol).trim());
+    }
+    text='@[table demo]\n'+rows.join('\n')+'\n@[/table]';
   }
-  paper.appendChild(block);
-  return pageNum+1;
+  else return;
+  // 跨页片段:按 DOM 顺序拼接
+  if(parts.length>1){ text=''; parts.forEach(function(p){ text+=inlineSource(p) }) }
+  var lines=gSrc.split('\n');
+  var head=lines.slice(0,b.srcStart), tail=lines.slice(b.srcEnd);
+  gSrc=head.concat([text],tail).join('\n');
+  var ta=document.getElementById('syntax-src');
+  if(ta)ta.value=gSrc;
 }
-// 分页块:每满一页开新块,页脚显示页码
-document.newPageBlock=function(idx){
-  const pd=document.createElement('div');
-  pd.className='pageblock';
-  const pn=document.createElement('div');
-  pn.className='page-no';
-  pn.textContent='— '+(idx+1)+' —';
-  pd.appendChild(pn);
-  return pd;
-};
 
-function renderOutline(nodes){
-  const ol=document.getElementById('outline');
-  ol.innerHTML='';
-  for(const n of nodes){
-    if(n.kind!=='heading')continue;
-    const d=document.createElement('div');
-    d.className='outline-item lv'+n.level;
-    d.textContent=n.text;
-    d.onclick=function(){
-      const el=document.querySelector('#paper [data-heading]');
-      const all=document.querySelectorAll('#paper [data-heading]');
-      for(const e of all){if(e.textContent===n.text){e.scrollIntoView({behavior:'smooth',block:'start'});return}}
-    };
-    ol.appendChild(d);
+// ═══ 纸面直接编辑 ═══
+var repagTimer=null;
+function onPaperInput(e){
+  var el=e.target.closest?e.target.closest('[data-bid]'):null;
+  if(!el)return;
+  syncBlock(el.dataset.bid);
+  recordHist(gSrc,true);
+  if(repagTimer)clearTimeout(repagTimer);
+  repagTimer=setTimeout(function(){
+    var caret=saveCaret();
+    var before=gPages.length+'|'+gPages.map(function(p){return p.length?p[0].b.bid:-1}).join(',');
+    var sig=layoutPages(miniParse(gSrc));
+    var after=sig.length+'|'+sig.map(function(p){return p.length?p[0].b.bid:-1}).join(',');
+    if(before!==after){ render(gSrc); restoreCaret(caret) }
+  },600);
+}
+function saveCaret(){
+  var s=window.getSelection();
+  if(!s.rangeCount)return null;
+  var node=s.getRangeAt(0).startContainer;
+  var blk=node.nodeType===1?(node.closest?node.closest('[data-bid]'):null):(node.parentElement&&node.parentElement.closest('[data-bid]'));
+  if(!blk)return null;
+  var r=s.getRangeAt(0).cloneRange();
+  r.selectNodeContents(blk);
+  r.setEnd(s.getRangeAt(0).endContainer,s.getRangeAt(0).endOffset);
+  return{bid:blk.dataset.bid,off:r.toString().length};
+}
+function restoreCaret(c){
+  if(!c)return;
+  var el=document.querySelector('#display-pane [data-bid="'+c.bid+'"]');
+  if(!el||!el.focus)return;
+  el.focus();
+  var walker=document.createTreeWalker(el,NodeFilter.SHOW_TEXT), n, left=c.off, last=null;
+  while((n=walker.nextNode())){
+    if(n.length>=left){
+      var r=document.createRange(); r.setStart(n,left); r.collapse(true);
+      var s=window.getSelection(); s.removeAllRanges(); s.addRange(r);
+      return;
+    }
+    left-=n.length; last=n;
+  }
+  if(last){ var r2=document.createRange(); r2.setStart(last,last.length); r2.collapse(true); var s2=window.getSelection(); s2.removeAllRanges(); s2.addRange(r2) }
+}
+// Enter = 拆块;块首 Backspace = 并块
+function onPaperKey(e){
+  if(e.key==='Enter'&&!e.shiftKey){
+    var bel=caretBlock();
+    if(!bel)return;
+    e.preventDefault();
+    var bid=bel.dataset.bid, off=saveCaret();
+    if(!off)return;
+    var full=inlineSource(bel);
+    var b=nodeByBid(bid);
+    if(!b)return;
+    var before=full.slice(0,off.off), after=full.slice(off.off);
+    // 跨行内标记的切点做标记平衡
+    var bal=(before.match(/\*\*/g)||[]).length; if(bal%2){before+='**';after='**'+after}
+    bal=(before.match(/~~/g)||[]).length; if(bal%2){before+='~~';after='~~'+after}
+    bal=(before.match(/`/g)||[]).length; if(bal%2){before+='`';after='`'+after}
+    var lines=gSrc.split('\n');
+    var prefix=blockPrefix(b);
+    // 段落/标题拆块必须隔空行,否则相邻行会被重新合并为同一段
+    var newLines;
+    if(b.kind==='para'||b.kind==='heading')newLines=[prefix+before,'',after];
+    else newLines=[prefix+before,prefix+after];
+    var head=lines.slice(0,b.srcStart), tail=lines.slice(b.srcEnd);
+    gSrc=head.concat(newLines,tail).join('\n');
+    render(gSrc);
+    restoreCaret({bid:(+bid)+1,off:0});
+  }
+  else if(e.key==='Backspace'){
+    var s=window.getSelection();
+    if(s.rangeCount&&s.isCollapsed){
+      var bel2=caretBlock();
+      if(bel2){
+        var off2=saveCaret();
+        if(off2&&off2.off===0&&+bel2.dataset.bid>0){
+          var cur=nodeByBid(+bel2.dataset.bid-1);
+          if(cur&&cur.kind!=='table'&&cur.kind!=='obj'){ e.preventDefault(); mergeWithPrev(+bel2.dataset.bid) }
+        }
+      }
+    }
+  }
+  else if((e.ctrlKey||e.metaKey)&&!e.shiftKey&&e.key==='b'){ e.preventDefault(); fmtCmd('bold') }
+  else if((e.ctrlKey||e.metaKey)&&!e.shiftKey&&e.key==='i'){ e.preventDefault(); fmtCmd('italic') }
+  else if((e.ctrlKey||e.metaKey)&&!e.shiftKey&&e.key==='u'){ e.preventDefault(); fmtCmd('underline') }
+}
+function caretBlock(){
+  var s=window.getSelection();
+  if(!s.rangeCount)return null;
+  var node=s.getRangeAt(0).startContainer;
+  return node.nodeType===1?(node.closest?node.closest('[data-bid]'):null):(node.parentElement&&node.parentElement.closest('[data-bid]'));
+}
+function nodeByBid(bid){
+  for(var i=0;i<gNodes.length;i++){ if(gNodes[i].bid==bid)return gNodes[i] }
+  return null;
+}
+function mergeWithPrev(bid){
+  var prev=nodeByBid(bid-1), cur=nodeByBid(bid);
+  if(!prev||!cur)return;
+  var curEl=document.querySelector('#display-pane [data-bid="'+bid+'"]');
+  var curText=curEl?inlineSource(curEl):displayText(cur.text);
+  var prevText=displayText(prev.text);
+  var prevLen=prevText.length;
+  var lines=gSrc.split('\n');
+  var merged=[blockPrefix(prev)+(prevText+' '+curText).trim()];
+  var head=lines.slice(0,prev.srcStart), tail=lines.slice(cur.srcEnd);
+  gSrc=head.concat(merged,tail).join('\n');
+  render(gSrc);
+  restoreCaret({bid:prev.bid,off:prevLen+1});
+}
+
+// ═══ 工具栏命令 ═══
+function inDisplayMode(){ return currentMode!=='syntax' }
+function fmtCmd(cmd){
+  if(inDisplayMode()){
+    document.execCommand(cmd,false,null);
+    afterDisplayFmt();
+  }else{
+    var map={bold:['**','**'],italic:['_','_'],underline:['@[u]','@[/u]'],strikeThrough:['~~','~~']};
+    if(map[cmd])wrapSyntax(map[cmd][0],map[cmd][1]);
   }
 }
-
-// ── 主刷新 ──
-function refresh(){
-  const src=getSrc();
-  let nodes=miniParse(src);
-  nodes=collectTables(nodes);
-  const pages=renderDoc(nodes);
-  renderOutline(nodes);
-  let labels=0;
-  for(const n of nodes){if(n.kind==='obj'&&n.text.indexOf('label')>=0)labels++}
-  document.getElementById('st-nodes').textContent=nodes.length+' 节点';
-  document.getElementById('st-page').textContent=pages+' 页';
-  document.getElementById('st-labels').textContent='Label '+labels;
+function fmtCmdInline(){
+  if(inDisplayMode()){ wrapDisplay('`','`',null,true); afterDisplayFmt() }
+  else wrapSyntax('`','`');
 }
-
-// ── 编辑器访问 ──
-function getSrc(){return document.getElementById('syntax-src').value}
-function setSrc(s,caret){
-  const ta=document.getElementById('syntax-src');
-  ta.value=s;
-  if(caret!==undefined){ta.selectionStart=ta.selectionEnd=caret}
-  refresh();
-}
-
-// ── Undo/Redo(自维护历史栈;500ms 内连续输入合并为一步)──
-var hist=[],histIdx=-1,histTime=0;
-function recordHist(text, merge){
-  const now=Date.now();
-  if(merge&&histIdx>=0&&now-histTime<500){
-    hist[histIdx]={text:text,caret:0};
-    histTime=now;
+// 显示视图包裹:优先原生 execCommand(code 用 span 包裹)
+function wrapDisplay(open,close,style,native){
+  var s=window.getSelection();
+  if(!s.rangeCount||s.isCollapsed)return;
+  if(native){
+    document.execCommand('insertHTML',false,'<code>'+s.toString()+'</code>');
     return;
   }
+  var r=s.getRangeAt(0);
+  var frag=r.extractContents();
+  var wrap=document.createElement('span');
+  wrap.dataset.cmd=open; wrap.dataset.close=close;
+  if(style)for(var k in style)wrap.style[k]=style[k];
+  wrap.appendChild(frag);
+  r.insertNode(wrap);
+  s.removeAllRanges();
+  var nr=document.createRange(); nr.selectNodeContents(wrap); s.addRange(nr);
+}
+function afterDisplayFmt(){
+  var blk=caretBlock();
+  if(blk){ syncBlock(blk.dataset.bid); recordHist(gSrc,true) }
+}
+function applyColor(v){
+  if(inDisplayMode()){ document.execCommand('foreColor',false,v); afterDisplayFmt() }
+  else wrapSyntax('@[color '+v+']','@[/color]');
+}
+function applyMark(v){
+  if(inDisplayMode()){ wrapDisplay('@[mark '+v+']','@[/mark]',{background:v}); afterDisplayFmt() }
+  else wrapSyntax('@[mark '+v+']','@[/mark]');
+}
+function applySize(v){
+  if(!v)return;
+  if(inDisplayMode()){ wrapDisplay('@[size '+v+']','@[/size]',{fontSize:v+'pt'}); afterDisplayFmt() }
+  else wrapSyntax('@[size '+v+']','@[/size]');
+  document.getElementById('sel-size').selectedIndex=0;
+}
+function applyFont(v){
+  if(!v)return;
+  var name={serif:'serif',sans:'sans',mono:'mono',kai:'KaiTi'}[v];
+  if(inDisplayMode()){ wrapDisplay('@[font "'+name+'"]','@[/font]',{fontFamily:v==='kai'?'KaiTi,serif':'var(--'+v+')'}); afterDisplayFmt() }
+  else wrapSyntax('@[font "'+name+'"]','@[/font]');
+  document.getElementById('sel-font').selectedIndex=0;
+}
+function applyStyle(lv){
+  var bel=caretBlock();
+  var bid;
+  if(bel)bid=+bel.dataset.bid;
+  else{
+    var ta=document.getElementById('syntax-src');
+    if(!ta)return;
+    var pos=ta.value.substring(0,ta.selectionStart).split('\n').length-1;
+    for(var i=0;i<gNodes.length;i++){ if(pos>=gNodes[i].srcStart&&pos<gNodes[i].srcEnd){ bid=gNodes[i].bid; break } }
+    if(bid===undefined)return;
+  }
+  var b=nodeByBid(bid);
+  if(!b||lv==='')return;
+  var lines=gSrc.split('\n');
+  var body=displayText(b.text);
+  lines.splice(b.srcStart,b.srcEnd-b.srcStart,'#'.repeat(+lv)+' '+body);
+  setSrc(lines.join('\n'));
+  restoreCaret({bid:bid,off:0});
+  document.getElementById('sel-style').selectedIndex=0;
+}
+function listCmd(kind){
+  if(inDisplayMode()){
+    document.execCommand(kind==='ul'?'insertUnorderedList':'insertOrderedList',false,null);
+    afterDisplayFmt();
+  }else insertSyntax(kind==='ul'?'\n- 列表项\n':'\n1. 列表项\n');
+}
+function insertBlock(kind){
+  var snippets={
+    quote:'\n> 引用内容\n',
+    hr:'\n---\n',
+    link:'@[link 文本 url: https://example.com]',
+    image:'\n@[image hero.png]\n',
+    table:'\n@[table demo]\n| 列1 | 列2 |\n| --- | --- |\n| 内容 | 内容 |\n@[/table]\n',
+    comment:'\n@[comment 批注内容,不参与渲染]\n',
+    footnote:'@[footnote 1 脚注内容]'
+  };
+  var bel=inDisplayMode()?caretBlock():null;
+  if(bel){
+    var b=nodeByBid(bel.dataset.bid);
+    if(b){
+      var lines=gSrc.split('\n');
+      var insert=snippets[kind].replace(/^\n/,'').replace(/\n$/,'').split('\n');
+      lines.splice.apply(lines,[b.srcEnd,0].concat(insert));
+      setSrc(lines.join('\n'));
+      return;
+    }
+  }
+  if(inDisplayMode())setSrc(gSrc+'\n'+snippets[kind].replace(/^\n|\n$/g,'')+'\n');
+  else insertSyntax(snippets[kind]);
+}
+
+// ═══ 语法视图(同一 A4 纸张几何)═══
+function buildSyntaxPane(){
+  if(document.getElementById('syntax-src'))return;
+  var pane=document.getElementById('syntax-pane');
+  var sheet=document.createElement('div');
+  sheet.className='sheet';
+  var src=document.createElement('div');
+  src.className='src-paper';
+  var ta=document.createElement('textarea');
+  ta.id='syntax-src'; ta.spellcheck=false;
+  ta.style.cssText='width:100%;height:'+(PAGE_H-2*MARGIN-2)+'mm;border:0;outline:0;resize:none;background:transparent;font:inherit;color:inherit;white-space:pre;overflow:auto';
+  src.appendChild(ta);
+  sheet.appendChild(src);
+  pane.appendChild(sheet);
+  ta.addEventListener('input',function(){
+    recordHist(ta.value,true);
+    if(repagTimer)clearTimeout(repagTimer);
+    repagTimer=setTimeout(function(){ render(ta.value) },250);
+  });
+  ta.addEventListener('keydown',function(e){
+    if((e.ctrlKey||e.metaKey)&&!e.shiftKey&&e.key==='z'){e.preventDefault();doUndo()}
+    else if((e.ctrlKey||e.metaKey)&&(e.key==='y'||(e.key==='Z'&&e.shiftKey))){e.preventDefault();doRedo()}
+    else if(e.key==='Tab'){e.preventDefault();insertSyntax('  ')}
+  });
+}
+function insertSyntax(text){
+  var ta=document.getElementById('syntax-src');
+  if(!ta)return;
+  var s=ta.selectionStart;
+  ta.value=ta.value.substring(0,s)+text+ta.value.substring(ta.selectionEnd);
+  ta.selectionStart=ta.selectionEnd=s+text.length;
+  ta.focus();
+  recordHist(ta.value,false);
+  render(ta.value);
+}
+function wrapSyntax(open,close){
+  var ta=document.getElementById('syntax-src');
+  if(!ta)return;
+  var s=ta.selectionStart,e=ta.selectionEnd;
+  var sel=ta.value.substring(s,e)||'文本';
+  ta.focus();
+  ta.value=ta.value.substring(0,s)+open+sel+close+ta.value.substring(e);
+  ta.selectionStart=s+open.length;
+  ta.selectionEnd=s+open.length+sel.length;
+  recordHist(ta.value,false);
+  render(ta.value);
+}
+
+// ═══ 撤销/重做 ═══
+var hist=[],histIdx=-1,histTime=0;
+function recordHist(text,merge){
+  var now=Date.now();
+  if(merge&&histIdx>=0&&now-histTime<500){ hist[histIdx]=text; histTime=now; return }
   hist=hist.slice(0,histIdx+1);
-  hist.push({text:text,caret:0});
+  hist.push(text);
   if(hist.length>300)hist.shift();
   histIdx=hist.length-1;
   histTime=now;
@@ -279,101 +821,81 @@ function recordHist(text, merge){
 function doUndo(){
   if(histIdx<=0)return;
   histIdx--;
-  setSrc(hist[histIdx].text);
-  syncStatus();
+  applyHistory(hist[histIdx]);
 }
 function doRedo(){
   if(histIdx>=hist.length-1)return;
   histIdx++;
-  setSrc(hist[histIdx].text);
-  syncStatus();
+  applyHistory(hist[histIdx]);
 }
-function syncStatus(){
+function applyHistory(text){
+  var caret=saveCaret();
+  var ta=document.getElementById('syntax-src');
+  if(ta)ta.value=text;
+  render(text);
+  restoreCaret(caret);
   document.getElementById('st-diag').textContent='诊断 ✓ · 历史 '+histIdx+'/'+(hist.length-1);
 }
+function setSrc(s){
+  var ta=document.getElementById('syntax-src');
+  if(ta)ta.value=s;
+  recordHist(s,false);
+  render(s);
+}
 
-// ── 编辑操作 ──
-function insertText(text){
-  const ta=document.getElementById('syntax-src');
-  const s=ta.selectionStart;
-  // 只在光标处插入,不吞掉选中文本
-  ta.value=ta.value.substring(0,s)+text+ta.value.substring(s);
-  ta.focus();
-  ta.selectionStart=ta.selectionEnd=s+text.length;
-  recordHist(ta.value,false);
-  refresh();
+// ═══ 视图切换 ═══
+var modeBtns=document.querySelectorAll('.view-tabs button');
+var currentMode='display';
+for(var i=0;i<modeBtns.length;i++){
+  (function(b){b.addEventListener('click',function(){setMode(b.dataset.mode)})})(modeBtns[i]);
 }
-function doWrap(marker){
-  const ta=document.getElementById('syntax-src');
-  const s=ta.selectionStart,e=ta.selectionEnd;
-  const sel=ta.value.substring(s,e);
-  ta.focus();
-  if(sel.length===0){
-    const ph='文本';
-    ta.value=ta.value.substring(0,s)+marker+ph+marker+ta.value.substring(e);
-    ta.selectionStart=s+marker.length;
-    ta.selectionEnd=s+marker.length+ph.length;
-  }else{
-    // 已包裹则解除,否则包裹
-    const before=ta.value.substring(0,s);
-    const after=ta.value.substring(e);
-    if(before.endsWith(marker)&&after.startsWith(marker)){
-      ta.value=before.substring(0,before.length-marker.length)+sel+after.substring(marker.length);
-      ta.selectionStart=s-marker.length;
-      ta.selectionEnd=s-marker.length+sel.length;
-    }else{
-      ta.value=before+marker+sel+marker+after;
-      ta.selectionStart=s+marker.length;
-      ta.selectionEnd=s+marker.length+sel.length;
-    }
+function setMode(mode){
+  currentMode=mode;
+  for(var i=0;i<modeBtns.length;i++)modeBtns[i].classList.toggle('active',modeBtns[i].dataset.mode===mode);
+  var dp=document.getElementById('display-pane');
+  var sp=document.getElementById('syntax-pane');
+  buildSyntaxPane();
+  if(mode==='syntax'){ dp.style.display='none'; dp.style.flex='none'; sp.style.display='flex'; sp.style.flex='1 1 auto' }
+  else if(mode==='split'){ dp.style.display='flex'; dp.style.flex='1 1 50%'; sp.style.display='flex'; sp.style.flex='1 1 50%' }
+  else{ dp.style.display='flex'; dp.style.flex='1 1 auto'; sp.style.display='none' }
+  var ta=document.getElementById('syntax-src');
+  if(ta)ta.value=gSrc;
+  applyZoom(document.getElementById('sel-zoom').value);
+}
+// 分屏时半栏放不下 210mm 纸张,按栏宽自动缩小
+function fitZoom(base){
+  var v=parseFloat(base)||1;
+  if(currentMode==='split'){
+    var w=document.getElementById('display-pane').clientWidth;
+    v*=Math.min(1,(w-48)/840);
   }
-  recordHist(ta.value,false);
-  refresh();
+  return v;
 }
+document.getElementById('display-pane').addEventListener('input',onPaperInput);
+document.getElementById('display-pane').addEventListener('keydown',onPaperKey);
+
+function applyZoom(v){
+  var z=fitZoom(v);
+  document.getElementById('display-pane').style.zoom=z;
+  document.getElementById('syntax-pane').style.zoom=z;
+}
+window.addEventListener('resize',function(){ applyZoom(document.getElementById('sel-zoom').value) });
 function doSave(){
-  const blob=new Blob([getSrc()],{type:'text/plain;charset=utf-8'});
-  const a=document.createElement('a');
+  var blob=new Blob([gSrc],{type:'text/plain;charset=utf-8'});
+  var a=document.createElement('a');
   a.href=URL.createObjectURL(blob);
   a.download='document.awen.txt';
   a.click();
   document.getElementById('docname').textContent='未命名文档 · 已保存';
 }
 
-// ── 视图切换 ──
-var modeBtns=document.querySelectorAll('.view-tabs button');
-for(var i=0;i<modeBtns.length;i++){
-  (function(b){b.addEventListener('click',function(){setMode(b.dataset.mode)})})(modeBtns[i]);
-}
-function setMode(mode){
-  for(var i=0;i<modeBtns.length;i++){modeBtns[i].classList.toggle('active',modeBtns[i].dataset.mode===mode)}
-  const dp=document.getElementById('editor-area');
-  const sp=document.getElementById('syntax-panel');
-  if(mode==='syntax'){dp.style.display='none';dp.style.flex='none';sp.style.display='flex';sp.style.flex='1 1 auto'}
-  else if(mode==='split'){dp.style.display='flex';dp.style.flex='1 1 50%';sp.style.display='flex';sp.style.flex='1 1 50%'}
-  else{dp.style.display='flex';dp.style.flex='1 1 auto';sp.style.display='none'}
-}
-
-// ── textarea 输入 → 防抖刷新 ──
-var debounce=null;
-document.getElementById('syntax-src').addEventListener('input',function(){
-  recordHist(this.value,true);
-  syncStatus();
-  if(debounce)clearTimeout(debounce);
-  debounce=setTimeout(refresh,200);
-});
-document.getElementById('syntax-src').addEventListener('keydown',function(e){
-  if((e.ctrlKey||e.metaKey)&&e.key==='z'&&!e.shiftKey){e.preventDefault();doUndo()}
-  else if((e.ctrlKey||e.metaKey)&&(e.key==='y'||(e.key==='Z'&&e.shiftKey))){e.preventDefault();doRedo()}
-  else if(e.key==='Tab'){e.preventDefault();insertText('  ')}
-});
-
-// ── 初始化:优先用核心渲染通道注入的源码 ──
+// ═══ 初始化 ═══
 (function init(){
-  let src=DEFAULT_SRC;
-  if(DOC_DATA&&DOC_DATA.source){src=DOC_DATA.source}
+  var src=DEFAULT_SRC;
+  if(DOC_DATA&&DOC_DATA.source)src=DOC_DATA.source;
+  buildSyntaxPane();
   setSrc(src);
-  recordHist(src,false);
-  syncStatus();
+  recordHist(src);
 })();
 </script>
 </body>
