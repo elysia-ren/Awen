@@ -17,29 +17,34 @@ input.findbox{border:1px solid #c9cbce;border-radius:4px;padding:4px 6px;font-si
 .titlebar{height:36px;background:var(--bg2);border-bottom:1px solid var(--border);display:flex;align-items:center;padding:0 14px;gap:12px;flex:none;user-select:none}
 .brand{font-weight:700;font-size:15px;color:#1a1c1f}
 .docname{font-size:13px;color:var(--fg2)}
-/* ── Word/WPS 风格功能区:图标+中文标签,分组带组名 ── */
+/* ── Word/WPS 功能区:标签栏 + 紧凑图标网格 + 分组名 ── */
+.tabbar{height:32px;background:var(--bg2);border-bottom:1px solid var(--border);display:flex;align-items:center;padding:0 10px;gap:2px;flex:none;user-select:none}
+.tab{font-size:13px;color:#5a5c60;padding:5px 16px;border-radius:5px;cursor:pointer}
+.tab:hover{background:#e9eaec}
+.tab.active{background:#fff;color:#1a1c1f;font-weight:600;box-shadow:0 1px 2px rgba(0,0,0,.06);border:1px solid var(--border)}
+.tabbar .view-tabs{margin-left:auto;display:flex;background:#e9eaec;padding:2px;border-radius:6px;gap:1px}
+.view-tabs button{font-size:12px;padding:4px 14px;border-radius:5px;color:#6b6d72}
+.view-tabs button.active{background:#fff;color:#222;box-shadow:0 1px 2px rgba(0,0,0,.08)}
 .ribbon{background:var(--bg3);border-bottom:1px solid var(--border2);flex:none;user-select:none}
-.ribbon-row{display:flex;align-items:stretch;padding:2px 8px 0;gap:0;overflow-x:auto}
-.rgroup{display:flex;flex-direction:column;padding:2px 6px 0;border-right:1px solid #e0e1e4;flex:none}
-.rg-body{display:flex;gap:1px;align-items:stretch;flex:1}
-.rg-label{font-size:10px;color:#8a8c90;text-align:center;padding:2px 0 3px;line-height:1}
-.rbtn{min-width:40px;padding:3px 5px 2px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2px;border-radius:4px;color:#303238}
+.ribbon-page{display:none;align-items:stretch;padding:3px 8px 0;overflow-x:auto;min-height:76px}
+.ribbon-page.active{display:flex}
+.rgroup{display:flex;flex-direction:column;padding:0 10px;border-right:1px solid #e0e1e4;flex:none;justify-content:space-between}
+.rgroup:last-child{border-right:0}
+.rg-body{display:flex;gap:3px;align-items:center;padding:4px 0}
+.rg-label{font-size:10px;color:#8a8c90;text-align:center;padding:0 2px 4px;line-height:1;white-space:nowrap}
+.rbtn{width:26px;height:26px;display:flex;align-items:center;justify-content:center;border-radius:4px;color:#303238;flex:none}
 .rbtn:hover{background:#e6e7e9}
 .rbtn:active{background:#dcdde0}
-.rbtn .ic{font-size:15px;line-height:1.1;font-family:var(--sans)}
-.rbtn .rl{font-size:10px;color:#4d4f53;line-height:1;white-space:nowrap}
-.rbtn.tall{height:100%}
-.rbtn.b .ic{font-weight:700}.rbtn.i .ic{font-style:italic}.rbtn.u .ic{text-decoration:underline}.rbtn.s .ic{text-decoration:line-through}
-.rbtn.small .ic{font-size:13px}
-.rcol{display:flex;flex-direction:column;gap:1px}
-.rrow{display:flex;gap:1px}
-.rbtn.half{min-width:44px;padding:2px 4px 1px}
-.rbtn.half .ic{font-size:13px}
-.rbtn.half .rl{font-size:10px}
-.vsel{display:flex;flex-direction:column;justify-content:center;gap:3px;padding:2px 4px}
-.view-tabs{margin-left:auto;display:flex;align-items:center;padding:0 6px;gap:2px;flex:none}
-.view-tabs button{font-size:12px;padding:5px 14px;border-radius:5px;color:#6b6d72}
-.view-tabs button.active{background:#fff;color:#222;box-shadow:0 1px 2px rgba(0,0,0,.08)}
+.rbtn svg{width:16px;height:16px;display:block}
+.rbtn.b{font-weight:700;font-size:14px}.rbtn.i{font-style:italic;font-family:Georgia,serif;font-size:14px}.rbtn.u{text-decoration:underline;font-size:14px}.rbtn.s{text-decoration:line-through;font-size:14px}
+.rbtn.mono{font-family:var(--mono);font-size:11px;font-weight:600}
+.rgrid{display:grid;grid-template-columns:repeat(4,26px);gap:2px}
+.rgrid3{display:grid;grid-template-columns:repeat(2,26px);gap:2px}
+.vsel{display:flex;flex-direction:column;justify-content:center;gap:3px;padding:0 2px}
+.vsel select{height:22px;padding:1px 4px;font-size:12px}
+.vsel #sel-font{width:118px}
+.vsel #sel-size{width:74px}
+.findbox{border:1px solid #c9cbce;border-radius:4px;padding:4px 6px;font-size:12px;outline:none;width:120px}
 .workspace{min-height:0;flex:1;display:flex;overflow:hidden}
 .sidebar{width:180px;background:var(--bg2);border-right:1px solid var(--border);display:flex;flex-direction:column;flex:none;overflow:hidden}
 .side-head{padding:12px 14px 6px;font-size:12px;font-weight:600;color:#74777c;user-select:none}
@@ -88,75 +93,74 @@ input.findbox{border:1px solid #c9cbce;border-radius:4px;padding:4px 6px;font-si
 <div class="titlebar">
 <div class="brand">Awen</div>
 <div class="docname" id="docname">未命名文档</div>
-<div style="margin-left:auto"><button class="rbtn" style="flex-direction:row" onclick="doSave()" title="保存 (Ctrl+S)"><span class="ic">💾</span><span class="rl">保存</span></button></div>
+<div style="margin-left:auto"><button class="rbtn" style="width:auto;padding:0 8px;gap:4px;font-size:12px" onclick="doSave()" title="保存 (Ctrl+S)"><span data-icon="save"></span>保存</button></div>
+</div>
+<div class="tabbar">
+<div class="tab active" data-page="home" onclick="showRibbon('home')">开始</div>
+<div class="tab" data-page="insert" onclick="showRibbon('insert')">插入</div>
+<div class="view-tabs">
+<button class="active" data-mode="display">显示</button>
+<button data-mode="syntax">语法</button>
+<button data-mode="split">分屏</button>
+</div>
 </div>
 <div class="ribbon">
-<div class="ribbon-row">
+<div class="ribbon-page active" data-page="home">
 <div class="rgroup"><div class="rg-body">
-<button class="rbtn" onclick="doUndo()" title="撤销 (Ctrl+Z)"><span class="ic">↩</span><span class="rl">撤销</span></button>
-<button class="rbtn" onclick="doRedo()" title="重做 (Ctrl+Y)"><span class="ic">↪</span><span class="rl">重做</span></button>
+<button class="rbtn" onclick="doUndo()" title="撤销 (Ctrl+Z)"><span data-icon="undo"></span></button>
+<button class="rbtn" onclick="doRedo()" title="重做 (Ctrl+Y)"><span data-icon="redo"></span></button>
 </div><div class="rg-label">剪贴板</div></div>
 <div class="rgroup"><div class="rg-body"><div class="vsel">
 <select id="sel-style" title="段落样式" onchange="applyStyle(this.value)">
 <option value="" selected>正文</option><option value="1">标题 1</option><option value="2">标题 2</option><option value="3">标题 3</option><option value="4">标题 4</option><option value="5">标题 5</option><option value="6">标题 6</option>
 </select>
 <select id="sel-font" title="字体" onchange="applyFont(this.value)">
-<option value="" selected>宋体</option><option value="SimSun">宋体</option><option value="SimHei">黑体</option><option value="KaiTi">楷体</option><option value="FangSong">仿宋</option><option value="Microsoft YaHei">微软雅黑</option><option value="DengXian">等线</option>
+<option value="SimSun" selected>宋体</option><option value="SimHei">黑体</option><option value="KaiTi">楷体</option><option value="FangSong">仿宋</option><option value="Microsoft YaHei">微软雅黑</option><option value="DengXian">等线</option>
 </select>
 <select id="sel-size" title="字号" onchange="applySize(this.value)">
-<option value="" selected>五号 10.5</option><option value="9">小五 9</option><option value="10.5">五号 10.5</option><option value="11">11 号</option><option value="12">小四 12</option><option value="14">四号 14</option><option value="16">三号 16</option><option value="18">二号 18</option><option value="22">一号 22</option>
+<option value="10.5" selected>五号</option><option value="9">小五</option><option value="11">11 号</option><option value="12">小四</option><option value="14">四号</option><option value="16">三号</option><option value="18">二号</option><option value="22">一号</option>
 </select>
-</div></div><div class="rg-label">字体</div></div>
-<div class="rgroup"><div class="rg-body"><div class="rrow">
-<button class="rbtn b" onclick="fmtCmd('bold')" title="加粗 (Ctrl+B)"><span class="ic">B</span><span class="rl">加粗</span></button>
-<button class="rbtn i" onclick="fmtCmd('italic')" title="倾斜 (Ctrl+I)"><span class="ic">I</span><span class="rl">倾斜</span></button>
-<button class="rbtn u" onclick="fmtCmd('underline')" title="下划线 (Ctrl+U)"><span class="ic">U</span><span class="rl">下划线</span></button>
-</div><div class="rrow">
-<button class="rbtn s" onclick="fmtCmd('strikeThrough')" title="删除线"><span class="ic">S</span><span class="rl">删除线</span></button>
-<button class="rbtn small" onclick="fmtCmdInline()" title="行内代码"><span class="ic">&lt;/&gt;</span><span class="rl">代码</span></button>
-<button class="rbtn small" onclick="fmtCmd('removeFormat')" title="清除所选格式"><span class="ic">🧹</span><span class="rl">清除格式</span></button>
-</div></div><div class="rg-label">字体样式</div></div>
-<div class="rgroup"><div class="rg-body"><div class="rrow">
-<span style="display:flex;flex-direction:column;align-items:center;padding:2px 4px" title="字体颜色"><input type="color" id="col-fore" value="#c0392b" onchange="applyColor(this.value)" style="width:26px"><span class="rl" style="font-size:10px;color:#4d4f53">字体颜色</span></span>
-<span style="display:flex;flex-direction:column;align-items:center;padding:2px 4px" title="文字底纹"><input type="color" id="col-mark" value="#fff176" onchange="applyMark(this.value)" style="width:26px"><span class="rl" style="font-size:10px;color:#4d4f53">底纹</span></span>
-</div></div><div class="rg-label">颜色</div></div>
-<div class="rgroup"><div class="rg-body"><div class="rcol">
-<div class="rrow">
-<button class="rbtn half" onclick="listCmd('ul')" title="项目符号列表"><span class="ic">≣•</span><span class="rl">项目符号</span></button>
-<button class="rbtn half" onclick="listCmd('ol')" title="编号列表"><span class="ic">≡1</span><span class="rl">编号</span></button>
 </div>
-<div class="rrow">
-<button class="rbtn half" onclick="fmtCmd('justifyLeft')" title="左对齐"><span class="ic">⯇</span><span class="rl">左对齐</span></button>
-<button class="rbtn half" onclick="fmtCmd('justifyCenter')" title="居中"><span class="ic">≡</span><span class="rl">居中</span></button>
+<div class="rgrid">
+<button class="rbtn b" onclick="fmtCmd('bold')" title="加粗 (Ctrl+B)">B</button>
+<button class="rbtn i" onclick="fmtCmd('italic')" title="倾斜 (Ctrl+I)">I</button>
+<button class="rbtn u" onclick="fmtCmd('underline')" title="下划线 (Ctrl+U)"><span style="text-decoration:underline">U</span></button>
+<button class="rbtn s" onclick="fmtCmd('strikeThrough')" title="删除线"><span style="text-decoration:line-through">S</span></button>
+<label class="rbtn" title="字体颜色" style="cursor:pointer;position:relative"><span data-icon="fontcolor"></span><input type="color" id="col-fore" value="#c0392b" onchange="applyColor(this.value)" style="position:absolute;inset:0;opacity:0;cursor:pointer"></label>
+<label class="rbtn" title="底纹高亮" style="cursor:pointer;position:relative"><span data-icon="mark"></span><input type="color" id="col-mark" value="#fff176" style="position:absolute;inset:0;opacity:0;cursor:pointer" onchange="applyMark(this.value)"></label>
+<button class="rbtn mono" onclick="fmtCmdInline()" title="行内代码">&lt;/&gt;</button>
+<button class="rbtn" onclick="fmtCmd('removeFormat')" title="清除格式"><span data-icon="clear"></span></button>
 </div>
-<div class="rrow">
-<button class="rbtn half" onclick="fmtCmd('justifyRight')" title="右对齐"><span class="ic">⯈</span><span class="rl">右对齐</span></button>
-<button class="rbtn half" onclick="fmtCmd('justifyFull')" title="两端对齐"><span class="ic">☰</span><span class="rl">两端对齐</span></button>
-</div>
-</div><div class="rcol">
-<div class="rrow">
-<button class="rbtn half" onclick="insertBlock('hr')" title="插入分隔线"><span class="ic">─</span><span class="rl">分隔线</span></button>
-<button class="rbtn half" onclick="insertBlock('quote')" title="插入引用"><span class="ic">❝</span><span class="rl">引用</span></button>
-</div>
-<div class="rrow">
-<button class="rbtn half" onclick="insertBlock('table')" title="插入表格"><span class="ic">▦</span><span class="rl">表格</span></button>
-<button class="rbtn half" onclick="insertBlock('image')" title="插入图片"><span class="ic">🖼</span><span class="rl">图片</span></button>
-</div>
-<div class="rrow">
-<button class="rbtn half" onclick="insertBlock('link')" title="插入链接"><span class="ic">🔗</span><span class="rl">链接</span></button>
-<button class="rbtn half" onclick="insertBlock('footnote')" title="插入脚注"><span class="ic">*¹</span><span class="rl">脚注</span></button>
-</div>
-</div></div><div class="rg-label">段落</div></div>
+</div><div class="rg-label">字体</div></div>
 <div class="rgroup"><div class="rg-body">
-<button class="rbtn" onclick="insertBlock('comment')" title="批注不参与渲染,仅存于源码"><span class="ic">💬</span><span class="rl">批注</span></button>
-<button class="rbtn" onclick="toggleFind()" title="查找 (Ctrl+F)"><span class="ic">🔍</span><span class="rl">查找</span></button>
+<div class="rgrid3">
+<button class="rbtn" onclick="listCmd('ul')" title="项目符号列表"><span data-icon="ul"></span></button>
+<button class="rbtn" onclick="listCmd('ol')" title="编号列表"><span data-icon="ol"></span></button>
+<button class="rbtn" onclick="fmtCmd('justifyLeft')" title="左对齐"><span data-icon="al"></span></button>
+<button class="rbtn" onclick="fmtCmd('justifyCenter')" title="居中"><span data-icon="ac"></span></button>
+<button class="rbtn" onclick="fmtCmd('justifyRight')" title="右对齐"><span data-icon="ar"></span></button>
+<button class="rbtn" onclick="fmtCmd('justifyFull')" title="两端对齐"><span data-icon="aj"></span></button>
+</div>
+</div><div class="rg-label">段落</div></div>
+<div class="rgroup"><div class="rg-body">
+<button class="rbtn" onclick="toggleFind()" title="查找 (Ctrl+F)"><span data-icon="search"></span></button>
 <input class="findbox" id="findbox" placeholder="查找内容" style="display:none" onkeydown="findKey(event)" oninput="findCount()">
 </div><div class="rg-label">编辑</div></div>
-<div class="view-tabs">
-<button class="active" data-mode="display">显示</button>
-<button data-mode="syntax">语法</button>
-<button data-mode="split">分屏</button>
 </div>
+<div class="ribbon-page" data-page="insert">
+<div class="rgroup"><div class="rg-body">
+<div class="rgrid3">
+<button class="rbtn" onclick="insertBlock('table')" title="插入表格"><span data-icon="table"></span></button>
+<button class="rbtn" onclick="insertBlock('image')" title="插入图片"><span data-icon="image"></span></button>
+<button class="rbtn" onclick="insertBlock('link')" title="插入链接"><span data-icon="link"></span></button>
+<button class="rbtn" onclick="insertBlock('hr')" title="插入分隔线"><span data-icon="hr"></span></button>
+<button class="rbtn" onclick="insertBlock('quote')" title="插入引用"><span data-icon="quote"></span></button>
+<button class="rbtn" onclick="insertBlock('footnote')" title="插入脚注"><span data-icon="footnote"></span></button>
+</div>
+</div><div class="rg-label">插入</div></div>
+<div class="rgroup"><div class="rg-body">
+<button class="rbtn" onclick="insertBlock('comment')" title="批注(不参与渲染,仅存于源码)"><span data-icon="comment"></span></button>
+</div><div class="rg-label">批注</div></div>
 </div>
 </div>
 <div class="workspace">
@@ -959,8 +963,40 @@ function caretBlock(){
   return node.nodeType===1?(node.closest?node.closest('[data-bid]'):null):(node.parentElement&&node.parentElement.closest('[data-bid]'));
 }
 
+// ═══ 功能区图标(内联 SVG,16×16 currentColor)═══
+var SW='fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"';
+var ICONS={
+  undo:'<svg viewBox="0 0 16 16"><path d="M6.5 3 3.5 6l3 3" '+SW+'/><path d="M3.5 6h5.5a3.5 3.5 0 0 1 3.5 3.5V12" '+SW+'/></svg>',
+  redo:'<svg viewBox="0 0 16 16"><path d="M9.5 3l3 3-3 3" '+SW+'/><path d="M12.5 6H7A3.5 3.5 0 0 0 3.5 9.5V12" '+SW+'/></svg>',
+  save:'<svg viewBox="0 0 16 16"><path d="M3 3h8l2 2v8H3z" '+SW+'/><path d="M5.5 3v3h4V3M5 13V9.5h6V13" '+SW+'/></svg>',
+  clear:'<svg viewBox="0 0 16 16"><path d="M6 12 3 9l6.5-6L13 6.5 8.5 11z" '+SW+'/><path d="M4 13h9" '+SW+'/></svg>',
+  fontcolor:'<svg viewBox="0 0 16 16"><text x="8" y="10.5" text-anchor="middle" font-size="11" font-weight="700" fill="currentColor" font-family="Georgia,serif">A</text><rect x="3.5" y="12" width="9" height="2.4" rx="0.6" fill="#c0392b"/></svg>',
+  mark:'<svg viewBox="0 0 16 16"><rect x="3" y="7" width="10" height="5" rx="1" fill="#fff176"/><text x="8" y="11" text-anchor="middle" font-size="9" font-weight="700" fill="currentColor" font-family="Georgia,serif">A</text></svg>',
+  ul:'<svg viewBox="0 0 16 16"><circle cx="3.5" cy="4" r="1.2" fill="currentColor"/><circle cx="3.5" cy="8" r="1.2" fill="currentColor"/><circle cx="3.5" cy="12" r="1.2" fill="currentColor"/><path d="M6.5 4h7M6.5 8h7M6.5 12h7" '+SW+'/></svg>',
+  ol:'<svg viewBox="0 0 16 16"><text x="2.5" y="5.5" font-size="5.5" fill="currentColor">1</text><text x="2.5" y="10.5" font-size="5.5" fill="currentColor">2</text><text x="2.5" y="15" font-size="5.5" fill="currentColor">3</text><path d="M7 4h6.5M7 8.5h6.5M7 13h6.5" '+SW+'/></svg>',
+  al:'<svg viewBox="0 0 16 16"><path d="M2.5 4h11M2.5 8h7M2.5 12h9" '+SW+'/></svg>',
+  ac:'<svg viewBox="0 0 16 16"><path d="M2.5 4h11M4.5 8h7M3.5 12h9" '+SW+'/></svg>',
+  ar:'<svg viewBox="0 0 16 16"><path d="M2.5 4h11M6.5 8h7M4.5 12h9" '+SW+'/></svg>',
+  aj:'<svg viewBox="0 0 16 16"><path d="M2.5 4h11M2.5 8h11M2.5 12h11" '+SW+'/></svg>',
+  search:'<svg viewBox="0 0 16 16"><circle cx="7" cy="7" r="4" '+SW+'/><path d="M10 10l3.5 3.5" '+SW+'/></svg>',
+  table:'<svg viewBox="0 0 16 16"><rect x="2.5" y="3" width="11" height="10" rx="1" '+SW+'/><path d="M2.5 6.5h11M6.5 6.5V13" '+SW+'/></svg>',
+  image:'<svg viewBox="0 0 16 16"><rect x="2.5" y="3" width="11" height="10" rx="1" '+SW+'/><circle cx="6" cy="6.5" r="1.3" fill="currentColor"/><path d="M4 11l3-3 2.5 2.5L11.5 8l2.5 3" '+SW+'/></svg>',
+  link:'<svg viewBox="0 0 16 16"><path d="M6.5 9.5l3-3" '+SW+'/><path d="M7 5l1.5-1.5a2.5 2.5 0 0 1 3.5 3.5L10.5 8.5" '+SW+'/><path d="M9 11l-1.5 1.5a2.5 2.5 0 0 1-3.5-3.5L5.5 7.5" '+SW+'/></svg>',
+  hr:'<svg viewBox="0 0 16 16"><path d="M2.5 8h11" '+SW+'/><path d="M4 4.5h8M4 11.5h8" stroke="currentColor" stroke-width="1" stroke-linecap="round" opacity=".35"/></svg>',
+  quote:'<svg viewBox="0 0 16 16"><path d="M3 5h4v4H4.5A1.5 1.5 0 0 0 3 10.5z" '+SW+'/><path d="M9 5h4v4h-2.5A1.5 1.5 0 0 0 9 10.5z" '+SW+'/><path d="M3 13h10" '+SW+'/></svg>',
+  footnote:'<svg viewBox="0 0 16 16"><path d="M3 11h10M3 13.5h10" '+SW+'/><text x="8" y="7" text-anchor="middle" font-size="7" fill="currentColor" font-family="Georgia,serif">1</text></svg>',
+  comment:'<svg viewBox="0 0 16 16"><path d="M2.5 3.5h11v7h-6L4 13.5v-3H2.5z" '+SW+'/></svg>'
+};
+function showRibbon(page){
+  document.querySelectorAll('.tab').forEach(function(t){t.classList.toggle('active',t.dataset.page===page)});
+  document.querySelectorAll('.ribbon-page').forEach(function(p){p.classList.toggle('active',p.dataset.page===page)});
+}
+
 // ═══ 初始化 ═══
 (function init(){
+  document.querySelectorAll('[data-icon]').forEach(function(el){
+    el.innerHTML=ICONS[el.dataset.icon]||'';
+  });
   var src=DEFAULT_SRC;
   if(DOC_DATA&&DOC_DATA.source)src=DOC_DATA.source;
   buildSyntaxPane();
