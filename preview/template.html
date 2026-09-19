@@ -132,7 +132,8 @@ input.docname:focus{outline:none;border-color:var(--accent);background:#fff}
 .sheet{width:210mm;min-height:297mm;background:#fff;box-shadow:0 1px 4px rgba(0,0,0,.14),0 0 1px rgba(0,0,0,.08);padding:20mm;position:relative;flex:none}
 .sheet .folio{position:absolute;bottom:8mm;left:0;right:0;text-align:center;font-size:9pt;color:#b5b7bb;font-family:var(--sans)}
 .paper{font-family:var(--serif);font-size:11pt;line-height:1.9;color:#303238;line-break:strict;outline:none}
-.paper [data-bid]{position:relative}
+.paper [data-bid]:empty::after{content:'¶';color:#ccc;font-size:10pt}
+.paper [data-bid]{position:relative;min-height:1em}
 .paper [data-bid]:focus-within{background:rgba(75,111,141,.04)}
 .paper .gap{height:0.55em}
 .paper h1{font-size:22pt;line-height:1.4;font-weight:700;color:#1a1c1f}
@@ -197,6 +198,7 @@ input.docname:focus{outline:none;border-color:var(--accent);background:#fff}
 <div class="tab" data-page="insert" onclick="showRibbon('insert')">插入</div>
 <div class="tab" data-page="page" onclick="showRibbon('page')">页面</div>
 <div class="tab" data-page="file" onclick="showRibbon('file')">文件</div>
+<button class="rbtn" style="width:28px;height:26px;margin-left:auto;margin-right:8px" onclick="toggleRibbonCollapse()" id="btn-collapse" title="折叠/展开功能区 (Ctrl+F1)"><span style="font-size:12px">▲</span></button>
 <div class="view-tabs">
 <button class="active" data-mode="display">显示</button>
 <button data-mode="syntax">语法</button>
@@ -375,7 +377,8 @@ input.docname:focus{outline:none;border-color:var(--accent);background:#fff}
 <span class="item" id="st-pos">第 1 页 · 行 1, 列 1</span>
 <span class="spacer"></span>
 <div class="statuspop" id="diagpop"></div>
-<select id="sel-zoom" style="background:#fff;color:#303238;border:none;border-radius:3px;height:20px;padding:0 4px" onchange="applyZoom(this.value)">
+<input type="range" id="zoom-slider" min="50" max="200" value="100" style="width:80px;accent-color:#4b6f8d" oninput="applyZoom(this.value+'%');document.getElementById('sel-zoom').value=String(Math.round(this.value/5)*5/100)||'1'" title="缩放">
+<select id="sel-zoom" style="background:rgba(255,255,255,.15);color:#fff;border:1px solid rgba(255,255,255,.3);border-radius:3px;height:20px;padding:0 4px" onchange="applyZoom(this.value)">
 <option value="0.7">70%</option><option value="0.85">85%</option><option value="1" selected>100%</option><option value="1.25">125%</option><option value="1.5">150%</option>
 </select>
 <span class="item" id="st-page">共 — 页</span>
@@ -2020,6 +2023,43 @@ function addFileTab(name){
   activeFile=openFiles.length-1;
 }
 
+// ═══ 功能区折叠 ═══
+var ribbonCollapsed=false;
+function toggleRibbonCollapse(){
+  ribbonCollapsed=!ribbonCollapsed;
+  var r=document.querySelector('.ribbon');
+  r.style.display=ribbonCollapsed?'none':'block';
+  document.getElementById('btn-collapse').style.transform=ribbonCollapsed?'rotate(180deg)':'';
+}
+
+// ═══ 字数统计对话框 ═══
+function showWordCount(){
+  var chars=0, charsSp=0, paras=0, words=0;
+  var paper=document.querySelector('#display-pane .paper');
+  if(paper){
+    var txt=paper.textContent;
+    charsSp=txt.replace(/\s{2,}/g,' ').trim().length;
+    chars=txt.replace(/\s/g,'').length;
+    paras=gNodes.filter(function(n){return n.kind==='para'||n.kind==='heading'}).length;
+  }
+  var pop=document.getElementById('diagpop');
+  pop.innerHTML='<div style="font-weight:600;margin-bottom:6px">字数统计</div>'
+    +'<div>字数(不计空格): <b>'+chars+'</b></div>'
+    +'<div>字符数(计空格): <b>'+charsSp+'</b></div>'
+    +'<div>段落数: <b>'+paras+'</b></div>'
+    +'<div>页数: <b>'+gPages.length+'</b></div>';
+  pop.style.display='block';
+  setTimeout(function(){pop.style.display='none'},4000);
+}
+
+// ═══ 色板最近使用 ═══
+var recentColors=[];
+function pushRecent(c){
+  recentColors=recentColors.filter(function(x){return x!==c});
+  recentColors.unshift(c);
+  if(recentColors.length>8)recentColors.pop();
+  try{localStorage.setItem('awen-recent-colors',JSON.stringify(recentColors))}catch(e){}
+}
 // ═══ 全局快捷键(对照 Word)═══
 document.addEventListener('keydown',function(e){
   var mod=e.ctrlKey||e.metaKey;
