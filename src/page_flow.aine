@@ -1,0 +1,149 @@
+// page_flow.aine —— 分页流(M5 补齐;总方案 §42;核心规范 §10.3、§7.2)
+// 遍历 Document State 按块流排版:逐行落入页;注释(§11.3)与块级注释不进版面;
+// 图占位 40mm,页尾放不下整块推页。
+
+struct PlacedLine {
+    node_id: i32
+    page: i32
+    y_mm: f64
+    text: String
+}
+
+struct NodeBox {
+    node_id: i32
+    start_page: i32
+    end_page: i32
+    lines: i32
+}
+
+struct PageFlowResult {
+    pages: i32
+    placed: Vec<PlacedLine>
+    boxes: Vec<NodeBox>
+}
+
+// 全量分页排版(A4,11pt,行距 1.65;与 layout.aine 的 PageModel 一致)
+fn page_flow(state: DocState) -> PageFlowResult {
+    let pm = page_model_a4()
+    let font = 11.0
+    let line_h = font * 1.65 * 0.352778
+    let max_em = content_width(pm) / (font * 0.352778)
+    let content_h = content_height(pm)
+
+    var page = 0
+    var y = 0.0
+    var placed: Vec<PlacedLine> = []
+    var boxes: Vec<NodeBox> = []
+
+    for node in state.nodes {
+        if node.kind == "comment" { continue }
+        // §11.3:块级注释(@[comment]…@[/comment])不参与渲染
+        if node.kind == "raw" && node.raw_cmd == Comment { continue }
+
+        let start_page = page
+        var lines = 0
+
+        if node.kind == "heading" || node.kind == "para" || node.kind == "quote" {
+            var text = inline_plain(node.inline)
+            if node.kind == "quote" { text = "引用:" + text }
+            for l in layout_line_break(text, max_em) {
+                placed = placed.push(PlacedLine { node_id: node.id, page: page, y_mm: y, text: l })
+                lines += 1
+                y = y + line_h
+                if y + line_h > content_h {
+                    page = page + 1
+                    y = 0.0
+                }
+            }
+            // 标题段后留白(h1/h2 整行距)
+            if node.kind == "heading" && node.level <= 2 { y = y + line_h }
+        } else if node.kind == "list" {
+            var idx = 0
+            for item in node.list_items {
+                idx += 1
+                var marker = "- "
+                if node.list_ordered { marker = f"{idx}. " }
+                let text = marker + inline_plain(item)
+                for l in layout_line_break(text, max_em) {
+                    placed = placed.push(PlacedLine { node_id: node.id, page: page, y_mm: y, text: l })
+                    lines += 1
+                    y = y + line_h
+                    if y + line_h > content_h {
+                    page = page + 1
+                    y = 0.0
+                }
+                }
+            }
+        } else if node.kind == "hr" {
+            placed = placed.push(PlacedLine { node_id: node.id, page: page, y_mm: y, text: "――――――――――" })
+            lines += 1
+            y = y + line_h
+            if y + line_h > content_h {
+                page = page + 1
+                y = 0.0
+            }
+        } else if node.kind == "raw" {
+            for l in node.raw_lines {
+                placed = placed.push(PlacedLine { node_id: node.id, page: page, y_mm: y, text: l })
+                lines += 1
+                y = y + line_h
+                if y + line_h > content_h {
+                    page = page + 1
+                    y = 0.0
+                }
+            }
+        } else if node.kind == "table" {
+            // 表头(tbl_header 为单行,元素即 cell)
+            if node.tbl_header.len() > 0 {
+                var row = "|"
+                for cell in node.tbl_header {
+                    row = row + " " + inline_plain(cell) + " |"
+                }
+                placed = placed.push(PlacedLine { node_id: node.id, page: page, y_mm: y, text: row })
+                lines += 1
+                y = y + line_h
+                if y + line_h > content_h {
+                    page = page + 1
+                    y = 0.0
+                }
+            }
+            // 数据行(行 × cell,cell 为行内内容)
+            for r in node.tbl_rows {
+                var row = "|"
+                for cell in r {
+                    row = row + " " + inline_plain(cell) + " |"
+                }
+                placed = placed.push(PlacedLine { node_id: node.id, page: page, y_mm: y, text: row })
+                lines += 1
+                y = y + line_h
+                if y + line_h > content_h {
+                    page = page + 1
+                    y = 0.0
+                }
+            }
+        } else if node.kind == "obj" {
+            if node.obj_cu.cmd == Image || node.obj_cu.cmd == Figure {
+                // 图占位 40mm:页尾放不下 → 整块推到下一页
+                if y + 40.0 > content_h {
+                    page = page + 1
+                    y = 40.0
+                } else {
+                    y = y + 40.0
+                }
+                lines += 1
+            } else {
+                placed = placed.push(PlacedLine { node_id: node.id, page: page, y_mm: y, text: f"@[{node.obj_cu.name_raw}]" })
+                lines += 1
+                y = y + line_h
+                if y + line_h > content_h {
+                    page = page + 1
+                    y = 0.0
+                }
+            }
+        }
+
+        boxes = boxes.push(NodeBox { node_id: node.id, start_page: start_page, end_page: page, lines: lines })
+    }
+
+    return PageFlowResult { pages: page + 1, placed: placed, boxes: boxes }
+}
