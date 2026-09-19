@@ -26,7 +26,7 @@ input.findbox{border:1px solid #c9cbce;border-radius:4px;padding:4px 6px;font-si
 .view-tabs button{font-size:12px;padding:4px 14px;border-radius:5px;color:#6b6d72}
 .view-tabs button.active{background:#fff;color:#222;box-shadow:0 1px 2px rgba(0,0,0,.08)}
 .ribbon{background:var(--bg3);border-bottom:1px solid var(--border2);flex:none;user-select:none}
-.ribbon-page{display:none;align-items:stretch;padding:4px 10px 0;overflow-x:auto;min-height:92px}
+.ribbon-page{display:none;align-items:stretch;padding:4px 10px 0;min-height:92px;height:92px}
 .ribbon-page.active{display:flex}
 .rgroup{display:flex;flex-direction:column;padding:0 12px;border-right:1px solid #e0e1e4;flex:none;justify-content:space-between}
 .rgroup:last-child{border-right:0}
@@ -42,7 +42,14 @@ input.findbox{border:1px solid #c9cbce;border-radius:4px;padding:4px 6px;font-si
 .rbtn.supb span,.rbtn.subb span{font-size:13px}
 .rbtn.supb span{vertical-align:super}.rbtn.subb span{vertical-align:sub}
 .rgrid{display:grid;grid-template-columns:repeat(4,30px);gap:3px}
-.rgrid3{display:grid;grid-template-columns:repeat(2,30px);gap:3px}
+.rgrid3{display:grid;grid-template-columns:repeat(3,30px);gap:3px}
+.rgrid4{display:grid;grid-template-columns:repeat(4,30px);gap:3px}
+.fcol{display:flex;flex-direction:column;gap:3px}
+.frow{display:flex;gap:3px;align-items:center}
+.frow select{height:28px;font-size:12px;padding:2px 5px}
+.frow #sel-style{width:82px}
+.frow #sel-font{width:112px}
+.frow #sel-size{width:68px}
 .vsel{display:flex;flex-direction:column;justify-content:center;gap:4px;padding:0 2px}
 .vsel select{height:26px;padding:2px 5px;font-size:12px}
 .vsel #sel-font{width:126px}
@@ -53,11 +60,12 @@ input.findbox{border:1px solid #c9cbce;border-radius:4px;padding:4px 6px;font-si
 .colordrop{position:relative;display:flex;flex:none}
 .colordrop .caret{width:13px;height:30px;display:flex;align-items:center;justify-content:center;border-radius:4px;font-size:9px;color:#5a5c60}
 .colordrop .caret:hover{background:#e6e7e9}
-.cpalette{display:none;position:absolute;top:34px;left:0;z-index:50;background:#fff;border:1px solid #c9cbce;border-radius:6px;box-shadow:0 4px 14px rgba(0,0,0,.14);padding:10px;width:236px}
+.cpalette{display:none;position:absolute;top:36px;left:0;z-index:50;background:#fff;border:1px solid #c9cbce;border-radius:6px;box-shadow:0 4px 14px rgba(0,0,0,.14);padding:12px;width:auto}
+.cpalette .cp-grid{display:grid;grid-template-columns:repeat(10,22px);gap:4px}
+.cpalette .sw{width:22px;height:22px;border-radius:3px;border:1px solid rgba(0,0,0,.12);cursor:pointer}
 .cpalette.open{display:block}
 .cpalette .cp-title{font-size:11px;color:#6b6d72;margin:2px 0 5px}
-.cpalette .cp-grid{display:grid;grid-template-columns:repeat(10,20px);gap:3px}
-.cpalette .sw{width:20px;height:20px;border-radius:3px;border:1px solid rgba(0,0,0,.12);cursor:pointer}
+
 .cpalette .sw:hover{outline:2px solid var(--accent);outline-offset:1px}
 .cpalette .cp-more{margin-top:8px;font-size:12px;color:#2a4a66;cursor:pointer;display:flex;align-items:center;gap:5px}
 .cpalette .cp-more:hover{text-decoration:underline}
@@ -129,7 +137,8 @@ input.findbox{border:1px solid #c9cbce;border-radius:4px;padding:4px 6px;font-si
 <button class="rbtn" onclick="doUndo()" title="撤销 (Ctrl+Z)"><span data-icon="undo"></span></button>
 <button class="rbtn" onclick="doRedo()" title="重做 (Ctrl+Y)"><span data-icon="redo"></span></button>
 </div><div class="rg-label">剪贴板</div></div>
-<div class="rgroup"><div class="rg-body"><div class="vsel">
+<div class="rgroup"><div class="rg-body"><div class="fcol">
+<div class="frow">
 <select id="sel-style" title="段落样式" onchange="applyStyle(this.value)">
 <option value="" selected>正文</option><option value="1">标题 1</option><option value="2">标题 2</option><option value="3">标题 3</option><option value="4">标题 4</option><option value="5">标题 5</option><option value="6">标题 6</option>
 </select>
@@ -140,16 +149,13 @@ input.findbox{border:1px solid #c9cbce;border-radius:4px;padding:4px 6px;font-si
 <option value="10.5" selected>五号</option><option value="9">小五</option><option value="11">11 号</option><option value="12">小四</option><option value="14">四号</option><option value="16">三号</option><option value="18">二号</option><option value="22">一号</option>
 </select>
 </div>
-<div class="rgrid">
+<div class="frow">
 <button class="rbtn b" onclick="fmtCmd('bold')" title="加粗 (Ctrl+B)">B</button>
 <button class="rbtn i" onclick="fmtCmd('italic')" title="倾斜 (Ctrl+I)">I</button>
 <button class="rbtn u" onclick="fmtCmd('underline')" title="下划线 (Ctrl+U)"><span style="text-decoration:underline">U</span></button>
 <button class="rbtn s" onclick="fmtCmd('strikeThrough')" title="删除线"><span style="text-decoration:line-through">S</span></button>
 <button class="rbtn supb" onclick="fmtCmd('superscript')" title="上标"><span>x²</span></button>
 <button class="rbtn subb" onclick="fmtCmd('subscript')" title="下标"><span>x₂</span></button>
-<button class="rbtn mono" onclick="fmtCmdInline()" title="行内代码">&lt;/&gt;</button>
-<button class="rbtn" onclick="fmtCmd('removeFormat')" title="清除格式"><span data-icon="clear"></span></button>
-</div>
 <div class="colordrop">
 <button class="rbtn" onclick="applyColor(curFore)" title="字体颜色(下拉选更多颜色)"><span data-icon="fontcolor"></span></button>
 <button class="caret" onclick="togglePalette(event,'pal-fore')">▾</button>
@@ -160,7 +166,10 @@ input.findbox{border:1px solid #c9cbce;border-radius:4px;padding:4px 6px;font-si
 <button class="caret" onclick="togglePalette(event,'pal-mark')">▾</button>
 <div class="cpalette" id="pal-mark"></div>
 </div>
-</div><div class="rg-label">字体</div></div>
+<button class="rbtn mono" onclick="fmtCmdInline()" title="行内代码">&lt;/&gt;</button>
+<button class="rbtn" onclick="fmtCmd('removeFormat')" title="清除格式"><span data-icon="clear"></span></button>
+</div>
+</div></div><div class="rg-label">字体</div></div>
 <div class="rgroup"><div class="rg-body">
 <div class="rgrid3">
 <button class="rbtn" onclick="listCmd('ul')" title="项目符号列表"><span data-icon="ul"></span></button>
@@ -186,13 +195,14 @@ input.findbox{border:1px solid #c9cbce;border-radius:4px;padding:4px 6px;font-si
 </div>
 <div class="ribbon-page" data-page="insert">
 <div class="rgroup"><div class="rg-body">
-<div class="rgrid3">
+<div class="rgrid4">
 <button class="rbtn" onclick="insertBlock('table')" title="插入表格"><span data-icon="table"></span></button>
 <button class="rbtn" onclick="insertBlock('image')" title="插入图片"><span data-icon="image"></span></button>
 <button class="rbtn" onclick="insertBlock('link')" title="插入链接"><span data-icon="link"></span></button>
 <button class="rbtn" onclick="insertBlock('hr')" title="插入分隔线"><span data-icon="hr"></span></button>
 <button class="rbtn" onclick="insertBlock('quote')" title="插入引用"><span data-icon="quote"></span></button>
 <button class="rbtn" onclick="insertBlock('footnote')" title="插入脚注"><span data-icon="footnote"></span></button>
+<button class="rbtn" onclick="insertBlock('toc')" title="插入目录 @[toc depth: 2]"><span data-icon="toc"></span></button>
 </div>
 </div><div class="rg-label">插入</div></div>
 <div class="rgroup"><div class="rg-body">
@@ -208,11 +218,14 @@ input.findbox{border:1px solid #c9cbce;border-radius:4px;padding:4px 6px;font-si
 <option value="20" selected>正常 20mm</option><option value="12.7">窄 12.7mm</option><option value="25.4">宽 25.4mm</option><option value="30">宽 30mm</option>
 </select>
 </div></div><div class="rg-label">纸张</div></div>
-<div class="rgroup"><div class="rg-body"><div class="vsel">
+<div class="rgroup"><div class="rg-body">
+<button class="sbtn" onclick="toggleFirstLine()" id="btn-firstline" title="切换首行缩进 @[first-line 2em]">首行缩进</button>
+<div class="vsel">
 <select id="sel-linesp" title="行间距" onchange="applyLineSpacing(this.value)">
 <option value="1.9" selected>1.9 倍</option><option value="1.5">1.5 倍</option><option value="1.75">1.75 倍</option><option value="2.2">2.2 倍</option>
 </select>
-</div></div><div class="rg-label">段落设置</div></div>
+</div>
+</div><div class="rg-label">段落设置</div></div>
 </div>
 <div class="ribbon-page" data-page="file">
 <div class="rgroup"><div class="rg-body"><div class="rgrid3">
@@ -241,7 +254,7 @@ input.findbox{border:1px solid #c9cbce;border-radius:4px;padding:4px 6px;font-si
 <span class="item" id="st-labels">Label —</span>
 <span class="item" id="st-find"></span>
 <span class="spacer"></span>
-<select id="sel-zoom" style="background:transparent;color:#fff;border-color:rgba(255,255,255,.4)" onchange="applyZoom(this.value)">
+<select id="sel-zoom" style="background:#fff;color:#303238;border:none;border-radius:3px;height:20px;padding:0 4px" onchange="applyZoom(this.value)">
 <option value="0.7">70%</option><option value="0.85">85%</option><option value="1" selected>100%</option><option value="1.25">125%</option><option value="1.5">150%</option>
 </select>
 <span class="item" id="st-page">—</span>
@@ -656,7 +669,7 @@ function serializeAll(){
     paper.childNodes.forEach(function(el){
       if(el.nodeType!==1)return;
       if(el.classList.contains('gap'))return;
-      if(el.classList.contains('docset')){ out.push(el.textContent); prevKind='docset'; return }
+      if(el.classList.contains('docset')){ if(out.length&&out[out.length-1].trim()!==''&&prevKind!=='docset')out.push(''); out.push(el.textContent); prevKind='docset'; return }
       if(el.classList.contains('comment-src')){ out.push(el.dataset.raw||el.textContent); prevKind='comment'; return }
       // 原生 Enter 拆出的新块没有 data-bid,按通用规则识别类型
       var kind=el.dataset.kind||(/^H[1-6]$/.test(el.tagName)?'heading':el.tagName==='UL'?'ul':el.tagName==='OL'?'ol':el.tagName==='BLOCKQUOTE'?'quote':el.tagName==='TABLE'?'table':el.tagName==='HR'?'hr':'para');
@@ -870,6 +883,7 @@ function insertBlock(kind){
     link:['@[link 链接文字 url: https://example.com]'],
     image:['@[image 图片.png]'],
     table:['@[table demo]','| 列1 | 列2 |','| --- | --- |','| 内容 | 内容 |','@[/table]'],
+    toc:['@[toc depth: 2]'],
     comment:['@[comment 批注内容,不参与渲染]'],
     footnote:['@[footnote 1 脚注内容]']
   };
@@ -1026,6 +1040,21 @@ function applyLineSpacing(v){
   LINE_H=parseFloat(v)||1.9;
   recalcPage();
   render(gSrc);
+}
+
+// ═══ 首行缩进开关(@[first-line 2em] 文档级)═══
+function toggleFirstLine(){
+  var lines=gSrc.split('\n');
+  var idx=-1;
+  for(var i=0;i<lines.length;i++){ if(lines[i].indexOf('@[first-line')===0){idx=i;break} }
+  if(idx>=0){ lines.splice(idx,1); document.getElementById('btn-firstline').classList.remove('on') }
+  else{
+    var at=0;
+    for(var j=0;j<lines.length;j++){ if(lines[j].indexOf('@[')===0)at=j+1; else break }
+    lines.splice(at,0,'@[first-line 2em]');
+    document.getElementById('btn-firstline').classList.add('on');
+  }
+  setSrc(lines.join('\n'));
 }
 
 // ═══ 导出与打印 ═══
@@ -1232,7 +1261,8 @@ var ICONS={
   footnote:'<svg viewBox="0 0 16 16"><path d="M3 11h10M3 13.5h10" '+SW+'/><text x="8" y="7" text-anchor="middle" font-size="7" fill="currentColor" font-family="Georgia,serif">1</text></svg>',
   comment:'<svg viewBox="0 0 16 16"><path d="M2.5 3.5h11v7h-6L4 13.5v-3H2.5z" '+SW+'/></svg>',
   print:'<svg viewBox="0 0 16 16"><path d="M4.5 6V2.5h7V6M4.5 11.5H2.5v-5h11v5h-2" '+SW+'/><rect x="4.5" y="9.5" width="7" height="4" '+SW+'/></svg>',
-  pick:'<svg viewBox="0 0 16 16"><circle cx="8" cy="8" r="5" '+SW+'/><path d="M8 3a5 5 0 0 1 0 10" fill="currentColor"/></svg>'
+  pick:'<svg viewBox="0 0 16 16"><circle cx="8" cy="8" r="5" '+SW+'/><path d="M8 3a5 5 0 0 1 0 10" fill="currentColor"/></svg>',
+  toc:'<svg viewBox="0 0 16 16"><path d="M2.5 3.5h4M2.5 8h3M2.5 12.5h4" '+SW+'/><path d="M8.5 3.5h5M9.5 8h4M8.5 12.5h5" '+SW+'/></svg>'
 };
 function showRibbon(page){
   document.querySelectorAll('.tab').forEach(function(t){t.classList.toggle('active',t.dataset.page===page)});
@@ -1252,6 +1282,7 @@ function showRibbon(page){
   var norm=serializeAll();
   if(norm!==src){ render(norm); recordHist(norm,false); }
   recordHist(gSrc,false);
+  if(gSrc.indexOf('@[first-line')>=0){ var b=document.getElementById('btn-firstline'); if(b)b.classList.add('on') }
 })();
 </script>
 </body>
