@@ -33,6 +33,7 @@ module page_flow;
 module tests_common;
 module tests_property;
 module tests_layout;
+module tests_incremental;
 module tests_lex;
 module tests_integration;
 module tests_fmt_inspect;

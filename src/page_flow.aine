@@ -1,6 +1,9 @@
-// page_flow.aine —— 分页流(M5 补齐;总方案 §42;核心规范 §10.3、§7.2)
-// 遍历 Document State 按块流排版:逐行落入页;注释(§11.3)与块级注释不进版面;
-// 图占位 40mm,页尾放不下整块推页。
+// page_flow.aine —— 分页流(M5-a 全量;P1-2 增量排版)
+// §42:失效传播 + 稳定点终止 —— 定位首个内容变化节点,从其在上一轮的
+// 页/纵向光标恢复重排;每排完一个节点,若该节点的恢复状态(节点 ID + 页 +
+// 纵向偏移 + 内容签名)与上一轮完全一致,其后内容必然不变 → 复制旧结果终止。
+// 注释(§11.3)与块级注释不进版面;图占位 40mm,页尾放不下整块推页。
+// ⚠ Aine 限制:结构体字段不可赋值 → 光标用标量 (page, y) 贯穿传递。
 
 struct PlacedLine {
     node_id: i32
@@ -20,130 +23,378 @@ struct PageFlowResult {
     pages: i32
     placed: Vec<PlacedLine>
     boxes: Vec<NodeBox>
+    // 每个节点的内容签名(文档序,含注释;§42 稳定点判定与首变定位)
+    sigs: Vec<String>
+    // 增量统计(全量排版两值均为 0)
+    reused_lines: i32
+    recomputed_lines: i32
+    // 末尾光标(增量追加场景恢复用)
+    end_page: i32
+    end_y: f64
 }
 
-// 全量分页排版(A4,11pt,行距 1.65;与 layout.aine 的 PageModel 一致)
-fn page_flow(state: DocState) -> PageFlowResult {
+// 排版上下文(不可变部分)
+struct FlowCtx {
+    line_h: f64
+    max_em: f64
+    content_h: f64
+    gap_lines: f64
+    img_h: f64
+}
+
+fn page_flow_ctx() -> FlowCtx {
     let pm = page_model_a4()
     let font = 11.0
-    let line_h = font * 1.65 * 0.352778
-    let max_em = content_width(pm) / (font * 0.352778)
-    let content_h = content_height(pm)
+    return FlowCtx {
+        line_h: font * 1.65 * 0.352778,
+        max_em: content_width(pm) / (font * 0.352778),
+        content_h: content_height(pm),
+        gap_lines: 1.0,
+        img_h: 40.0,
+    }
+}
 
+// 单节点排版结果:新光标(标量)+ 行数 + 行集 + 盒;lines = -1 表示无行无盒(注释)
+struct FlowOneOut {
+    page: i32
+    y: f64
+    lines: i32
+    placed: Vec<PlacedLine>
+    box_node: i32
+    box_start: i32
+    box_end: i32
+    box_lines: i32
+}
+
+fn page_flow_put(ctx: FlowCtx, page: i32, y: f64, node_id: i32, text: String, out: Vec<PlacedLine>) -> FlowOneOut {
+    let o = out.push(PlacedLine { node_id: node_id, page: page, y_mm: y, text: text })
+    var np = page
+    var ny = y + ctx.line_h
+    if ny + ctx.line_h > ctx.content_h {
+        np = np + 1
+        ny = 0.0
+    }
+    return FlowOneOut { page: np, y: ny, lines: 1, placed: o, box_node: 0, box_start: 0, box_end: 0, box_lines: 0 }
+}
+
+// 排一个节点。Comment/块级注释:lines = -1(无行无盒)
+fn page_flow_node(ctx: FlowCtx, node: SemNode, page: i32, y: f64, out: Vec<PlacedLine>) -> FlowOneOut {
+    let id = node.id
+    let box_start = page
+
+    if node.kind == "comment" {
+        return FlowOneOut { page: page, y: y, lines: -1, placed: out, box_node: 0, box_start: 0, box_end: 0, box_lines: 0 }
+    }
+    if node.kind == "raw" && node.raw_cmd == Comment {
+        return FlowOneOut { page: page, y: y, lines: -1, placed: out, box_node: 0, box_start: 0, box_end: 0, box_lines: 0 }
+    }
+
+    if node.kind == "heading" || node.kind == "para" || node.kind == "quote" {
+        var text = inline_plain(node.inline)
+        if node.kind == "quote" { text = "引用:" + text }
+        var o = out
+        var p = page
+        var yy = y
+        var n = 0
+        for l in layout_line_break(text, ctx.max_em) {
+            let r = page_flow_put(ctx, p, yy, id, l, o)
+            o = r.placed
+            p = r.page
+            yy = r.y
+            n = n + r.lines
+        }
+        if node.kind == "heading" && node.level <= 2 {
+            yy = yy + ctx.gap_lines * ctx.line_h
+            if yy + ctx.line_h > ctx.content_h {
+                p = p + 1
+                yy = 0.0
+            }
+        }
+        return FlowOneOut { page: p, y: yy, lines: n, placed: o, box_node: id, box_start: box_start, box_end: p, box_lines: n }
+    }
+    if node.kind == "list" {
+        var o = out
+        var p = page
+        var yy = y
+        var n = 0
+        var idx = 0
+        for item in node.list_items {
+            idx += 1
+            var marker = "- "
+            if node.list_ordered { marker = f"{idx}. " }
+            let text = marker + inline_plain(item)
+            for l in layout_line_break(text, ctx.max_em) {
+                let r = page_flow_put(ctx, p, yy, id, l, o)
+                o = r.placed
+                p = r.page
+                yy = r.y
+                n = n + r.lines
+            }
+        }
+        return FlowOneOut { page: p, y: yy, lines: n, placed: o, box_node: id, box_start: box_start, box_end: p, box_lines: n }
+    }
+    if node.kind == "hr" {
+        let r = page_flow_put(ctx, page, y, id, "――――――――――", out)
+        return FlowOneOut { page: r.page, y: r.y, lines: 1, placed: r.placed, box_node: id, box_start: box_start, box_end: r.page, box_lines: 1 }
+    }
+    if node.kind == "raw" {
+        var o = out
+        var p = page
+        var yy = y
+        var n = 0
+        for l in node.raw_lines {
+            let r = page_flow_put(ctx, p, yy, id, l, o)
+            o = r.placed
+            p = r.page
+            yy = r.y
+            n = n + r.lines
+        }
+        return FlowOneOut { page: p, y: yy, lines: n, placed: o, box_node: id, box_start: box_start, box_end: p, box_lines: n }
+    }
+    if node.kind == "table" {
+        var o = out
+        var p = page
+        var yy = y
+        var n = 0
+        if node.tbl_header.len() > 0 {
+            var row = "|"
+            for cell in node.tbl_header {
+                row = row + " " + inline_plain(cell) + " |"
+            }
+            let r = page_flow_put(ctx, p, yy, id, row, o)
+            o = r.placed
+            p = r.page
+            yy = r.y
+            n = n + r.lines
+        }
+        for r2 in node.tbl_rows {
+            var row = "|"
+            for cell in r2 {
+                row = row + " " + inline_plain(cell) + " |"
+            }
+            let r = page_flow_put(ctx, p, yy, id, row, o)
+            o = r.placed
+            p = r.page
+            yy = r.y
+            n = n + r.lines
+        }
+        return FlowOneOut { page: p, y: yy, lines: n, placed: o, box_node: id, box_start: box_start, box_end: p, box_lines: n }
+    }
+    if node.kind == "obj" {
+        if node.obj_cu.cmd == Image || node.obj_cu.cmd == Figure {
+            var p = page
+            var yy = y
+            if yy + ctx.img_h > ctx.content_h {
+                p = p + 1
+                yy = ctx.img_h
+            } else {
+                yy = yy + ctx.img_h
+            }
+            return FlowOneOut { page: p, y: yy, lines: 1, placed: out, box_node: id, box_start: box_start, box_end: p, box_lines: 1 }
+        }
+        let r = page_flow_put(ctx, page, y, id, f"@[{node.obj_cu.name_raw}]", out)
+        return FlowOneOut { page: r.page, y: r.y, lines: 1, placed: r.placed, box_node: id, box_start: box_start, box_end: r.page, box_lines: 1 }
+    }
+    // 兜底:未知类别按一行处理
+    let r = page_flow_put(ctx, page, y, id, "…", out)
+    return FlowOneOut { page: r.page, y: r.y, lines: 1, placed: r.placed, box_node: id, box_start: box_start, box_end: r.page, box_lines: 1 }
+}
+
+// 节点内容签名(§42 稳定点判定;覆盖一切影响版面的内容)
+fn page_node_sig(n: SemNode) -> String {
+    var s = n.kind + "/" + f"{n.level}"
+    s = s + "|" + inline_plain(n.inline)
+    if n.kind == "comment" { s = s + "|" + n.comment_text }
+    if n.kind == "raw" {
+        for l in n.raw_lines { s = s + "|" + l }
+    }
+    if n.kind == "list" {
+        for it in n.list_items { s = s + "|" + inline_plain(it) }
+    }
+    if n.kind == "table" {
+        for cell in n.tbl_header { s = s + "|" + inline_plain(cell) }
+        for r in n.tbl_rows {
+            for cell in r { s = s + "|" + inline_plain(cell) }
+        }
+    }
+    if n.kind == "obj" { s = s + "|" + n.obj_cu.name_raw }
+    return s
+}
+
+fn page_flow_count_lines(placed: Vec<PlacedLine>, page: i32) -> i32 {
+    var n = 0
+    for l in placed {
+        if l.page == page { n = n + 1 }
+    }
+    return n
+}
+
+// 全量排版(M5-a)
+fn page_flow(state: DocState) -> PageFlowResult {
+    let ctx = page_flow_ctx()
     var page = 0
     var y = 0.0
     var placed: Vec<PlacedLine> = []
     var boxes: Vec<NodeBox> = []
+    var sigs: Vec<String> = []
 
     for node in state.nodes {
-        if node.kind == "comment" { continue }
-        // §11.3:块级注释(@[comment]…@[/comment])不参与渲染
-        if node.kind == "raw" && node.raw_cmd == Comment { continue }
+        sigs = sigs.push(page_node_sig(node))
+        let r = page_flow_node(ctx, node, page, y, placed)
+        placed = r.placed
+        page = r.page
+        y = r.y
+        if r.lines >= 0 {
+            boxes = boxes.push(NodeBox { node_id: node.id, start_page: r.box_start, end_page: r.box_end, lines: r.box_lines })
+        }
+    }
 
-        let start_page = page
-        var lines = 0
+    return PageFlowResult {
+        pages: page + 1,
+        placed: placed,
+        boxes: boxes,
+        sigs: sigs,
+        reused_lines: 0,
+        recomputed_lines: 0,
+        end_page: page,
+        end_y: y,
+    }
+}
 
-        if node.kind == "heading" || node.kind == "para" || node.kind == "quote" {
-            var text = inline_plain(node.inline)
-            if node.kind == "quote" { text = "引用:" + text }
-            for l in layout_line_break(text, max_em) {
-                placed = placed.push(PlacedLine { node_id: node.id, page: page, y_mm: y, text: l })
-                lines += 1
-                y = y + line_h
-                if y + line_h > content_h {
-                    page = page + 1
-                    y = 0.0
-                }
+// Label 锚点 → 页码(§7.2;导出路径用)
+fn page_flow_anchor_pages(state: DocState, result: PageFlowResult) -> Vec<(String, i32)> {
+    var out: Vec<(String, i32)> = []
+    let ls = collect_labels(state)
+    for e in ls {
+        for b in result.boxes {
+            if b.node_id == e.node_id {
+                out = out.push((e.label, b.start_page))
             }
-            // 标题段后留白(h1/h2 整行距)
-            if node.kind == "heading" && node.level <= 2 { y = y + line_h }
-        } else if node.kind == "list" {
-            var idx = 0
-            for item in node.list_items {
-                idx += 1
-                var marker = "- "
-                if node.list_ordered { marker = f"{idx}. " }
-                let text = marker + inline_plain(item)
-                for l in layout_line_break(text, max_em) {
-                    placed = placed.push(PlacedLine { node_id: node.id, page: page, y_mm: y, text: l })
-                    lines += 1
-                    y = y + line_h
-                    if y + line_h > content_h {
-                    page = page + 1
-                    y = 0.0
-                }
-                }
-            }
-        } else if node.kind == "hr" {
-            placed = placed.push(PlacedLine { node_id: node.id, page: page, y_mm: y, text: "――――――――――" })
-            lines += 1
-            y = y + line_h
-            if y + line_h > content_h {
-                page = page + 1
-                y = 0.0
-            }
-        } else if node.kind == "raw" {
-            for l in node.raw_lines {
-                placed = placed.push(PlacedLine { node_id: node.id, page: page, y_mm: y, text: l })
-                lines += 1
-                y = y + line_h
-                if y + line_h > content_h {
-                    page = page + 1
-                    y = 0.0
-                }
-            }
-        } else if node.kind == "table" {
-            // 表头(tbl_header 为单行,元素即 cell)
-            if node.tbl_header.len() > 0 {
-                var row = "|"
-                for cell in node.tbl_header {
-                    row = row + " " + inline_plain(cell) + " |"
-                }
-                placed = placed.push(PlacedLine { node_id: node.id, page: page, y_mm: y, text: row })
-                lines += 1
-                y = y + line_h
-                if y + line_h > content_h {
-                    page = page + 1
-                    y = 0.0
-                }
-            }
-            // 数据行(行 × cell,cell 为行内内容)
-            for r in node.tbl_rows {
-                var row = "|"
-                for cell in r {
-                    row = row + " " + inline_plain(cell) + " |"
-                }
-                placed = placed.push(PlacedLine { node_id: node.id, page: page, y_mm: y, text: row })
-                lines += 1
-                y = y + line_h
-                if y + line_h > content_h {
-                    page = page + 1
-                    y = 0.0
-                }
-            }
-        } else if node.kind == "obj" {
-            if node.obj_cu.cmd == Image || node.obj_cu.cmd == Figure {
-                // 图占位 40mm:页尾放不下 → 整块推到下一页
-                if y + 40.0 > content_h {
-                    page = page + 1
-                    y = 40.0
-                } else {
-                    y = y + 40.0
-                }
-                lines += 1
-            } else {
-                placed = placed.push(PlacedLine { node_id: node.id, page: page, y_mm: y, text: f"@[{node.obj_cu.name_raw}]" })
-                lines += 1
-                y = y + line_h
-                if y + line_h > content_h {
-                    page = page + 1
-                    y = 0.0
+        }
+    }
+    return out
+}
+
+// ── 增量排版(P1-2;§42:失效传播 + 稳定点终止)────────────────
+
+// 上一轮某节点的首行下标(无行返回 -1)
+fn prev_first_line(prev: PageFlowResult, node_id: i32) -> i32 {
+    var i = 0
+    while i < prev.placed.len() {
+        if prev.placed[i].node_id == node_id { return i }
+        i += 1
+    }
+    return -1
+}
+
+// 增量排版:与 page_flow(state) 结果严格一致,但复用上一轮未变前缀,
+// 并以稳定点提前终止。统计字段报告复用/重排行数。
+fn page_flow_incremental(state: DocState, prev: PageFlowResult) -> PageFlowResult {
+    let ctx = page_flow_ctx()
+    let nodes = state.nodes
+
+    // 1) 首变定位:第一个签名不同的节点(追加场景 = 第一个超出上一轮的下标)
+    var start_ix = nodes.len()
+    var k = 0
+    while k < nodes.len() {
+        if k >= prev.sigs.len() {
+            start_ix = k
+            break
+        }
+        if page_node_sig(nodes[k]) != prev.sigs[k] {
+            start_ix = k
+            break
+        }
+        k += 1
+    }
+    // 无内容变化:结果与上一轮相同(构造新值;Aine 不支持字段赋值)
+    if start_ix >= nodes.len() {
+        return PageFlowResult {
+            pages: prev.pages,
+            placed: prev.placed,
+            boxes: prev.boxes,
+            sigs: prev.sigs,
+            reused_lines: prev.placed.len(),
+            recomputed_lines: 0,
+            end_page: prev.end_page,
+            end_y: prev.end_y,
+        }
+    }
+
+    // 2) 恢复点:start_ix 节点(id = start_ix+1)在上一轮的首行
+    let resume_id = start_ix + 1
+    let li = prev_first_line(prev, resume_id)
+    var placed: Vec<PlacedLine> = []
+    var page = 0
+    var y = 0.0
+    var reused = 0
+    if li >= 0 {
+        var q = 0
+        while q < li {
+            placed = placed.push(prev.placed[q])
+            q += 1
+        }
+        reused = li
+        page = prev.placed[li].page
+        y = prev.placed[li].y_mm
+    } else {
+        // 恢复节点无行(注释等)或为纯追加:从上一轮末尾光标恢复
+        page = prev.end_page
+        y = prev.end_y
+    }
+
+    // 3) 从恢复点重排;逐节点尝试稳定点(m > start_ix 才允许判定)
+    var recomputed = 0
+    var boxes: Vec<NodeBox> = []
+    var stable_line = -1
+    var m = start_ix
+    while m < nodes.len() {
+        if m > start_ix {
+            let pi = prev_first_line(prev, m + 1)
+            if pi >= 0 && page_node_sig(nodes[m]) == prev.sigs[m] {
+                if prev.placed[pi].page == page && prev.placed[pi].y_mm == y {
+                    stable_line = pi
+                    break
                 }
             }
         }
-
-        boxes = boxes.push(NodeBox { node_id: node.id, start_page: start_page, end_page: page, lines: lines })
+        let r = page_flow_node(ctx, nodes[m], page, y, placed)
+        placed = r.placed
+        page = r.page
+        y = r.y
+        if r.lines >= 0 {
+            recomputed = recomputed + r.lines
+            boxes = boxes.push(NodeBox { node_id: nodes[m].id, start_page: r.box_start, end_page: r.box_end, lines: r.box_lines })
+        }
+        m = m + 1
     }
 
-    return PageFlowResult { pages: page + 1, placed: placed, boxes: boxes }
+    // 4) 稳定点后:复制上一轮剩余行与盒(签名相同 + 光标相同 → 必然一致)
+    if stable_line >= 0 {
+        var q = stable_line
+        while q < prev.placed.len() {
+            placed = placed.push(prev.placed[q])
+            q += 1
+        }
+        page = prev.end_page
+        y = prev.end_y
+        var b = 0
+        while b < prev.boxes.len() {
+            if prev.boxes[b].node_id > m {
+                boxes = boxes.push(prev.boxes[b])
+            }
+            b += 1
+        }
+    }
+
+    return PageFlowResult {
+        pages: page + 1,
+        placed: placed,
+        boxes: boxes,
+        sigs: prev.sigs,
+        reused_lines: placed.len() - recomputed,
+        recomputed_lines: recomputed,
+        end_page: page,
+        end_y: y,
+    }
 }

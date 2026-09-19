@@ -1,0 +1,160 @@
+// 测试模块:tests_incremental(P1-2:增量排版,§42 失效传播 + 稳定点终止)
+// 验收:增量结果与全量排版逐行一致;尾部/中段/追加场景的复用统计正确。
+// ⚠ Aine 字符串切片按字节 → 测试用"整行等值替换"构造编辑,避免切多字节字符。
+
+fn inc_multi_page_src() -> String {
+    var body = ""
+    var i = 0
+    while i < 200 {
+        body = body + "这一段重复很多次以撑满页面。"
+        i += 1
+    }
+    return "# 文档\n" + body + "\n中间段落甲。\n\n中间段落乙。\n\n尾段。\n"
+}
+
+// 整行等值替换(按行拆分比较,不做字节算术)
+fn inc_replace_line(src: String, old_line: String, new_line: String) -> String {
+    let lines = src.split("\n")
+    var out = ""
+    var i = 0
+    while i < lines.len() {
+        if lines[i] == old_line {
+            out = out + new_line
+        } else {
+            out = out + lines[i]
+        }
+        if i + 1 < lines.len() { out = out + "\n" }
+        i += 1
+    }
+    return out
+}
+
+fn inc_key(placed: Vec<PlacedLine>) -> String {
+    // y 不进 key(f64 不参与 f-string 插值);y 一致性由逐字段断言覆盖
+    var s = ""
+    for l in placed {
+        s = s + f"{l.node_id}|{l.page}|{l.text}\n"
+    }
+    return s
+}
+
+fn inc_assert_equal(a: PageFlowResult, b: PageFlowResult, ctx: String) {
+    assert(a.placed.len() == b.placed.len(), f"{ctx}: 行数 {a.placed.len()} vs {b.placed.len()}")
+    var i = 0
+    while i < a.placed.len() {
+        let x = a.placed[i]
+        let y = b.placed[i]
+        assert(x.node_id == y.node_id, f"{ctx}: 行 {i} node_id 漂移")
+        assert(x.page == y.page, f"{ctx}: 行 {i} 页码漂移")
+        assert(x.text == y.text, f"{ctx}: 行 {i} 文本漂移")
+        assert(x.y_mm == y.y_mm, f"{ctx}: 行 {i} y 漂移: {x.y_mm} vs {y.y_mm}")
+        i += 1
+    }
+    assert(a.pages == b.pages, f"{ctx}: 页数漂移")
+}
+
+@test
+fn page_flow_incremental_matches_full() -> Result<i32, String> {
+    let src = inc_multi_page_src()
+    let state = build_document(parse(lex(src)), src)
+    let prev = page_flow(state)
+    assert(prev.pages >= 2, "前置:应为多页")
+
+    // 尾段同长度整行替换(甲→乙):仅一个节点内容变化
+    let src2 = inc_replace_line(src, "中间段落甲。", "中间段落乙。")
+    let state2 = build_document(parse(lex(src2)), src2)
+
+    let inc = page_flow_incremental(state2, prev)
+    let full = page_flow(state2)
+    inc_assert_equal(inc, full, "尾段编辑")
+    Ok(0)
+}
+
+@test
+fn page_flow_incremental_tail_edit_reuses_prefix() -> Result<i32, String> {
+    // 尾段整行替换:失效定位在最后一个节点,前缀(含 64 行大段落)全部复用
+    let src = inc_multi_page_src()
+    let state = build_document(parse(lex(src)), src)
+    let prev = page_flow(state)
+
+    let src2 = inc_replace_line(src, "尾段。", "尾段改。")
+    let state2 = build_document(parse(lex(src2)), src2)
+
+    let inc = page_flow_incremental(state2, prev)
+    assert(inc.reused_lines > inc.recomputed_lines * 10,
+           f"稳定点应提前终止: reused={inc.reused_lines} recomputed={inc.recomputed_lines}")
+    let total = prev.placed.len()
+    assert(inc.reused_lines > total * 9 / 10, f"复用应 >90%: {inc.reused_lines}/{total}")
+    Ok(0)
+}
+
+@test
+fn page_flow_incremental_merged_para_edit_recomputes_tail() -> Result<i32, String> {
+    // §14 交互:编辑"中间段落甲。"会改变大段落节点(合并语义) →
+    // 失效从该节点起传播,重算其 65 行 + 后续,但结果必须与全量一致
+    let src = inc_multi_page_src()
+    let state = build_document(parse(lex(src)), src)
+    let prev = page_flow(state)
+
+    let src2 = inc_replace_line(src, "中间段落甲。", "中间段落乙。")
+    let state2 = build_document(parse(lex(src2)), src2)
+
+    let inc = page_flow_incremental(state2, prev)
+    let full = page_flow(state2)
+    inc_assert_equal(inc, full, "合并段落编辑")
+    Ok(0)
+}
+
+@test
+fn page_flow_incremental_middle_growth_propagates() -> Result<i32, String> {
+    // 中段整行替换为更长的行 → 后续节点整体下移:无稳定点,全部重算,仍与全量一致
+    let src = "# 文档\n第一段。\n\n中间段落。\n\n尾段。\n"
+    let state = build_document(parse(lex(src)), src)
+    let prev = page_flow(state)
+
+    var long_text = ""
+    var gi = 0
+    while gi < 30 {
+        long_text = long_text + "插入的很长内容。"
+        gi += 1
+    }
+    let grown = "中间段落。" + long_text
+    let src2 = inc_replace_line(src, "中间段落。", grown)
+    let state2 = build_document(parse(lex(src2)), src2)
+
+    let inc = page_flow_incremental(state2, prev)
+    let full = page_flow(state2)
+    inc_assert_equal(inc, full, "增长编辑")
+    Ok(0)
+}
+
+@test
+fn page_flow_incremental_append_case() -> Result<i32, String> {
+    // 文档尾追加新段:恢复点在上一轮末尾光标,新节点 Born
+    let src = "# 文档\n第一段。\n\n第二段。\n"
+    let state = build_document(parse(lex(src)), src)
+    let prev = page_flow(state)
+
+    let src2 = src + "新增尾段。\n"
+    let state2 = build_document(parse(lex(src2)), src2)
+    let inc = page_flow_incremental(state2, prev)
+    let full = page_flow(state2)
+
+    inc_assert_equal(inc, full, "追加")
+    assert(inc.reused_lines > 0, "旧段应复用")
+    Ok(0)
+}
+
+@test
+fn page_flow_incremental_no_change_is_free() -> Result<i32, String> {
+    // 内容无变化:直接返回上一轮结果,复用全部行
+    let src = inc_multi_page_src()
+    let state = build_document(parse(lex(src)), src)
+    let prev = page_flow(state)
+
+    let inc = page_flow_incremental(state, prev)
+    assert(inc.reused_lines == prev.placed.len(), "无变化应全复用")
+    assert(inc.recomputed_lines == 0, "无变化应零重算")
+    assert(inc.pages == prev.pages, "页数一致")
+    Ok(0)
+}
