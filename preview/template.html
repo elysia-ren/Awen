@@ -804,9 +804,6 @@ function blockHtml(b){
     case 'ol':return'<ol><li>'+fmtH(b.text)+'</li></ol>';
     case 'quote':return'<blockquote><p>'+fmtH(b.text)+'</p></blockquote>';
     case 'table':return tableHtml(b.rows);
-    case 'code':return'<div class="codeblock" contentEditable="false"><div class="code-lang">'+escHtml(b.lang||'')+'</div><pre><code>'+escHtml(b.text)+'</code></pre></div>';
-    case 'math':return'<div class="mathblock" contentEditable="false"><div class="math-label">数学</div><div class="math-content">'+escHtml(b.text)+'</div></div>';
-    case 'scope':return'<div style="'+(b.style||'')+'">'+fmtH(b.text)+'</div>';
     case 'obj':return objHtml(b);
     case 'code':return'<div class="codeblock" contentEditable="false"><div class="code-lang">'+escHtml(b.lang||'')+'</div><pre><code>'+escHtml(b.text)+'</code></pre></div>';
     case 'math':return'<div class="mathblock" contentEditable="false"><div class="math-label">数学</div><div class="math-content">'+escHtml(b.text)+'</div></div>';
@@ -1528,6 +1525,18 @@ function findNext(){
     var i=findIdxOf(gSrc,q,from);
     if(i<0)i=findIdxOf(gSrc,q,0);
     if(i>=0){ta.focus();ta.setSelectionRange(i,i+q.length)}
+  }
+}
+function findPrev(){
+  var q=document.getElementById('findbox').value;
+  if(!q)return;
+  if(inDisplayMode()){
+    if(!window.find(q,cs0(),true))document.getElementById('findmsg').textContent='已到开头';
+  }else{
+    var ta=document.getElementById('syntax-src');
+    var before=gSrc.substring(0,ta.selectionStart||0).lastIndexOf(q);
+    if(before>=0){ta.focus();ta.setSelectionRange(before,before+q.length)}
+    else document.getElementById('findmsg').textContent='已到开头';
   }
 }
 function replaceOne(){
