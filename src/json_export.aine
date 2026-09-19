@@ -93,9 +93,13 @@ fn page_flow_to_json(state: DocState, result: PageFlowResult) -> String {
     return out
 }
 
-// 便捷:源码 → 完整 JSON(排版+大纲)
+// 便捷:源码 → 完整 JSON(排版+大纲+原始源码)
+// 编辑器模板用 DOC_DATA.source 作为初始内容
 fn src_to_json(src: String) -> String {
     let state = build_document(parse(lex(src)), src)
     let result = page_flow(state)
-    return page_flow_to_json(state, result)
+    let core = page_flow_to_json(state, result)
+    // 在最外层 } 前拼入 source 字段
+    let without_close = core[0..core.len() - 1]
+    return without_close + ",\"source\":\"" + json_escape(src) + "\"}"
 }
