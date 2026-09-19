@@ -1,2 +1,9 @@
 target/
 *.tmp
+*.bak
+_nul
+nul
+_*.py
+_*.js
+_doc_b64.txt
+_inject_expr.js
