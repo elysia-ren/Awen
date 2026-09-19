@@ -1,0 +1,154 @@
+// 测试模块:tests_property(P1-1:对抗性属性扫描)
+// 确定性随机编辑会话 + 不变量断言;固定种子可精确回放。
+// 不变量:①解析器在任意编辑下不破坏"一行一块"不变量 ②NodeId 计数一致(§1.1)
+//        ③标题改名保留行内命令(§87)且最小 diff ④注释存活 ⑤Label 持久
+
+// Schrage 法 LCG(乘数 16807,模 2^31-1;i32 安全,无溢出不确定)
+fn prop_schrage(seed: i32) -> i32 {
+    let hi = seed / 127773
+    let lo = seed % 127773
+    var t = 16807 * lo - 2836 * hi
+    if t <= 0 { t = t + 2147483647 }
+    return t
+}
+
+fn prop_find_heading(state: DocState) -> i32 {
+    var found = -1
+    for n in state.nodes {
+        if n.kind == "heading" { found = n.id }
+    }
+    return found
+}
+
+// 属性 ①+②:任意随机文本编辑下,解析器不破坏"一行一块",NodeId 计数一致
+@test
+fn prop_fuzz_semantic_stability() -> Result<i32, String> {
+    var seed = 42
+    var src = "# 标题甲 @[label a]\n\n正文段落。\n\n## 小节 @[label b]\n\n第二段。\n\n尾段。\n"
+    var round = 0
+    while round < 60 {
+        seed = prop_schrage(seed)
+        let op = seed % 2
+        let pos = (seed / 2) % (src.len() + 1)
+        if op == 0 {
+            let pick = (seed / 7) % 3
+            var ins = "字"
+            if pick == 1 { ins = "\n\n" }
+            if pick == 2 { ins = "。x" }
+            src = src[0..pos] + ins + src[pos..src.len()]
+        } else {
+            if src.len() > pos + 2 {
+                src = src[0..pos] + src[pos + 2..src.len()]
+            }
+        }
+        // 不变量 ①:一行一块(词法主循环逐行 push)
+        let out = lex(src)
+        assert(out.blocks.len() == src.split("\n").len(), f"round {round}: 行块不变量破坏")
+        // 不变量 ②:NodeId 计数 = 节点数 + 1(顺序分配,§1.1)
+        let pr = parse(out)
+        let state = build_document(pr, src)
+        assert(doc_next_id(state) == doc_node_count(state) + 1, f"round {round}: NodeId 计数不一致")
+        round += 1
+    }
+    Ok(0)
+}
+
+// 属性 ③+⑤:标题改名 → 行内命令保留(§87)、最小 diff、Label 持久(§2)
+@test
+fn prop_rename_preserves_label_and_minimal_diff() -> Result<i32, String> {
+    var src = "# 标题 @[label a]\n正文。\n"
+    let texts = ["新标题", "改名乙", "更长的标题文字", "v3"]
+
+    var i = 0
+    while i < texts.len() {
+        let pr = parse(lex(src))
+        let state = build_document(pr, src)
+        let h_id = prop_find_heading(state)
+        assert(h_id > 0, "应有标题节点")
+
+        let r = edit_heading_text(state, h_id, texts[i], src)
+        // §87:行内命令原样保留
+        assert(r.new_source.contains("@[label a]"), "行内命令丢失(§87)")
+        // 最小 diff:除标题行外逐字不变
+        assert(
+            r.new_source[0..r.patch.start] == src[0..r.patch.start],
+            "diff 前缀被改动"
+        )
+        let old_end = r.patch.start + r.patch.old.len()
+        let new_end = r.patch.start + r.patch.new.len()
+        assert(
+            r.new_source[new_end..r.new_source.len()] == src[old_end..src.len()],
+            "diff 后缀被改动"
+        )
+        // Label 仍解析(§2.5)
+        let ls = collect_labels(r.new_state)
+        assert(ls.len() == 1 && ls[0].label == "a", "Label 应持久(§2)")
+
+        src = r.new_source
+        i += 1
+    }
+    Ok(0)
+}
+
+// 属性 ④:注释在非注释区域编辑下存活(§11.3)
+@test
+fn prop_comment_survives_edits() -> Result<i32, String> {
+    var src = "# 章 @[label c]\n@[comment 注释内容]\n正文。\n"
+    let renames = ["标题一", "标题二", "标题三"]
+
+    var i = 0
+    while i < renames.len() {
+        let pr = parse(lex(src))
+        let state = build_document(pr, src)
+        // 标题改名
+        let h_id = prop_find_heading(state)
+        let r1 = edit_heading_text(state, h_id, renames[i], src)
+        src = r1.new_source
+        // 文档尾追加
+        let r2 = edit_heading_text(state, h_id, renames[i], src)
+        let _ = r2
+        src = src + "追加行" + f"{i}" + "\n"
+
+        // 注释文本必须逐字存活
+        let st = build_document(parse(lex(src)), src)
+        var survived = false
+        for n in st.nodes {
+            if n.kind == "comment" && n.comment_text == "注释内容" {
+                survived = true
+            }
+        }
+        assert(survived, f"第 {i} 轮:注释内容丢失(§11.3)")
+        i += 1
+    }
+    Ok(0)
+}
+
+// 多种子扫描:同一属性在不同种子序列下均成立
+@test
+fn prop_fuzz_multi_seed() -> Result<i32, String> {
+    var seed = 7
+    var sweep = 0
+    while sweep < 3 {
+        var src = "# 文档\n段落甲。\n\n段落乙。\n\n尾段。\n"
+        var round = 0
+        while round < 40 {
+            seed = prop_schrage(seed)
+            let pos = (seed / 5) % (src.len() + 1)
+            if seed % 2 == 0 {
+                src = src[0..pos] + "测" + src[pos..src.len()]
+            } else {
+                if src.len() > pos + 1 {
+                    src = src[0..pos] + src[pos + 1..src.len()]
+                }
+            }
+            let out = lex(src)
+            assert(out.blocks.len() == src.split("\n").len(), f"sweep {sweep} round {round}: 行块不变量")
+            let pr = parse(out)
+            let state = build_document(pr, src)
+            assert(doc_next_id(state) == doc_node_count(state) + 1, "NodeId 计数")
+            round += 1
+        }
+        sweep += 1
+    }
+    Ok(0)
+}

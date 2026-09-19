@@ -31,6 +31,7 @@ module layout_width;
 module page_flow;
 
 module tests_common;
+module tests_property;
 module tests_layout;
 module tests_lex;
 module tests_integration;
