@@ -195,14 +195,14 @@ input.docname:focus{outline:none;border-color:var(--accent);background:#fff}
 <button class="rbtn s" onclick="fmtCmd('strikeThrough')" title="删除线"><span style="text-decoration:line-through">S</span></button>
 <button class="rbtn supb" onclick="fmtCmd('superscript')" title="上标"><span>x²</span></button>
 <button class="rbtn subb" onclick="fmtCmd('subscript')" title="下标"><span>x₂</span></button>
-<div class="colordrop">
-<button class="rbtn" onclick="applyColor(curFore)" title="字体颜色(下拉选更多颜色)"><span data-icon="fontcolor"></span></button>
-<button class="caret" onclick="togglePalette(event,'pal-fore')">▾</button>
+<div class="colordrop splitbtn">
+<button class="rbtn" onclick="applyColor(curFore)" title="字体颜色:点击应用,箭头选更多颜色"><span data-icon="fontcolor"></span></button>
+<button class="half-caret" onclick="togglePalette(event,'pal-fore')">▾</button>
 <div class="cpalette" id="pal-fore"></div>
 </div>
-<div class="colordrop">
-<button class="rbtn" onclick="applyMark(curMark)" title="底纹高亮(下拉选更多颜色)"><span data-icon="mark"></span></button>
-<button class="caret" onclick="togglePalette(event,'pal-mark')">▾</button>
+<div class="colordrop splitbtn">
+<button class="rbtn" onclick="applyMark(curMark)" title="底纹高亮:点击应用,箭头选更多颜色"><span data-icon="mark"></span></button>
+<button class="half-caret" onclick="togglePalette(event,'pal-mark')">▾</button>
 <div class="cpalette" id="pal-mark"></div>
 </div>
 <button class="rbtn mono" onclick="fmtCmdInline()" title="行内代码">&lt;/&gt;</button>
@@ -419,14 +419,14 @@ function fmtH(t){
   s=s.replace(/@\[u\]((?:.|])*?)@\[\/u\]/g,'<u>$1</u>');
   s=s.replace(/@\[sup\]((?:.|])*?)@\[\/sup\]/g,'<sup>$1</sup>');
   s=s.replace(/@\[sub\]((?:.|])*?)@\[\/sub\]/g,'<sub>$1</sub>');
-  s=s.replace(/@\[mark\s+([^\]]+)\]((?:.|])*?)@\[\/mark\]/g,'<span style="background:$1">$2</span>');
-  s=s.replace(/@\[color\s+([^\]]+)\]((?:.|])*?)@\[\/color\]/g,'<span style="color:$1">$2</span>');
-  s=s.replace(/@\[size\s+([^\]]+)\]((?:.|])*?)@\[\/size\]/g,'<span style="font-size:$1pt">$2</span>');
+  s=s.replace(/@\[mark\s+([^\]]+)\]((?:.|])*?)@\[\/mark\]/g,'<span data-cmd="@[mark $1]" data-close="@[/mark]" style="background:$1">$2</span>');
+  s=s.replace(/@\[color\s+([^\]]+)\]((?:.|])*?)@\[\/color\]/g,'<span data-cmd="@[color $1]" data-close="@[/color]" style="color:$1">$2</span>');
+  s=s.replace(/@\[size\s+([^\]]+)\]((?:.|])*?)@\[\/size\]/g,'<span data-cmd="@[size $1]" data-close="@[/size]" style="font-size:$1pt">$2</span>');
   s=s.replace(/@\[link\s+([^\]]+?)\s+url:\s*([^\]]+)\]/g,'<a href="$2" target="_blank" style="color:#2a4a66;text-decoration:underline">$1</a>');
   s=s.replace(/@\[footnote\s+(\d+)\s+([^\]]+)\]/g,function(m,n,txt){return '<sup class="fn" title="'+txt.replace(/"/g,'')+'" style="color:#2a4a66;cursor:help">'+n+'</sup>'});
   s=s.replace(/@\[font\s+([^\]]+)\]((?:.|])*?)@\[\/font\]/g,function(m,f,inner){
     f=f.replace(/"/g,'');
-    return'<span style="font-family:\''+f+'\',serif">'+inner+'</span>';
+    return'<span data-cmd=\'@[font "' + f + '"]\' data-close="@[/font]" style="font-family:\'' + f + '\',serif">' + inner + '</span>';
   });
   s=s.replace(/\*\*((?:.|])*?)\*\*/g,'<strong>$1</strong>');
   s=s.replace(/~~((?:.|])*?)~~/g,'<del>$1</del>');
@@ -790,8 +790,8 @@ function onPaperInput(){
     var caret=saveCaret();
     var before=gPages.length+'|'+gPages.map(function(p){return p.length?p[0].b.bid:-1}).join(',');
     gNodes=miniParse(gSrc);
-    var sig=layoutPages(miniParse(gSrc));
-    var after=sig.length+'|'+sig.map(function(p){return p.length?p[0].b.bid:-1}).join(',');
+    gPages=layoutPages(gNodes);
+    var after=gPages.length+'|'+gPages.map(function(p){return p.length?p[0].b.bid:-1}).join(',');
     if(before!==after){ render(gSrc); restoreCaret(caret) }
     else { renderOutline(); renderStatus() }
   },300);
@@ -910,6 +910,26 @@ function fmtCmdInline(){
   }
   else wrapSyntax('`','`');
 }
+// 保格式包裹:保留选区内嵌套标记,跨段落拒绝
+function wrapSpan(open, close, style, native){
+  var s=window.getSelection();
+  if(!s.rangeCount||s.isCollapsed)return false;
+  var r=s.getRangeAt(0);
+  var b1=(r.startContainer.nodeType===1?r.startContainer:r.startContainer.parentElement).closest('[data-bid]');
+  var b2=(r.endContainer.nodeType===1?r.endContainer:r.endContainer.parentElement).closest('[data-bid]');
+  if(!b1||b1!==b2){ document.getElementById('findmsg').textContent='该格式不能跨段落选择'; return false }
+  var wrap=document.createElement(native?'code':'span');
+  if(!native){
+    wrap.dataset.cmd=open; wrap.dataset.close=close;
+  }
+  if(style)for(var k in style)wrap.style[k]=style[k];
+  wrap.appendChild(r.extractContents());
+  r.insertNode(wrap);
+  s.removeAllRanges();
+  var nr=document.createRange(); nr.selectNodeContents(wrap); s.addRange(nr);
+  return true;
+}
+
 function applyColor(v){
   if(inDisplayMode()){ document.execCommand('foreColor',false,v); onPaperInput() }
   else wrapSyntax('@[color '+v+']','@[/color]');
@@ -918,8 +938,7 @@ function applyMark(v){
   if(inDisplayMode()){
     var s=window.getSelection();
     if(!s.rangeCount||s.isCollapsed)return;
-    document.execCommand('insertHTML',false,'<span data-cmd="@[mark '+v+']" data-close="@[/mark]" style="background:'+v+'">'+s.toString()+'</span>');
-    onPaperInput();
+    if(wrapSpan('@[mark '+v+']','@[/mark]',{background:v},false))onPaperInput();
   }
   else wrapSyntax('@[mark '+v+']','@[/mark]');
 }
@@ -928,8 +947,7 @@ function applySize(v){
   if(inDisplayMode()){
     var s=window.getSelection();
     if(!s.rangeCount||s.isCollapsed)return;
-    document.execCommand('insertHTML',false,'<span data-cmd="@[size '+v+']" data-close="@[/size]" style="font-size:'+v+'pt">'+s.toString()+'</span>');
-    onPaperInput();
+    if(wrapSpan('@[size '+v+']','@[/size]',{fontSize:v+'pt'},false))onPaperInput();
   }
   else wrapSyntax('@[size '+v+']','@[/size]');
 }
@@ -938,8 +956,7 @@ function applyFont(v){
   if(inDisplayMode()){
     var s=window.getSelection();
     if(!s.rangeCount||s.isCollapsed)return;
-    document.execCommand('insertHTML',false,'<span data-cmd=\'@[font "'+v+'"]\' data-close="@[/font]" style="font-family:\''+v+'\',serif">'+s.toString()+'</span>');
-    onPaperInput();
+    if(wrapSpan('@[font "'+v+'"]','@[/font]',{fontFamily:"'"+v+"',serif"},false))onPaperInput();
   }
   else wrapSyntax('@[font "'+v+'"]','@[/font]');
   document.getElementById('sel-font').selectedIndex=0;
@@ -1520,6 +1537,7 @@ function setSrc(s){
   if(ta)ta.value=s;
   recordHist(s,false);
   render(s);
+  updateDiagBar();
 }
 
 // ═══ 视图切换 ═══
@@ -1741,6 +1759,13 @@ function insertRawLine(line){
   lines.splice(at,0,line);
   setSrc(lines.join('\n'));
 }
+
+// 工具栏按钮按下不清除文字选区(Word 式行为)
+document.querySelectorAll('.ribbon,.tabbar,#minibar').forEach(function(root){
+  root.addEventListener('mousedown',function(e){
+    if(e.target.closest('button,label,.sw'))e.preventDefault();
+  });
+});
 
 // ═══ 全局快捷键(对照 Word)═══
 document.addEventListener('keydown',function(e){
