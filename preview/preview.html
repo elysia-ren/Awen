@@ -201,13 +201,11 @@ input.docname:focus{outline:none;border-color:var(--accent);background:#fff}
 <button class="rbtn subb" onclick="fmtCmd('subscript')" title="下标"><span>x₂</span></button>
 <div class="colordrop splitbtn">
 <button class="rbtn" onclick="applyColor(curFore)" title="字体颜色:点击应用,箭头选更多颜色"><span data-icon="fontcolor"></span></button>
-<button class="half-caret" onclick="togglePalette(event,'pal-fore')">▾</button>
-<div class="cpalette" id="pal-fore"></div>
+<button class="half-caret" onclick="togglePal(event,'fore')">▾</button>
 </div>
 <div class="colordrop splitbtn">
 <button class="rbtn" onclick="applyMark(curMark)" title="底纹高亮:点击应用,箭头选更多颜色"><span data-icon="mark"></span></button>
-<button class="half-caret" onclick="togglePalette(event,'pal-mark')">▾</button>
-<div class="cpalette" id="pal-mark"></div>
+<button class="half-caret" onclick="togglePal(event,'mark')">▾</button>
 </div>
 <button class="rbtn mono" onclick="fmtCmdInline()" title="行内代码">&lt;/&gt;</button>
 <button class="rbtn" onclick="fmtCmd('removeFormat')" title="清除格式"><span data-icon="clear"></span></button>
@@ -314,9 +312,9 @@ input.docname:focus{outline:none;border-color:var(--accent);background:#fff}
 <button class="rbtn s" onclick="fmtCmd('strikeThrough')" title="删除线"><span style="text-decoration:line-through">S</span></button>
 <div class="sep"></div>
 <button class="rbtn" onclick="applyColor(curFore)" title="字体颜色:点击应用,箭头选更多颜色"><span data-icon="fontcolor"></span></button>
-<button class="rbtn" style="width:14px;font-size:9px" onclick="toggleMbPal(event,'fore')" title="更多字体颜色">▾</button>
+<button class="rbtn" style="width:14px;font-size:9px" onclick="togglePal(event,'fore')" title="更多字体颜色">▾</button>
 <button class="rbtn" onclick="applyMark(curMark)" title="底纹:点击应用,箭头选更多颜色"><span data-icon="mark"></span></button>
-<button class="rbtn" style="width:14px;font-size:9px" onclick="toggleMbPal(event,'mark')" title="更多底纹颜色">▾</button>
+<button class="rbtn" style="width:14px;font-size:9px" onclick="togglePal(event,'mark')" title="更多底纹颜色">▾</button>
 <div class="sep"></div>
 <button class="rbtn supb" onclick="fmtCmd('superscript')" title="上标"><span>x²</span></button>
 <button class="rbtn subb" onclick="fmtCmd('subscript')" title="下标"><span>x₂</span></button>
@@ -1226,98 +1224,69 @@ function gotoLine(n){
   ta.setSelectionRange(pos,pos+(lines[n-1]?lines[n-1].length:0));
 }
 
-// ═══ Word 式色板:固定颜色 + 自选 ═══
+// ═══ 色板:单一浮动面板,功能区/迷你栏四箭头共用,每次打开重建 ═══
 var curFore='#c0392b', curMark='#fff176';
 var PAL_MAIN=['#000000','#404040','#808080','#bfbfbf','#ffffff','#c00000','#ff0000','#ffc000','#ffff00','#92d050',
               '#00b050','#00b0f0','#0070c0','#002060','#7030a0','#7f6000','#e36c09','#4bacc6','#8064a2','#948a54'];
-function buildPalettes(){
-  ['pal-fore','pal-mark'].forEach(function(id){
-    var el=document.getElementById(id);
-    if(!el||el.dataset.built)return;
-    el.dataset.built='1';
-    var t=document.createElement('div');
-    t.className='cp-title';
-    t.textContent=id==='pal-fore'?'主题颜色(字体)':'底纹颜色';
-    el.appendChild(t);
-    var g=document.createElement('div');
-    g.className='cp-grid';
-    PAL_MAIN.forEach(function(c){
-      var sw=document.createElement('div');
-      sw.className='sw'; sw.style.background=c; sw.title=c;
-      sw.onclick=function(){ pickColor(id,c) };
-      g.appendChild(sw);
-    });
-    el.appendChild(g);
-    var more=document.createElement('div');
-    more.className='cp-more';
-    more.innerHTML='<span data-icon="pick"></span>其他颜色…';
-    more.onclick=function(){ pickCustom(id) };
-    el.appendChild(more);
-    var inp=document.createElement('input');
-    inp.type='color';
-    inp.style.cssText='position:absolute;opacity:0;inset:0;cursor:pointer';
-    inp.onchange=function(){ pickColor(id, inp.value) };
-    more.style.position='relative';
-    more.appendChild(inp);
-  });
-  document.querySelectorAll('[data-icon]').forEach(function(el){
-    if(!el.innerHTML)el.innerHTML=ICONS[el.dataset.icon]||'';
-  });
-}
-function toggleMbPal(e,kind){
-  e.stopPropagation();
-  var pal=document.getElementById('float-pal');
-  var id='pal-'+kind;
-  buildPalettes();
-  var content=document.getElementById(id);
-  while(pal.firstChild)pal.removeChild(pal.firstChild);
-  var nodes=[];
-  [...content.childNodes].forEach(function(n){nodes.push(n)});
-  nodes.forEach(function(n){pal.appendChild(n)});
-  var kindNow=kind;
-  [...pal.querySelectorAll('.sw')].forEach(function(sw){
-    var col=sw.title;
-    sw.onclick=function(){pickMbColor(col)};
-  });
-  var more=pal.querySelector('.cp-more input');
-  if(more)more.onchange=function(){pickMbColor(more.value)};
-  var r=e.target.getBoundingClientRect();
-  pal.style.left=Math.max(8,r.left-60)+'px';
-  pal.style.top=(r.bottom+8)+'px';
-  pal.classList.add('open');
-  window._mbPalKind=kind;
-}
-function pickMbColor(c){
-  var kind=window._mbPalKind||'fore';
+var _palOpenKind=null;
+function applyPal(kind,c){
   if(kind==='fore'){curFore=c;applyColor(c)}
   else{curMark=c;applyMark(c)}
+}
+function togglePal(e,kind){
+  e.stopPropagation();
+  var pal=document.getElementById('float-pal');
+  var wasOpen=_palOpenKind===kind&&pal.classList.contains('open');
+  closePal();
+  if(wasOpen)return;
+  pal.innerHTML='';
+  var t=document.createElement('div');
+  t.className='cp-title';
+  t.textContent=kind==='fore'?'字体颜色':'底纹颜色';
+  pal.appendChild(t);
+  var g=document.createElement('div');
+  g.className='cp-grid';
+  PAL_MAIN.forEach(function(c){
+    var sw=document.createElement('div');
+    sw.className='sw'; sw.style.background=c; sw.title=c;
+    sw.onmousedown=function(ev){ev.preventDefault()};   // 保住文字选区
+    sw.onclick=function(){applyPal(kind,c);closePal()};
+    g.appendChild(sw);
+  });
+  pal.appendChild(g);
+  var more=document.createElement('div');
+  more.className='cp-more';
+  var pickSpan=document.createElement('span');
+  pickSpan.setAttribute('data-icon','pick');
+  more.appendChild(pickSpan);
+  more.appendChild(document.createTextNode('其他颜色…'));
+  var inp=document.createElement('input');
+  inp.type='color';
+  inp.style.cssText='position:absolute;inset:0;opacity:0;cursor:pointer';
+  inp.onchange=function(){applyPal(kind,inp.value);closePal()};
+  more.style.position='relative';
+  more.appendChild(inp);
+  pal.appendChild(more);
+  [...pal.querySelectorAll('[data-icon]')].forEach(function(el){
+    if(!el.innerHTML)el.innerHTML=ICONS[el.dataset.icon]||'';
+  });
+  var anchor=e.target.closest('.colordrop')||e.target;
+  var r=anchor.getBoundingClientRect();
+  pal.style.left=Math.max(8,Math.min(r.left,window.innerWidth-260))+'px';
+  pal.style.top=(r.bottom+8)+'px';
+  pal.classList.add('open');
+  _palOpenKind=kind;
+}
+function closePal(){
+  _palOpenKind=null;
   var fp=document.getElementById('float-pal');
   if(fp)fp.classList.remove('open');
 }
-function togglePalette(e,id){
-  e.stopPropagation();
-  var el=document.getElementById(id);
-  buildPalettes();
-  var was=el.classList.contains('open');
-  document.querySelectorAll('.cpalette').forEach(function(x){x.classList.remove('open')});
-  if(!was)el.classList.add('open');
-}
 document.addEventListener('click',function(e){
-  if(!e.target.closest('.colordrop')&&!e.target.closest('#float-pal')&&!e.target.closest('#minibar')){
-    document.querySelectorAll('.cpalette').forEach(function(x){x.classList.remove('open')});
-    var fp=document.getElementById('float-pal');
-    if(fp)fp.classList.remove('open');
+  if(_palOpenKind&&!e.target.closest('#float-pal')&&!e.target.closest('.half-caret')&&!e.target.closest('.splitbtn .rbtn')){
+    closePal();
   }
 });
-function pickColor(id,c){
-  if(id==='pal-fore'){curFore=c;applyColor(c)}
-  else{curMark=c;applyMark(c)}
-  document.querySelectorAll('.cpalette').forEach(function(x){x.classList.remove('open')});
-}
-function pickCustom(id){
-  var inp=document.querySelector('#'+id+' .cp-more input');
-  if(inp)inp.click();
-}
 
 // ═══ 查找替换 ═══
 function toggleFind(){
@@ -1847,7 +1816,8 @@ function insertRawLine(line){
 }
 
 // 工具栏按钮按下不清除文字选区(Word 式行为)
-document.querySelectorAll('.ribbon,.tabbar,#minibar').forEach(function(root){
+document.querySelectorAll('.ribbon,.tabbar,#minibar,#float-pal').forEach(function(root){
+  if(!root)return;
   root.addEventListener('mousedown',function(e){
     if(e.target.closest('button,label,.sw'))e.preventDefault();
   });
