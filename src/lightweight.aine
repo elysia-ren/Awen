@@ -73,6 +73,55 @@ fn inline_plain(items: Vec<Inline>) -> String {
     return out
 }
 
+// 显示文本:剥离行内命令(§11.3:label/footnote/link/ref 等是元数据,不是内容)
+fn inline_display_text(items: Vec<Inline>) -> String {
+    var out = ""
+    for it in items {
+        var txt = ""
+        var recurse: Vec<Inline> = []
+        var has_recurse = false
+        var raw_content = ""
+        match it {
+            AwTxt(s) {
+                txt = s
+            }
+            IBold(c) {
+                recurse = c
+                has_recurse = true
+            }
+            Italic(c) {
+                recurse = c
+                has_recurse = true
+            }
+            Strike(c) {
+                recurse = c
+                has_recurse = true
+            }
+            Scoped(cmd, c) {
+                recurse = c
+                has_recurse = true
+            }
+            CodeSpan(s) {
+                txt = s
+            }
+            Command(u) {
+                // 行内命令(label/ref/footnote 等)不出现在显示文本中(§11.3)
+            }
+            RawInline(cmd, lang, content) {
+                raw_content = content
+            }
+        }
+        if has_recurse {
+            out = out + inline_display_text(recurse)
+        } else if raw_content.len() > 0 {
+            out = out + raw_content
+        } else {
+            out = out + txt
+        }
+    }
+    return out
+}
+
 fn AwTxt(s: String) -> Inline {
     return AwTxt(s)
 }
