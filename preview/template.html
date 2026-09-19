@@ -478,22 +478,27 @@ function miniParse(src){
     }
     if(/^@\[(table|figure)\s/.test(t)||t==='@[table]'){
       flush(i);
-      var fi=i+1;
       var closeTag='@[/'+t.match(/^@\[(\w+)/)[1]+']';
       var isFigure=t.indexOf('figure')>=0;
-      if(t.indexOf(closeTag)<0){
+      var fi;
+      if(t.indexOf(closeTag)>=0){ fi=i; }
+      else{
+        fi=i+1;
         while(fi<lines.length&&lines[fi].indexOf(closeTag)<0&&lines[fi].trim()!==']')fi++;
-        if(fi<lines.length&&lines[fi].trim()===']'){fi=fi+1}
-        else{fi=Math.min(fi+1,lines.length)}
       }
-      if(/^@\[table/.test(t)){
-        var trows=[];
-        for(var ri=i+1;ri<fi-1;ri++){ if(lines[ri].trim().charAt(0)==='|')trows.push(lines[ri].trim()) }
-        nodes.push({kind:'table',rows:trows,srcStart:i,srcEnd:fi});
+      // fi=收尾行索引;rest=收尾行中 closeTag 之后的文字
+      var cl=fi<lines.length?lines[fi]:'';
+      var ci2=cl.indexOf(closeTag);
+      var rest=ci2>=0?cl.substring(ci2+closeTag.length).trim():'';
+      var trows=[];
+      for(var ri=i+1;ri<fi;ri++){ if(lines[ri].trim().charAt(0)==='|')trows.push(lines[ri].trim()) }
+      if(isFigure){
+        nodes.push({kind:'obj',text:lines.slice(i,fi+1).join('\n'),srcStart:i,srcEnd:fi+1});
       }else{
-        nodes.push({kind:'obj',text:lines.slice(i,fi).join('\n'),srcStart:i,srcEnd:fi});
+        nodes.push({kind:'table',rows:trows,srcStart:i,srcEnd:fi+1});
       }
-      i=fi-1; continue;
+      if(rest)nodes.push({kind:'para',text:rest,srcStart:fi+1,srcEnd:fi+2});
+      i=fi; continue;
     }
     if(/^@\[image/.test(t)){ flush(i); nodes.push({kind:'obj',text:t,srcStart:i,srcEnd:i+1}); continue }
     if(/^@\[(page|margin|font|size|line-spacing|first-line|theme|toc|numbering)\s/.test(t)){
@@ -823,13 +828,24 @@ function serializeAll(){
 }
 
 // ═══ 编辑同步:输入 → 序列化 → 必要时重排 ═══
-var repagTimer=null;
+var repagTimer=null,lastEditSource=null;
 function onPaperInput(){
   if(repagTimer)clearTimeout(repagTimer);
   repagTimer=setTimeout(applySyncNow,300);
 }
 function applySyncNow(){
   if(repagTimer){clearTimeout(repagTimer);repagTimer=null}
+  if(lastEditSource==='syntax'||currentMode==='syntax'){
+    // 语法视图/语法侧编辑:输入框即源码权威(§85),不再从纸面 DOM 反写
+    var ta=document.getElementById('syntax-src');
+    var taVal=ta?ta.value:'';
+    if(taVal===gSrc)return;
+    gSrc=taVal;
+    if(currentMode==='split')render(gSrc);
+    updateDiagBar();
+    return;
+  }
+  // 纸面编辑:DOM 序列化回写(含跨页片段合并)
   var newSrc=serializeAll();
   if(newSrc===gSrc)return;
   gSrc=newSrc;
@@ -844,6 +860,7 @@ function applySyncNow(){
   if(before!==after){ render(gSrc); restoreCaret(caret) }
   else { renderOutline(); renderStatus() }
 }
+var lastEditSource=null;
 function saveCaret(){
   var s=window.getSelection();
   if(!s.rangeCount)return null;
@@ -1522,9 +1539,10 @@ function buildSyntaxPane(){
   sheet.appendChild(src);
   pane.appendChild(sheet);
   ta.addEventListener('input',function(){
+    lastEditSource='syntax';
     recordHist(ta.value,true);
     if(repagTimer)clearTimeout(repagTimer);
-    repagTimer=setTimeout(function(){ setSrc(ta.value) },250);
+    repagTimer=setTimeout(applySyncNow,300);
   });
 }
 function insertSyntax(text){
@@ -1619,6 +1637,8 @@ function setMode(mode){
   else{ dp.style.display='flex'; dp.style.flex='1 1 auto'; sp.style.display='none' }
   var ta=document.getElementById('syntax-src');
   if(ta)ta.value=gSrc;
+  // 从语法切回显示/分屏时,按最新源码刷新显示窗格
+  if(mode!=='syntax')render(gSrc);
   applyZoom(document.getElementById('sel-zoom').value);
 }
 function fitZoom(base){
@@ -1636,7 +1656,10 @@ function applyZoom(v){
 }
 window.addEventListener('resize',function(){ applyZoom(document.getElementById('sel-zoom').value) });
 
-document.getElementById('display-pane').addEventListener('input',onPaperInput);
+document.getElementById('display-pane').addEventListener('input',function(e){
+  lastEditSource='paper';
+  onPaperInput(e);
+});
 document.getElementById('display-pane').addEventListener('keydown',onPaperKey);
 
 function fname(ext){
