@@ -18,7 +18,7 @@ input.findbox{border:1px solid #c9cbce;border-radius:4px;padding:4px 6px;font-si
 .brand{font-weight:700;font-size:15px;color:#1a1c1f}
 .docname{font-size:13px;color:var(--fg2)}
 /* ── Word/WPS 功能区:标签栏 + 紧凑图标网格 + 分组名 ── */
-.filetabs{display:flex;align-items:center;gap:2px;flex:none;overflow-x:auto;max-width:60%;height:100%}
+.filetabs{display:flex;align-items:center;gap:2px;flex:none;overflow-x:auto;height:28px}
 .ftab{display:flex;align-items:center;gap:6px;height:26px;padding:0 8px 0 12px;border-radius:5px;font-size:12px;color:#5a5c60;cursor:pointer;flex:none;border:1px solid transparent}
 .ftab:hover{background:#e9eaec}
 .ftab.active{background:#fff;color:#1a1c1f;font-weight:600;border-color:var(--border)}
@@ -193,7 +193,7 @@ input.docname:focus{outline:none;border-color:var(--accent);background:#fff}
 <div class="app">
 <div class="titlebar">
 <div class="brand">Awen</div>
-<input class="docname" id="docname" value="未命名文档" title="点击修改文档名">
+<input class="docname" id="docname" value="未命名文档" title="点击修改文档名"><span id="dirty-mark" style="font-size:11px;color:#c0392b;display:none">未保存</span>
 <div style="margin-left:auto"><button class="rbtn" style="width:auto;padding:0 8px;gap:4px;font-size:12px" onclick="doSave()" title="保存 (Ctrl+S)"><span data-icon="save"></span>保存</button></div>
 </div>
 <div class="filetabs" id="filetabs"></div>
@@ -274,6 +274,7 @@ input.docname:focus{outline:none;border-color:var(--accent);background:#fff}
 <label style="display:flex;align-items:center;gap:3px"><input type="checkbox" id="cb-down" checked>向下</label>
 <label style="display:flex;align-items:center;gap:3px"><input type="checkbox" id="cb-up">向上</label>
 </div>
+<div class="fb-row"><span id="findmsg" style="font-size:12px;color:#6b6d72"></span></div>
 <div class="fb-row" style="justify-content:space-between">
 <button class="sbtn" onclick="findNext()">下一个</button>
 <button class="sbtn" onclick="findPrev()">上一个</button>
@@ -1795,6 +1796,7 @@ function applyHistory(text){
   render(text);
   restoreCaret(caret);
   updateDiagBar();
+  updateUndoButtons();
   document.getElementById('st-diag').title='历史 '+histIdx+'/'+(hist.length-1);
 }
 function setSrc(s){
