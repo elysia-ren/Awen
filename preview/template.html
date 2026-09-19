@@ -26,25 +26,42 @@ input.findbox{border:1px solid #c9cbce;border-radius:4px;padding:4px 6px;font-si
 .view-tabs button{font-size:12px;padding:4px 14px;border-radius:5px;color:#6b6d72}
 .view-tabs button.active{background:#fff;color:#222;box-shadow:0 1px 2px rgba(0,0,0,.08)}
 .ribbon{background:var(--bg3);border-bottom:1px solid var(--border2);flex:none;user-select:none}
-.ribbon-page{display:none;align-items:stretch;padding:3px 8px 0;overflow-x:auto;min-height:76px}
+.ribbon-page{display:none;align-items:stretch;padding:4px 10px 0;overflow-x:auto;min-height:92px}
 .ribbon-page.active{display:flex}
-.rgroup{display:flex;flex-direction:column;padding:0 10px;border-right:1px solid #e0e1e4;flex:none;justify-content:space-between}
+.rgroup{display:flex;flex-direction:column;padding:0 12px;border-right:1px solid #e0e1e4;flex:none;justify-content:space-between}
 .rgroup:last-child{border-right:0}
-.rg-body{display:flex;gap:3px;align-items:center;padding:4px 0}
-.rg-label{font-size:10px;color:#8a8c90;text-align:center;padding:0 2px 4px;line-height:1;white-space:nowrap}
-.rbtn{width:26px;height:26px;display:flex;align-items:center;justify-content:center;border-radius:4px;color:#303238;flex:none}
+.rg-body{display:flex;gap:6px;align-items:center;padding:7px 0}
+.rg-label{font-size:10px;color:#8a8c90;text-align:center;padding:0 2px 5px;line-height:1;white-space:nowrap}
+.rbtn{width:30px;height:30px;display:flex;align-items:center;justify-content:center;border-radius:4px;color:#303238;flex:none}
 .rbtn:hover{background:#e6e7e9}
 .rbtn:active{background:#dcdde0}
-.rbtn svg{width:16px;height:16px;display:block}
-.rbtn.b{font-weight:700;font-size:14px}.rbtn.i{font-style:italic;font-family:Georgia,serif;font-size:14px}.rbtn.u{text-decoration:underline;font-size:14px}.rbtn.s{text-decoration:line-through;font-size:14px}
-.rbtn.mono{font-family:var(--mono);font-size:11px;font-weight:600}
-.rgrid{display:grid;grid-template-columns:repeat(4,26px);gap:2px}
-.rgrid3{display:grid;grid-template-columns:repeat(2,26px);gap:2px}
-.vsel{display:flex;flex-direction:column;justify-content:center;gap:3px;padding:0 2px}
-.vsel select{height:22px;padding:1px 4px;font-size:12px}
-.vsel #sel-font{width:118px}
-.vsel #sel-size{width:74px}
-.findbox{border:1px solid #c9cbce;border-radius:4px;padding:4px 6px;font-size:12px;outline:none;width:120px}
+.rbtn svg{width:18px;height:18px;display:block}
+.rbtn.b{font-weight:700;font-size:15px}.rbtn.i{font-style:italic;font-family:Georgia,serif;font-size:15px}
+.rbtn.u span,.rbtn.s span{font-size:15px}
+.rbtn.mono{font-family:var(--mono);font-size:12px;font-weight:600}
+.rbtn.supb span,.rbtn.subb span{font-size:13px}
+.rbtn.supb span{vertical-align:super}.rbtn.subb span{vertical-align:sub}
+.rgrid{display:grid;grid-template-columns:repeat(4,30px);gap:3px}
+.rgrid3{display:grid;grid-template-columns:repeat(2,30px);gap:3px}
+.vsel{display:flex;flex-direction:column;justify-content:center;gap:4px;padding:0 2px}
+.vsel select{height:26px;padding:2px 5px;font-size:12px}
+.vsel #sel-font{width:126px}
+.vsel #sel-size{width:80px}
+.findbox,.replacebox{border:1px solid #c9cbce;border-radius:4px;padding:5px 7px;font-size:12px;outline:none;width:130px}
+.sbtn{height:28px;padding:0 10px;border:1px solid #c9cbce;border-radius:4px;background:#fff;font-size:12px;color:#303238;flex:none;cursor:pointer}
+.sbtn:hover{background:#f0f1f2}
+.colordrop{position:relative;display:flex;flex:none}
+.colordrop .caret{width:13px;height:30px;display:flex;align-items:center;justify-content:center;border-radius:4px;font-size:9px;color:#5a5c60}
+.colordrop .caret:hover{background:#e6e7e9}
+.cpalette{display:none;position:absolute;top:34px;left:0;z-index:50;background:#fff;border:1px solid #c9cbce;border-radius:6px;box-shadow:0 4px 14px rgba(0,0,0,.14);padding:10px;width:236px}
+.cpalette.open{display:block}
+.cpalette .cp-title{font-size:11px;color:#6b6d72;margin:2px 0 5px}
+.cpalette .cp-grid{display:grid;grid-template-columns:repeat(10,20px);gap:3px}
+.cpalette .sw{width:20px;height:20px;border-radius:3px;border:1px solid rgba(0,0,0,.12);cursor:pointer}
+.cpalette .sw:hover{outline:2px solid var(--accent);outline-offset:1px}
+.cpalette .cp-more{margin-top:8px;font-size:12px;color:#2a4a66;cursor:pointer;display:flex;align-items:center;gap:5px}
+.cpalette .cp-more:hover{text-decoration:underline}
+@media print{.tabbar,.ribbon,.sidebar,.statusbar,.titlebar{display:none!important}.app{height:auto}.workspace{overflow:visible;display:block}.pane{overflow:visible;padding:0;background:#fff;gap:0}.sheet{box-shadow:none;page-break-after:always;min-height:auto}}
 .workspace{min-height:0;flex:1;display:flex;overflow:hidden}
 .sidebar{width:180px;background:var(--bg2);border-right:1px solid var(--border);display:flex;flex-direction:column;flex:none;overflow:hidden}
 .side-head{padding:12px 14px 6px;font-size:12px;font-weight:600;color:#74777c;user-select:none}
@@ -98,6 +115,8 @@ input.findbox{border:1px solid #c9cbce;border-radius:4px;padding:4px 6px;font-si
 <div class="tabbar">
 <div class="tab active" data-page="home" onclick="showRibbon('home')">开始</div>
 <div class="tab" data-page="insert" onclick="showRibbon('insert')">插入</div>
+<div class="tab" data-page="page" onclick="showRibbon('page')">页面</div>
+<div class="tab" data-page="file" onclick="showRibbon('file')">文件</div>
 <div class="view-tabs">
 <button class="active" data-mode="display">显示</button>
 <button data-mode="syntax">语法</button>
@@ -126,10 +145,20 @@ input.findbox{border:1px solid #c9cbce;border-radius:4px;padding:4px 6px;font-si
 <button class="rbtn i" onclick="fmtCmd('italic')" title="倾斜 (Ctrl+I)">I</button>
 <button class="rbtn u" onclick="fmtCmd('underline')" title="下划线 (Ctrl+U)"><span style="text-decoration:underline">U</span></button>
 <button class="rbtn s" onclick="fmtCmd('strikeThrough')" title="删除线"><span style="text-decoration:line-through">S</span></button>
-<label class="rbtn" title="字体颜色" style="cursor:pointer;position:relative"><span data-icon="fontcolor"></span><input type="color" id="col-fore" value="#c0392b" onchange="applyColor(this.value)" style="position:absolute;inset:0;opacity:0;cursor:pointer"></label>
-<label class="rbtn" title="底纹高亮" style="cursor:pointer;position:relative"><span data-icon="mark"></span><input type="color" id="col-mark" value="#fff176" style="position:absolute;inset:0;opacity:0;cursor:pointer" onchange="applyMark(this.value)"></label>
+<button class="rbtn supb" onclick="fmtCmd('superscript')" title="上标"><span>x²</span></button>
+<button class="rbtn subb" onclick="fmtCmd('subscript')" title="下标"><span>x₂</span></button>
 <button class="rbtn mono" onclick="fmtCmdInline()" title="行内代码">&lt;/&gt;</button>
 <button class="rbtn" onclick="fmtCmd('removeFormat')" title="清除格式"><span data-icon="clear"></span></button>
+</div>
+<div class="colordrop">
+<button class="rbtn" onclick="applyColor(curFore)" title="字体颜色(下拉选更多颜色)"><span data-icon="fontcolor"></span></button>
+<button class="caret" onclick="togglePalette(event,'pal-fore')">▾</button>
+<div class="cpalette" id="pal-fore"></div>
+</div>
+<div class="colordrop">
+<button class="rbtn" onclick="applyMark(curMark)" title="底纹高亮(下拉选更多颜色)"><span data-icon="mark"></span></button>
+<button class="caret" onclick="togglePalette(event,'pal-mark')">▾</button>
+<div class="cpalette" id="pal-mark"></div>
 </div>
 </div><div class="rg-label">字体</div></div>
 <div class="rgroup"><div class="rg-body">
@@ -143,9 +172,17 @@ input.findbox{border:1px solid #c9cbce;border-radius:4px;padding:4px 6px;font-si
 </div>
 </div><div class="rg-label">段落</div></div>
 <div class="rgroup"><div class="rg-body">
-<button class="rbtn" onclick="toggleFind()" title="查找 (Ctrl+F)"><span data-icon="search"></span></button>
-<input class="findbox" id="findbox" placeholder="查找内容" style="display:none" onkeydown="findKey(event)" oninput="findCount()">
+<button class="rbtn" onclick="toggleFind()" title="查找和替换 (Ctrl+F)"><span data-icon="search"></span></button>
 </div><div class="rg-label">编辑</div></div>
+</div>
+<div class="ribbon-page" data-page="findbar" style="min-height:0;display:none;align-items:center;gap:8px;padding:6px 14px">
+<input class="findbox" id="findbox" placeholder="查找内容" oninput="findCount()" onkeydown="findKey(event)">
+<input class="replacebox" id="replacebox" placeholder="替换为">
+<button class="sbtn" onclick="findNext()">查找下一处</button>
+<button class="sbtn" onclick="replaceOne()">替换</button>
+<button class="sbtn" onclick="replaceAll()">全部替换</button>
+<button class="sbtn" onclick="closeFind()">关闭</button>
+<span class="item" id="findmsg" style="font-size:12px;color:#6b6d72"></span>
 </div>
 <div class="ribbon-page" data-page="insert">
 <div class="rgroup"><div class="rg-body">
@@ -161,6 +198,33 @@ input.findbox{border:1px solid #c9cbce;border-radius:4px;padding:4px 6px;font-si
 <div class="rgroup"><div class="rg-body">
 <button class="rbtn" onclick="insertBlock('comment')" title="批注(不参与渲染,仅存于源码)"><span data-icon="comment"></span></button>
 </div><div class="rg-label">批注</div></div>
+</div>
+<div class="ribbon-page" data-page="page">
+<div class="rgroup"><div class="rg-body"><div class="vsel">
+<select id="sel-paper" title="纸张大小" onchange="applyPaper(this.value)">
+<option value="A4" selected>A4 210×297mm</option><option value="Letter">Letter 216×279mm</option><option value="B5">B5 176×250mm</option><option value="A3">A3 297×420mm</option><option value="A5">A5 148×210mm</option>
+</select>
+<select id="sel-margin" title="页边距" onchange="applyMargin(this.value)">
+<option value="20" selected>正常 20mm</option><option value="12.7">窄 12.7mm</option><option value="25.4">宽 25.4mm</option><option value="30">宽 30mm</option>
+</select>
+</div></div><div class="rg-label">纸张</div></div>
+<div class="rgroup"><div class="rg-body"><div class="vsel">
+<select id="sel-linesp" title="行间距" onchange="applyLineSpacing(this.value)">
+<option value="1.9" selected>1.9 倍</option><option value="1.5">1.5 倍</option><option value="1.75">1.75 倍</option><option value="2.2">2.2 倍</option>
+</select>
+</div></div><div class="rg-label">段落设置</div></div>
+</div>
+<div class="ribbon-page" data-page="file">
+<div class="rgroup"><div class="rg-body"><div class="rgrid3">
+<button class="rbtn" onclick="doSave()" title="保存为 Awen 源码文本"><span data-icon="save"></span></button>
+<button class="rbtn" onclick="doPrint()" title="打印 / 另存为 PDF"><span data-icon="print"></span></button>
+</div></div><div class="rg-label">保存·打印</div></div>
+<div class="rgroup"><div class="rg-body">
+<button class="sbtn" onclick="exportFile('md')">导出 Markdown</button>
+<button class="sbtn" onclick="exportFile('html')">导出 HTML</button>
+<button class="sbtn" onclick="exportFile('doc')">导出 Word</button>
+<button class="sbtn" onclick="exportFile('txt')">导出 TXT</button>
+</div><div class="rg-label">导出</div></div>
 </div>
 </div>
 <div class="workspace">
@@ -189,13 +253,17 @@ var DOC_DATA = /*__JSON__*/{};
 var DEFAULT_SRC = '# Awen 迷你编辑器\n\n直接在纸面上打字,回车分段,选中文字用工具栏加粗、变色。\n\n## 断行规则\n\n中西文混排加八分之一 em 间距,英文单词不拆断,行首行尾禁则自动调整,连续标点挤压半宽。\n\n---\n\n> 引用示例\n\n- 列表项一\n- 列表项二\n\n@[table demo]\n| 列1 | 列2 |\n| --- | --- |\n| 内容 | 内容 |\n@[/table]\n';
 
 // ═══ 页面模型(§30 A4)+ 断行度量(镜像 layout_width.aine)═══
-var PAGE_W=210, PAGE_H=297, MARGIN=20;
+var PAGE_W=210, PAGE_H=297, MARGIN=20, LINE_H=1.9;
 var FONT_PT=11, PT2MM=0.352778;
-var CHAR_MM=FONT_PT*PT2MM;
-var CONTENT_W=PAGE_W-MARGIN*2, CONTENT_H=PAGE_H-MARGIN*2;
-var MAX_EM=CONTENT_W/CHAR_MM;
-var LINE_MM=FONT_PT*PT2MM*1.9;
-var LINES_PER_PAGE=Math.floor(CONTENT_H/LINE_MM);
+var CHAR_MM, CONTENT_W, CONTENT_H, MAX_EM, LINE_MM, LINES_PER_PAGE;
+function recalcPage(){
+  CHAR_MM=FONT_PT*PT2MM;
+  CONTENT_W=PAGE_W-MARGIN*2; CONTENT_H=PAGE_H-MARGIN*2;
+  MAX_EM=CONTENT_W/CHAR_MM;
+  LINE_MM=FONT_PT*PT2MM*LINE_H;
+  LINES_PER_PAGE=Math.floor(CONTENT_H/LINE_MM);
+}
+recalcPage();
 
 function isIdeo(c){return /[\u3400-\u4DBF\u4E00-\u9FFF]/.test(c)}
 function isLatn(c){return /[A-Za-z0-9]/.test(c)}
@@ -251,7 +319,7 @@ function breakLines(text){
 function escHtml(s){return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;')}
 function displayText(t){
   return t
-    .replace(/@\[(u|color|size|font|mark)\s*[^\]]*\]((?:.|])*?)@\[\/\1\]/g,'$2')
+    .replace(/@\[(u|color|size|font|mark|sup|sub)\s*[^\]]*\]((?:.|])*?)@\[\/\1\]/g,'$2')
     .replace(/\*\*((?:.|])*?)\*\*/g,'$1')
     .replace(/~~((?:.|])*?)~~/g,'$1')
     .replace(/`((?:.|])*?)`/g,'$1')
@@ -260,6 +328,8 @@ function displayText(t){
 function fmtH(t){
   var s=escHtml(t);
   s=s.replace(/@\[u\]((?:.|])*?)@\[\/u\]/g,'<u>$1</u>');
+  s=s.replace(/@\[sup\]((?:.|])*?)@\[\/sup\]/g,'<sup>$1</sup>');
+  s=s.replace(/@\[sub\]((?:.|])*?)@\[\/sub\]/g,'<sub>$1</sub>');
   s=s.replace(/@\[mark\s+([^\]]+)\]((?:.|])*?)@\[\/mark\]/g,'<span style="background:$1">$2</span>');
   s=s.replace(/@\[color\s+([^\]]+)\]((?:.|])*?)@\[\/color\]/g,'<span style="color:$1">$2</span>');
   s=s.replace(/@\[size\s+([^\]]+)\]((?:.|])*?)@\[\/size\]/g,'<span style="font-size:$1pt">$2</span>');
@@ -396,9 +466,13 @@ function render(src){
   for(var p=0;p<gPages.length;p++){
     var sheet=document.createElement('div');
     sheet.className='sheet';
+    sheet.style.width=PAGE_W+'mm';
+    sheet.style.minHeight=PAGE_H+'mm';
+    sheet.style.padding=MARGIN+'mm';
     var paper=document.createElement('div');
     paper.className='paper';
     paper.contentEditable='true';
+    paper.style.lineHeight=LINE_H;
     paper.dataset.page=p;
     for(var k=0;k<gPages[p].length;k++){
       var item=gPages[p][k], b=item.b;
@@ -500,6 +574,8 @@ function inlineSource(el){
     else if(tag==='EM'||tag==='I')out+='_'+inner+'_';
     else if(tag==='DEL'||tag==='S'||tag==='STRIKE')out+='~~'+inner+'~~';
     else if(tag==='U')out+='@[u]'+inner+'@[/u]';
+    else if(tag==='SUP')out+='@[sup]'+inner+'@[/sup]';
+    else if(tag==='SUB')out+='@[sub]'+inner+'@[/sub]';
     else if(tag==='CODE')out+='`'+inner+'`';
     else if(tag==='SUP')out+='@[sup]'+inner+'@[/sup]';
     else if(tag==='SUB')out+='@[sub]'+inner+'@[/sub]';
@@ -718,7 +794,7 @@ function fmtCmd(cmd){
     document.execCommand(cmd,false,null);
     onPaperInput();
   }else{
-    var map={bold:['**','**'],italic:['_','_'],underline:['@[u]','@[/u]'],strikeThrough:['~~','~~']};
+    var map={bold:['**','**'],italic:['_','_'],underline:['@[u]','@[/u]'],strikeThrough:['~~','~~'],superscript:['@[sup]','@[/sup]'],subscript:['@[sub]','@[/sub]']};
     if(map[cmd])wrapSyntax(map[cmd][0],map[cmd][1]);
   }
 }
@@ -814,26 +890,195 @@ function insertBlock(kind){
     setSrc(lines.join('\n'));
   }else insertSyntax('\n'+ins.join('\n')+'\n');
 }
-// 查找:高亮计数 + 跳转
+// ═══ Word 式色板:固定颜色 + 自选 ═══
+var curFore='#c0392b', curMark='#fff176';
+var PAL_MAIN=['#000000','#404040','#808080','#bfbfbf','#ffffff','#c00000','#ff0000','#ffc000','#ffff00','#92d050',
+              '#00b050','#00b0f0','#0070c0','#002060','#7030a0','#7f6000','#e36c09','#4bacc6','#8064a2','#948a54'];
+function buildPalettes(){
+  ['pal-fore','pal-mark'].forEach(function(id){
+    var el=document.getElementById(id);
+    if(!el||el.dataset.built)return;
+    el.dataset.built='1';
+    var t=document.createElement('div');
+    t.className='cp-title';
+    t.textContent=id==='pal-fore'?'主题颜色(字体)':'底纹颜色';
+    el.appendChild(t);
+    var g=document.createElement('div');
+    g.className='cp-grid';
+    PAL_MAIN.forEach(function(c){
+      var sw=document.createElement('div');
+      sw.className='sw'; sw.style.background=c; sw.title=c;
+      sw.onclick=function(){ pickColor(id,c) };
+      g.appendChild(sw);
+    });
+    el.appendChild(g);
+    var more=document.createElement('div');
+    more.className='cp-more';
+    more.innerHTML='<span data-icon="pick"></span>其他颜色…';
+    more.onclick=function(){ pickCustom(id) };
+    el.appendChild(more);
+    var inp=document.createElement('input');
+    inp.type='color';
+    inp.style.cssText='position:absolute;opacity:0;inset:0;cursor:pointer';
+    inp.onchange=function(){ pickColor(id, inp.value) };
+    more.style.position='relative';
+    more.appendChild(inp);
+  });
+  document.querySelectorAll('[data-icon]').forEach(function(el){
+    if(!el.innerHTML)el.innerHTML=ICONS[el.dataset.icon]||'';
+  });
+}
+function togglePalette(e,id){
+  e.stopPropagation();
+  var el=document.getElementById(id);
+  buildPalettes();
+  var was=el.classList.contains('open');
+  document.querySelectorAll('.cpalette').forEach(function(x){x.classList.remove('open')});
+  if(!was)el.classList.add('open');
+}
+document.addEventListener('click',function(e){
+  if(!e.target.closest('.colordrop'))document.querySelectorAll('.cpalette').forEach(function(x){x.classList.remove('open')});
+});
+function pickColor(id,c){
+  if(id==='pal-fore'){curFore=c;applyColor(c)}
+  else{curMark=c;applyMark(c)}
+  document.querySelectorAll('.cpalette').forEach(function(x){x.classList.remove('open')});
+}
+function pickCustom(id){
+  var inp=document.querySelector('#'+id+' .cp-more input');
+  if(inp)inp.click();
+}
+
+// ═══ 查找替换 ═══
 function toggleFind(){
-  var box=document.getElementById('findbox');
-  box.style.display=box.style.display==='none'?'block':'none';
-  if(box.style.display==='block')box.focus();
+  var bar=document.querySelector('[data-page="findbar"]');
+  var open=bar.style.display==='none'||!bar.style.display;
+  bar.style.display=open?'flex':'none';
+  if(open){document.getElementById('findbox').focus();findCount()}
+}
+function closeFind(){
+  document.querySelector('[data-page="findbar"]').style.display='none';
 }
 function findCount(){
   var q=document.getElementById('findbox').value;
-  if(!q){ document.getElementById('st-find').textContent=''; return }
-  var n=0, i=0, src=gSrc;
-  while((i=src.indexOf(q,i))>=0){ n++; i+=q.length }
-  document.getElementById('st-find').textContent='找到 '+n+' 处';
+  var msg=document.getElementById('findmsg');
+  if(!q){msg.textContent='';return}
+  var n=0,i=0;
+  while((i=gSrc.indexOf(q,i))>=0){n++;i+=q.length}
+  msg.textContent=n?'找到 '+n+' 处':'未找到';
 }
-function findKey(e){
-  if(e.key==='Enter'){
-    e.preventDefault();
-    var q=document.getElementById('findbox').value;
-    if(q&&inDisplayMode()&&!window.find(q)){ findCount() }
+function findNext(){
+  var q=document.getElementById('findbox').value;
+  if(!q)return;
+  if(inDisplayMode()){
+    if(!window.find(q))document.getElementById('findmsg').textContent='已到结尾';
+  }else{
+    var ta=document.getElementById('syntax-src');
+    var from=ta.selectionEnd;
+    var i=gSrc.indexOf(q,from);
+    if(i<0)i=gSrc.indexOf(q,0);
+    if(i>=0){ta.focus();ta.setSelectionRange(i,i+q.length)}
   }
-  if(e.key==='Escape')toggleFind();
+}
+function replaceOne(){
+  var q=document.getElementById('findbox').value;
+  var r=document.getElementById('replacebox').value;
+  if(!q)return;
+  var src=gSrc;
+  var i;
+  var ta=document.getElementById('syntax-src');
+  if(inDisplayMode()&&window.getSelection&&!window.getSelection().isCollapsed){
+    i=saveCaret()?src.indexOf(q):src.indexOf(q);
+  }else if(ta&&document.activeElement===ta){
+    i=src.indexOf(q,ta.selectionStart);
+  }else{
+    i=src.indexOf(q);
+  }
+  if(i<0)i=src.indexOf(q);
+  if(i<0){document.getElementById('findmsg').textContent='未找到';return}
+  setSrc(src.substring(0,i)+r+src.substring(i+q.length));
+  document.getElementById('findmsg').textContent='已替换 1 处';
+}
+function replaceAll(){
+  var q=document.getElementById('findbox').value;
+  var r=document.getElementById('replacebox').value;
+  if(!q)return;
+  var n=0,i=0,src=gSrc;
+  while((i=src.indexOf(q,i))>=0){n++;src=src.substring(0,i)+r+src.substring(i+q.length);i+=r.length}
+  if(n)setSrc(src);
+  document.getElementById('findmsg').textContent='已替换 '+n+' 处';
+}
+
+// ═══ 页面设置 ═══
+var PAPER_SIZES={A4:[210,297],Letter:[215.9,279.4],B5:[176,250],A3:[297,420],A5:[148,210]};
+function applyPaper(v){
+  var sz=PAPER_SIZES[v]||PAPER_SIZES.A4;
+  PAGE_W=sz[0]; PAGE_H=sz[1];
+  recalcPage();
+  render(gSrc);
+}
+function applyMargin(v){
+  MARGIN=parseFloat(v)||20;
+  recalcPage();
+  render(gSrc);
+}
+function applyLineSpacing(v){
+  LINE_H=parseFloat(v)||1.9;
+  recalcPage();
+  render(gSrc);
+}
+
+// ═══ 导出与打印 ═══
+function download(name,mime,content){
+  var blob=new Blob([content],{type:mime});
+  var a=document.createElement('a');
+  a.href=URL.createObjectURL(blob);
+  a.download=name;
+  a.click();
+}
+function exportFile(kind){
+  if(kind==='txt'){download('document.txt','text/plain;charset=utf-8',gSrc);return}
+  if(kind==='md'){
+    var out=[],lines=gSrc.split('\n');
+    for(var i=0;i<lines.length;i++){
+      var t=lines[i];
+      if(/^@\[(page|margin|font|size|line-spacing|first-line|theme|toc|numbering)\s/.test(t))continue;
+      if(/^@\[table/.test(t)||/^@\[\/table\]/.test(t))continue;
+      if(/^@\[comment/.test(t)){while(i<lines.length&&lines[i].indexOf('@[/comment]')<0)i++;continue}
+      var m=t.match(/^@\[image\s+([^\]]+)\]$/);
+      if(m){out.push('!['+m[1]+']('+m[1]+')');continue}
+      t=t.replace(/@\[link\s+([^\]]+?)\s+url:\s*([^\]]+)\]/g,'[$1]($2)');
+      t=t.replace(/@\[u\]((?:.|])*?)@\[\/u\]/g,'<u>$1</u>');
+      out.push(t);
+    }
+    download('document.md','text/markdown;charset=utf-8',out.join('\n'));
+    return;
+  }
+  if(kind==='html'||kind==='doc'){
+    var papers=document.querySelectorAll('#display-pane .paper');
+    var body='';
+    papers.forEach(function(pp){body+=pp.innerHTML});
+    var html='<!DOCTYPE html><html><head><meta charset="utf-8"><title>Awen 文档</title><style>'
+      +'body{margin:0;background:#e8e9eb}'
+      +'.sheet{width:'+PAGE_W+'mm;min-height:'+PAGE_H+'mm;background:#fff;margin:16px auto;padding:'+MARGIN+'mm;box-sizing:border-box;font-family:Georgia,"Times New Roman","Noto Serif SC","Microsoft YaHei",serif;font-size:11pt;line-height:'+LINE_H+';color:#303238}'
+      +'h1{font-size:22pt}h2{font-size:15pt}h3{font-size:13pt}h4{font-size:12pt}h5{font-size:11pt}h6{font-size:10.5pt}'
+      +'p{text-indent:2em;margin:0}strong,b{font-weight:700}em,i{font-style:italic}del,s{text-decoration:line-through}u{text-decoration:underline}'
+      +'code{font-family:Consolas,monospace;font-size:.87em;background:#f0f1f2;padding:1px 4px;border-radius:3px}'
+      +'hr{border:none;border-top:1px solid #ccc}blockquote{border-left:3px solid #c8cad0;padding:2px 14px;color:#5a5c60;margin:0}'
+      +'ul,ol{margin:0;padding-left:2.4em}table{width:100%;border-collapse:collapse;font-size:10.5pt}'
+      +'th,td{border:1px solid #d0d2d5;padding:4px 8px;text-align:left}th{background:#f5f5f6}'
+      +'.docset{color:#c8cad0;font-size:8pt}.comment-src{background:#fffbe8;color:#b09a3e;font-size:9pt}'
+      +'</style></head><body>'+body+'</body></html>';
+    if(kind==='html')download('document.html','text/html;charset=utf-8',html);
+    else download('document.doc','application/msword;charset=utf-8',html);
+  }
+}
+function doPrint(){window.print()}
+
+// 查找:高亮计数 + 跳转
+function findKey(e){
+  if(e.key==='Enter'){e.preventDefault();findNext()}
+  if(e.key==='Escape')closeFind();
 }
 
 // ═══ 语法视图(同一 A4 纸张几何)═══
@@ -985,7 +1230,9 @@ var ICONS={
   hr:'<svg viewBox="0 0 16 16"><path d="M2.5 8h11" '+SW+'/><path d="M4 4.5h8M4 11.5h8" stroke="currentColor" stroke-width="1" stroke-linecap="round" opacity=".35"/></svg>',
   quote:'<svg viewBox="0 0 16 16"><path d="M3 5h4v4H4.5A1.5 1.5 0 0 0 3 10.5z" '+SW+'/><path d="M9 5h4v4h-2.5A1.5 1.5 0 0 0 9 10.5z" '+SW+'/><path d="M3 13h10" '+SW+'/></svg>',
   footnote:'<svg viewBox="0 0 16 16"><path d="M3 11h10M3 13.5h10" '+SW+'/><text x="8" y="7" text-anchor="middle" font-size="7" fill="currentColor" font-family="Georgia,serif">1</text></svg>',
-  comment:'<svg viewBox="0 0 16 16"><path d="M2.5 3.5h11v7h-6L4 13.5v-3H2.5z" '+SW+'/></svg>'
+  comment:'<svg viewBox="0 0 16 16"><path d="M2.5 3.5h11v7h-6L4 13.5v-3H2.5z" '+SW+'/></svg>',
+  print:'<svg viewBox="0 0 16 16"><path d="M4.5 6V2.5h7V6M4.5 11.5H2.5v-5h11v5h-2" '+SW+'/><rect x="4.5" y="9.5" width="7" height="4" '+SW+'/></svg>',
+  pick:'<svg viewBox="0 0 16 16"><circle cx="8" cy="8" r="5" '+SW+'/><path d="M8 3a5 5 0 0 1 0 10" fill="currentColor"/></svg>'
 };
 function showRibbon(page){
   document.querySelectorAll('.tab').forEach(function(t){t.classList.toggle('active',t.dataset.page===page)});
