@@ -199,11 +199,11 @@ input.docname:focus{outline:none;border-color:var(--accent);background:#fff}
 <button class="rbtn s" onclick="fmtCmd('strikeThrough')" title="删除线"><span style="text-decoration:line-through">S</span></button>
 <button class="rbtn supb" onclick="fmtCmd('superscript')" title="上标"><span>x²</span></button>
 <button class="rbtn subb" onclick="fmtCmd('subscript')" title="下标"><span>x₂</span></button>
-<div class="colordrop splitbtn">
-<button class="rbtn" onclick="applyColor(curFore)" title="字体颜色:点击应用,箭头选更多颜色"><span data-icon="fontcolor"></span></button>
+<div class="colordrop splitbtn" onclick="togglePal(event,'fore')">
+<button class="rbtn"><span data-icon="fontcolor"></span></button>
 <button class="half-caret" onclick="togglePal(event,'fore')">▾</button>
 </div>
-<div class="colordrop splitbtn">
+<div class="colordrop splitbtn" onclick="togglePal(event,'mark')">
 <button class="rbtn" onclick="applyMark(curMark)" title="底纹高亮:点击应用,箭头选更多颜色"><span data-icon="mark"></span></button>
 <button class="half-caret" onclick="togglePal(event,'mark')">▾</button>
 </div>
@@ -303,7 +303,7 @@ input.docname:focus{outline:none;border-color:var(--accent);background:#fff}
 <section class="pane" id="syntax-pane" style="display:none;flex:0 0 50%;border-left:1px solid #d7d9dc;background:#f0f1f2"></section>
 </div>
 <div id="tblpop"><span class="lbl">行</span><input id="tbl-rows" type="number" min="1" max="20" value="3"><span class="lbl">列</span><input id="tbl-cols" type="number" min="1" max="8" value="3"><button class="sbtn" onclick="insertTableGrid()">插入</button></div>
-<div id="float-pal" class="cpalette" style="position:fixed;display:none;z-index:200"></div>
+<div id="float-pal" class="cpalette" style="position:fixed;z-index:200"></div>
 <div id="minibar">
 <div class="mb-row">
 <button class="rbtn b" onclick="fmtCmd('bold')" title="加粗">B</button>
@@ -311,9 +311,9 @@ input.docname:focus{outline:none;border-color:var(--accent);background:#fff}
 <button class="rbtn u" onclick="fmtCmd('underline')" title="下划线"><span style="text-decoration:underline">U</span></button>
 <button class="rbtn s" onclick="fmtCmd('strikeThrough')" title="删除线"><span style="text-decoration:line-through">S</span></button>
 <div class="sep"></div>
-<button class="rbtn" onclick="applyColor(curFore)" title="字体颜色:点击应用,箭头选更多颜色"><span data-icon="fontcolor"></span></button>
+<button class="rbtn" onclick="togglePal(event,'fore')" title="字体颜色:点击选色"><span data-icon="fontcolor"></span></button>
 <button class="rbtn" style="width:14px;font-size:9px" onclick="togglePal(event,'fore')" title="更多字体颜色">▾</button>
-<button class="rbtn" onclick="applyMark(curMark)" title="底纹:点击应用,箭头选更多颜色"><span data-icon="mark"></span></button>
+<button class="rbtn" onclick="togglePal(event,'mark')" title="底纹:点击选色"><span data-icon="mark"></span></button>
 <button class="rbtn" style="width:14px;font-size:9px" onclick="togglePal(event,'mark')" title="更多底纹颜色">▾</button>
 <div class="sep"></div>
 <button class="rbtn supb" onclick="fmtCmd('superscript')" title="上标"><span>x²</span></button>
@@ -430,7 +430,7 @@ function fmtH(t){
   s=s.replace(/@\[mark\s+([^\]]+)\]((?:.|])*?)@\[\/mark\]/g,'<span data-cmd="@[mark $1]" data-close="@[/mark]" style="background:$1">$2</span>');
   s=s.replace(/@\[color\s+([^\]]+)\]((?:.|])*?)@\[\/color\]/g,'<span data-cmd="@[color $1]" data-close="@[/color]" style="color:$1">$2</span>');
   s=s.replace(/@\[size\s+([^\]]+)\]((?:.|])*?)@\[\/size\]/g,'<span data-cmd="@[size $1]" data-close="@[/size]" style="font-size:$1pt">$2</span>');
-  s=s.replace(/@\[link\s+([^\]]+?)\s+url:\s*([^\]]+)\]/g,'<a href="$2" target="_blank" style="color:#2a4a66;text-decoration:underline">$1</a>');
+  s=s.replace(/@\[link\s+([^\]]+?)\s+url:\s*"?([^"\]]+)"?\]/g,'<a href="$2" target="_blank" style="color:#2a4a66;text-decoration:underline">$1</a>');
   s=s.replace(/@\[footnote\s+(\d+)\s+([^\]]+)\]/g,function(m,n,txt){return '<sup class="fn" title="'+txt.replace(/"/g,'')+'" style="color:#2a4a66;cursor:help">'+n+'</sup>'});
   s=s.replace(/@\[font\s+([^\]]+)\]((?:.|])*?)@\[\/font\]/g,function(m,f,inner){
     f=f.replace(/"/g,'');
@@ -470,7 +470,7 @@ function miniParse(src){
       flush(i);
       var ci=i+1;
       if(t.indexOf('@[/comment]')<0){
-        while(ci<lines.length&&lines[ci].indexOf('@[/comment]')<0)ci++;
+        while(ci<lines.length&&lines[ci].indexOf('@[/comment]')<0&&lines[ci].trim()!==']')ci++;
         ci=Math.min(ci+1,lines.length);
       }
       nodes.push({kind:'comment',text:lines.slice(i,ci).join('\n'),srcStart:i,srcEnd:ci});
@@ -480,9 +480,11 @@ function miniParse(src){
       flush(i);
       var fi=i+1;
       var closeTag='@[/'+t.match(/^@\[(\w+)/)[1]+']';
+      var isFigure=t.indexOf('figure')>=0;
       if(t.indexOf(closeTag)<0){
-        while(fi<lines.length&&lines[fi].indexOf(closeTag)<0)fi++;
-        fi=Math.min(fi+1,lines.length);
+        while(fi<lines.length&&lines[fi].indexOf(closeTag)<0&&lines[fi].trim()!==']')fi++;
+        if(fi<lines.length&&lines[fi].trim()===']'){fi=fi+1}
+        else{fi=Math.min(fi+1,lines.length)}
       }
       if(/^@\[table/.test(t)){
         var trows=[];
@@ -1178,7 +1180,8 @@ function quickDiags(src){
     var t=lines[i];
     if(t.indexOf('@[table')===0)tOpen++;
     if(t.indexOf('@[/table]')>=0)tOpen--;
-    if(t.indexOf('@[comment')===0&&t.indexOf('@[/comment]')<0)cOpen++;
+    var trimT=t.trim();
+    if(t.indexOf('@[comment')===0&&trimT.charAt(trimT.length-1)!==']')cOpen++;
     if(t.indexOf('@[/comment]')>=0)cOpen--;
     var m=t.match(/^@\[([a-z-]+)[\s\]]/i);
     if(m){
@@ -1274,13 +1277,14 @@ function togglePal(e,kind){
   var r=anchor.getBoundingClientRect();
   pal.style.left=Math.max(8,Math.min(r.left,window.innerWidth-260))+'px';
   pal.style.top=(r.bottom+8)+'px';
+  pal.style.display='flex';
   pal.classList.add('open');
   _palOpenKind=kind;
 }
 function closePal(){
   _palOpenKind=null;
   var fp=document.getElementById('float-pal');
-  if(fp)fp.classList.remove('open');
+  if(fp){fp.classList.remove('open');fp.style.display='none'}
 }
 document.addEventListener('click',function(e){
   if(_palOpenKind&&!e.target.closest('#float-pal')&&!e.target.closest('.half-caret')&&!e.target.closest('.splitbtn .rbtn')){
@@ -1581,9 +1585,12 @@ function doRedo(){
 }
 function applyHistory(text){
   var caret=saveCaret();
+  var ta=document.getElementById('syntax-src');
+  if(ta)ta.value=text;
   render(text);
   restoreCaret(caret);
-  document.getElementById('st-diag').textContent='诊断 ✓ · 历史 '+histIdx+'/'+(hist.length-1);
+  updateDiagBar();
+  document.getElementById('st-diag').title='历史 '+histIdx+'/'+(hist.length-1);
 }
 function setSrc(s){
   var ta=document.getElementById('syntax-src');
@@ -1633,9 +1640,10 @@ document.getElementById('display-pane').addEventListener('input',onPaperInput);
 document.getElementById('display-pane').addEventListener('keydown',onPaperKey);
 
 function fname(ext){
-  var n=(document.getElementById('docname').value||'未命名文档').replace(/[\\/:*?"<>|]/g,'_').trim()||'未命名文档';
   var e=document.getElementById('export-name');
-  if(ext!=='awen'&&e&&e.value.trim())n=e.value.trim().replace(/[\\/:*?"<>|]/g,'_');
+  var d=document.getElementById('docname');
+  var n=(e&&e.value.trim())?e.value.trim():(d.value||'未命名文档');
+  n=n.replace(/[\\/:*?"<>|]/g,'_').replace(/\.(awen|txt|md|html?|docx?)$/i,'');
   return n+'.'+ext;
 }
 function saveWithPicker(name,mime,content){
@@ -1652,16 +1660,20 @@ function saveWithPicker(name,mime,content){
   }
 }
 function markClean(){ docDirty=false; updateTitle() }
-function updateTitle(){
+function updateTitle(src){
   var inp=document.getElementById('docname');
+  var en=document.getElementById('export-name');
   var n=inp.value||'未命名文档';
   var dm=document.getElementById('dirty-mark');
   if(dm)dm.style.display=docDirty?'inline':'none';
-  if(document.activeElement!==inp)inp.value=n;
+  if(src!=='docname'&&document.activeElement!==inp)inp.value=n;
+  if(src!=='export'&&en&&document.activeElement!==en){
+    en.value=n.replace(/\.[a-z0-9]+$/i,'');
+  }
 }
 function doSave(){
   var header='# awen v0.4\n# ---\n';
-  saveWithPicker(fname('awen.txt'),'text/plain;charset=utf-8',header+gSrc);
+  saveWithPicker(fname('awen'),'text/plain;charset=utf-8',header+gSrc);
   markClean();
 }
 function newDoc(){
@@ -1694,6 +1706,7 @@ function onOpenFile(e){
     }
     document.getElementById('docname').value=f.name.replace(/\.(awen(\.txt)?|txt|md|markdown)$/i,'');
     setSrc(text);
+    updateTitle();
     markClean();
   };
   rd.readAsText(f,'utf-8');
@@ -1884,14 +1897,16 @@ renderOutline=function(){
   buildSyntaxPane();
   setSrc(src);
   // 序列化规范化一次(尾随换行等),消除首编辑差异
-  var norm=serializeAll();
-  if(norm!==src){ render(norm); recordHist(norm,false); }
   recordHist(gSrc,false);
   if(gSrc.indexOf('@[first-line')>=0){ var b=document.getElementById('btn-firstline'); if(b)b.classList.add('on') }
   docDirty=false; updateTitle(); updateUndoButtons(); updateDiagBar(); updateCaretPos();
-  document.getElementById('docname').addEventListener('input',updateTitle);
+  document.getElementById('docname').addEventListener('input',function(){updateTitle('docname')});
   var en=document.getElementById('export-name');
-  if(en)en.addEventListener('input',function(){en.dataset.touched='1'});
+  if(en)en.addEventListener('input',function(){
+    updateTitle('export');
+    var dn=document.getElementById('docname');
+    if(document.activeElement===en&&en.value.trim())dn.value=en.value.trim();
+  });
 })();
 </script>
 </body>
