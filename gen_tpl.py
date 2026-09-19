@@ -1,4 +1,8 @@
-<!DOCTYPE html>
+# -*- coding: utf-8 -*-
+# 生成 preview/template.html
+import os
+
+html = """<!DOCTYPE html>
 <html lang="zh-CN">
 <head>
 <meta charset="utf-8">
@@ -60,7 +64,7 @@ button{font:inherit;border:0;background:none;color:inherit;cursor:pointer}
 .paper blockquote.lv3{margin-left:32px}
 .paper ul,.paper ol{margin:6px 0;padding-left:8px;list-style:none}
 .paper ul li,.paper ol li{margin:3px 0;padding-left:20px;text-indent:-20px}
-.paper ul li::before{content:"• ";color:#999}
+.paper ul li::before{content:"\\2022 ";color:#999}
 .paper table{width:100%;border-collapse:collapse;font-size:13px;margin:16px 0}
 .paper table th,.paper table td{border:1px solid #d0d2d5;padding:8px 10px;text-align:left}
 .paper table th{font-weight:600;background:#f5f5f6}
@@ -85,176 +89,207 @@ button{font:inherit;border:0;background:none;color:inherit;cursor:pointer}
 </head>
 <body>
 <div class="app">
+
 <div class="titlebar">
 <div class="brand">Awen</div>
 <div class="docname">未命名文档 · 已保存</div>
-<div class="title-actions"><button class="icon-btn">─</button><button class="icon-btn">□</button><button class="icon-btn">×</button></div>
+<div class="title-actions"><button class="icon-btn">&#x2500;</button><button class="icon-btn">&#x25A1;</button><button class="icon-btn">&#x00D7;</button></div>
 </div>
+
 <div class="toolbar">
-<button class="tbtn" onclick="doUndo()" title="撤销">↩</button>
-<button class="tbtn" onclick="doRedo()" title="重做">↪</button>
+<button class="tbtn" onclick="doUndo()" title="撤销">&#x21A9;</button>
+<button class="tbtn" onclick="doRedo()" title="重做">&#x21AA;</button>
 <div class="tsep"></div>
 <button class="tbtn bold" onclick="doWrap('**')" title="粗体"><b>B</b></button>
 <button class="tbtn italic" onclick="doWrap('_')" title="斜体"><i>I</i></button>
 <button class="tbtn strike" onclick="doWrap('~~')" title="删除线"><s>S</s></button>
 <div class="tsep"></div>
-<button class="tbtn" onclick="insertText('\n\n---\n\n')">─ 分隔线</button>
-<button class="tbtn" onclick="insertText('\n\n> 引用内容\n\n')">❝ 引用</button>
-<button class="tbtn" onclick="insertText('\n\n@[image hero.png]\n\n')">🖼 图片</button>
-<button class="tbtn" onclick="insertText('\n\n@[table]\n\n| 列1 | 列2 |\n| --- | --- |\n| 内容 | 内容 |\n\n@[/table]\n\n')">▦ 表格</button>
+<button class="tbtn" onclick="insertText('\\n\\n---\\n\\n')">&#x2500; 分隔线</button>
+<button class="tbtn" onclick="insertText('\\n\\n> 引用内容\\n\\n')">&#x275D; 引用</button>
+<button class="tbtn" onclick="insertText('\\n\\n@[image hero.png]\\n\\n')">&#x1F5BC; 图片</button>
+<button class="tbtn" onclick="insertText('\\n\\n@[table]\\n\\n| 列1 | 列2 |\\n| --- | --- |\\n| 内容 | 内容 |\\n\\n@[/table]\\n\\n')">&#x1F5D2; 表格</button>
 <div class="view-tabs">
 <button class="active" data-mode="display">显示</button>
 <button data-mode="syntax">语法</button>
 <button data-mode="split">分屏</button>
 </div>
 </div>
+
 <div class="workspace">
 <aside class="sidebar">
 <div class="side-head">文档结构</div>
 <div class="outline" id="outline"></div>
 <div class="side-bottom">
-<div class="side-row">⌕ 查找</div>
-<div class="side-row">⚙ 文档设置</div>
+<div class="side-row">&#x2315; 查找</div>
+<div class="side-row">&#x2699; 文档设置</div>
 </div>
 </aside>
+
 <main class="editor-area">
 <div class="editor-scroll"><article class="paper" id="paper"></article></div>
 </main>
+
 <section class="syntax-panel" id="syntax-panel">
 <div style="height:36px;border-bottom:1px solid #e0e1e4;display:flex;align-items:center;justify-content:space-between;padding:0 14px;font-size:12px;color:#666;flex:none"><span>Awen 语法</span><span style="padding:4px 8px;border:1px solid #dddfe2;border-radius:5px;background:#fafafa;font-size:12px">中文语法</span></div>
 <div style="flex:1;display:flex;flex-direction:column;overflow:hidden"><textarea id="syntax-src" spellcheck="false" style="flex:1;resize:none;border:0;outline:0;padding:20px 24px;font:13px/1.75 var(--mono);color:#303238;background:#fff"></textarea></div>
 </section>
 </div>
+
 <div class="statusbar">
-<span class="item" id="st-diag">诊断 ✓</span>
-<span class="item" id="st-nodes">—</span>
-<span class="item" id="st-labels">Label —</span>
+<span class="item" id="st-diag">诊断 &#x2713;</span>
+<span class="item" id="st-nodes">&#x2014;</span>
+<span class="item" id="st-labels">Label &#x2014;</span>
 <span class="spacer"></span>
-<span class="item" id="st-page">—</span>
+<span class="item" id="st-page">&#x2014;</span>
 </div>
 </div>
 <script>
 var docSource='';
 var syntaxVisible=false;
+
 function escHtml(s){return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;')}
-function fmtH(t){let s=escHtml(t);s=s.replace(/\*\*(.+?)\*\*/g,'<strong>$1</strong>');s=s.replace(/~~(.+?)~~/g,'<del>$1</del>');s=s.replace(/`(.+?)`/g,'<code>$1</code>');return s}
+function fmtH(t){let s=escHtml(t);s=s.replace(/\\*\\*(.+?)\\*\\*/g,'<strong>$1</strong>');s=s.replace(/~~(.+?)~~/g,'<del>$1</del>');s=s.replace(/`(.+?)`/g,'<code>$1</code>');return s}
+
 function miniParse(src){
-const lines=src.split('\n');
-const nodes=[];
-let para=[];
-for(const line of lines){
-const t=line.trim();
-if(t===''){if(para.length>0){nodes.push({kind:'para',text:para.join(' ')});para=[]}continue}
-if(t.startsWith('#')){
-if(para.length>0){nodes.push({kind:'para',text:para.join(' ')});para=[]}
-const lvl=Math.min((t.match(/^#+/)||['#'])[0].length,6);
-nodes.push({kind:'heading',level:lvl,text:t.replace(/^#+\s*/,'')});
-continue;
+  const lines=src.split('\\n');
+  const nodes=[];
+  let para=[];
+  for(const line of lines){
+    const t=line.trim();
+    if(t===''){if(para.length>0){nodes.push({kind:'para',text:para.join(' ')});para=[]}continue}
+    if(t.startsWith('#')){
+      if(para.length>0){nodes.push({kind:'para',text:para.join(' ')});para=[]}
+      const lvl=Math.min((t.match(/^#+/)||['#'])[0].length,6);
+      nodes.push({kind:'heading',level:lvl,text:t.replace(/^#+\\s*/,'')});
+      continue;
+    }
+    if(t==='---'){if(para.length>0){nodes.push({kind:'para',text:para.join(' ')});para=[]}nodes.push({kind:'hr',text:''});continue}
+    if(t.startsWith('- ')||t.startsWith('* ')){
+      if(para.length>0){nodes.push({kind:'para',text:para.join(' ')});para=[]}
+      nodes.push({kind:'list',text:t});
+      continue;
+    }
+    if(/^\\d+\\.\\s/.test(t)){
+      if(para.length>0){nodes.push({kind:'para',text:para.join(' ')});para=[]}
+      nodes.push({kind:'list',text:t});
+      continue;
+    }
+    if(t.startsWith('> ')){
+      if(para.length>0){nodes.push({kind:'para',text:para.join(' ')});para=[]}
+      nodes.push({kind:'quote',text:t});
+      continue;
+    }
+    if(t.startsWith('|')&&t.endsWith('|')){
+      if(para.length>0){nodes.push({kind:'para',text:para.join(' ')});para=[]}
+      nodes.push({kind:'table',text:t});
+      continue;
+    }
+    if(t.startsWith('@[comment')){nodes.push({kind:'comment',text:t});continue}
+    if(/^@\\[(page|margin|font|size|line-spacing|first-line|theme|toc|numbering)/.test(t)){
+      if(para.length>0){nodes.push({kind:'para',text:para.join(' ')});para=[]}
+      nodes.push({kind:'docset',text:t});
+      continue;
+    }
+    if(t.startsWith('@[')&&!t.startsWith('@@')){
+      if(para.length>0){nodes.push({kind:'para',text:para.join(' ')});para=[]}
+      nodes.push({kind:'obj',text:t});
+      continue;
+    }
+    para.push(t);
+  }
+  if(para.length>0){nodes.push({kind:'para',text:para.join(' ')});para=[]}
+  return nodes;
 }
-if(t==='---'){if(para.length>0){nodes.push({kind:'para',text:para.join(' ')});para=[]}nodes.push({kind:'hr',text:''});continue}
-if(t.startsWith('- ')||t.startsWith('* ')){
-if(para.length>0){nodes.push({kind:'para',text:para.join(' ')});para=[]}
-nodes.push({kind:'list',text:t});
-continue;
-}
-if(/^\d+\.\s/.test(t)){
-if(para.length>0){nodes.push({kind:'para',text:para.join(' ')});para=[]}
-nodes.push({kind:'list',text:t});
-continue;
-}
-if(t.startsWith('> ')){
-if(para.length>0){nodes.push({kind:'para',text:para.join(' ')});para=[]}
-nodes.push({kind:'quote',text:t});
-continue;
-}
-if(t.startsWith('|')&&t.endsWith('|')){
-if(para.length>0){nodes.push({kind:'para',text:para.join(' ')});para=[]}
-nodes.push({kind:'table',text:t});
-continue;
-}
-if(t.startsWith('@[comment')){nodes.push({kind:'comment',text:t});continue}
-if(/^@\[(page|margin|font|size|line-spacing|first-line|theme|toc|numbering)/.test(t)){
-if(para.length>0){nodes.push({kind:'para',text:para.join(' ')});para=[]}
-nodes.push({kind:'docset',text:t});
-continue;
-}
-if(t.startsWith('@[')&&!t.startsWith('@@')){
-if(para.length>0){nodes.push({kind:'para',text:para.join(' ')});para=[]}
-nodes.push({kind:'obj',text:t});
-continue;
-}
-para.push(t);
-}
-if(para.length>0){nodes.push({kind:'para',text:para.join(' ')});para=[]}
-return nodes;
-}
+
 function renderDoc(nodes){
-const paper=document.getElementById('paper');
-paper.innerHTML='';
-let pageNum=0,lineCount=0;
-let pd=makePage(pageNum);
-for(const node of nodes){
-if(node.kind==='comment'||node.kind==='docset')continue;
-let html='';
-if(node.kind==='heading'){const tag='h'+Math.min(node.level,6);html='<'+tag+'>'+fmtH(node.text)+'</'+tag+'>'}
-else if(node.kind==='para'){html='<p>'+fmtH(node.text)+'</p>'}
-else if(node.kind==='quote'){html='<blockquote><p>'+fmtH(node.text.replace(/^>\s*/,''))+'</p></blockquote>'}
-else if(node.kind==='list'){html='<ul><li>'+fmtH(node.text)+'</li></ul>'}
-else if(node.kind==='table'){html='<p style="font-family:var(--mono);font-size:12px;color:#666">'+escHtml(node.text)+'</p>'}
-else if(node.kind==='hr'){html='<hr>'}
-else if(node.kind==='obj'){html='<div class="img-ph">'+escHtml(node.text)+'</div>'}
-else{html='<p>'+fmtH(node.text)+'</p>'}
-const el=document.createElement('div');
-el.dataset.heading=node.kind==='heading'?node.text:'';
-el.innerHTML=html;
-pd.appendChild(el);
-lineCount++;
-if(lineCount>=40){pageNum++;lineCount=0;pd=makePage(pageNum)}
+  const paper=document.getElementById('paper');
+  paper.innerHTML='';
+  let pageNum=0,lineCount=0;
+  let pd=makePage(pageNum);
+  for(const node of nodes){
+    if(node.kind==='comment'||node.kind==='docset')continue;
+    let html='';
+    if(node.kind==='heading'){const tag='h'+Math.min(node.level,6);html='<'+tag+'>'+fmtH(node.text)+'</'+tag+'>'}
+    else if(node.kind==='para'){html='<p>'+fmtH(node.text)+'</p>'}
+    else if(node.kind==='quote'){html='<blockquote><p>'+fmtH(node.text.replace(/^>\\s*/,''))+'</p></blockquote>'}
+    else if(node.kind==='list'){html='<ul><li>'+fmtH(node.text)+'</li></ul>'}
+    else if(node.kind==='table'){html='<p style="font-family:var(--mono);font-size:12px;color:#666">'+escHtml(node.text)+'</p>'}
+    else if(node.kind==='hr'){html='<hr>'}
+    else if(node.kind==='obj'){html='<div class="img-ph">'+escHtml(node.text)+'</div>'}
+    else{html='<p>'+fmtH(node.text)+'</p>'}
+    const el=document.createElement('div');
+    el.dataset.heading=node.kind==='heading'?node.text:'';
+    el.innerHTML=html;
+    pd.appendChild(el);
+    lineCount++;
+    if(lineCount>=40){pageNum++;lineCount=0;pd=makePage(pageNum)}
+  }
+  paper.appendChild(pd);
+  return pageNum+1;
 }
-paper.appendChild(pd);
-return pageNum+1;
-}
+
 function makePage(idx){
-const pd=document.createElement('div');
-pd.className='page';
-const pn=document.createElement('div');
-pn.className='page-no';
-pn.textContent='第 '+(idx+1)+' 页';
-pd.appendChild(pn);
-return pd;
+  const pd=document.createElement('div');
+  pd.className='page';
+  const pn=document.createElement('div');
+  pn.className='page-no';
+  pn.textContent='第 '+(idx+1)+' 页';
+  pd.appendChild(pn);
+  return pd;
 }
+
 function renderOutline(nodes){
-const ol=document.getElementById('outline');
-ol.innerHTML='';
-for(const n of nodes){
-if(n.kind!=='heading')continue;
-const d=document.createElement('div');
-d.className='outline-item lv'+n.level;
-d.textContent=n.text;
-d.onclick=()=>{const el=document.querySelector('[data-heading="'+n.text+'"]');if(el)el.scrollIntoView({behavior:'smooth',block:'start'})};
-ol.appendChild(d);
+  const ol=document.getElementById('outline');
+  ol.innerHTML='';
+  for(const n of nodes){
+    if(n.kind!=='heading')continue;
+    const d=document.createElement('div');
+    d.className='outline-item lv'+n.level;
+    d.textContent=n.text;
+    d.onclick=()=>{const el=document.querySelector('[data-heading="'+n.text+'"]');if(el)el.scrollIntoView({behavior:'smooth',block:'start'})};
+    ol.appendChild(d);
+  }
 }
-}
+
 function renderStatusBar(nodes,pageCount){
-const hCount=nodes.filter(n=>n.kind==='heading').length;
-const pCount=nodes.filter(n=>n.kind==='para').length;
-document.getElementById('st-nodes').textContent=hCount+' 标题 · '+pCount+' 段落';
-document.getElementById('st-page').textContent=pageCount+' 页';
+  const hCount=nodes.filter(n=>n.kind==='heading').length;
+  const pCount=nodes.filter(n=>n.kind==='para').length;
+  document.getElementById('st-nodes').textContent=hCount+' 标题 · '+pCount+' 段落';
+  document.getElementById('st-page').textContent=pageCount+' 页';
 }
+
 // ═══ 视图模式切换 ═══
 const modeBtns=document.querySelectorAll('.view-tabs button');
 let currentMode='display';
+
 modeBtns.forEach(b=>b.addEventListener('click',()=>setMode(b.dataset.mode)));
-function setMode(mode){
-currentMode=mode;
-modeBtns.forEach(b=>b.classList.toggle('active',b.dataset.mode===mode));
-const dp=document.querySelector('.display-view');
-const sp=document.getElementById('syntax-panel');
-if(!dp||!sp)return;
-if(mode==='syntax'){dp.style.display='none';sp.style.display='flex'}
-else if(mode==='split'){dp.style.display='flex';dp.style.width='50%';dp.style.flex='0 0 50%';sp.style.display='flex';sp.style.width='50%';sp.style.flex='0 0 50%'}
-else{dp.style.display='flex';sp.style.display='none'}
+function setMode(mode) {
+  currentMode=mode;
+  modeBtns.forEach(b=>b.classList.toggle('active',b.dataset.mode===mode));
+  const dp=document.querySelector('.display-view');
+  const sp=document.getElementById('syntax-panel');
+  if (!dp||!sp) return;
+  if (mode==='syntax') {
+    dp.style.display='none';
+    sp.style.display='flex';
+  } else if (mode==='split') {
+    dp.style.display='flex';
+    dp.style.width='50%';
+    dp.style.flex='0 0 50%';
+    sp.style.display='flex';
+    sp.style.width='50%';
+    sp.style.flex='0 0 50%';
+  } else {
+    dp.style.display='flex';
+    sp.style.display='none';
+  }
 }
 </script>
 </body>
 </html>
+"""
+
+out_path = os.path.join('preview', 'template.html')
+with open(out_path, 'w', encoding='utf-8', newline='\n') as f:
+    f.write(html)
+print('template written:', len(html), 'bytes')
