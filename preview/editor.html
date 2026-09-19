@@ -673,6 +673,7 @@ function inlineSource(el){
     else if(tag==='U')out+='@[u]'+inner+'@[/u]';
     else if(tag==='SUP')out+='@[sup]'+inner+'@[/sup]';
     else if(tag==='SUB')out+='@[sub]'+inner+'@[/sub]';
+    else if(tag==='A')out+='@[link '+inner+' url: '+n.getAttribute('href')+']';
     else if(tag==='CODE')out+='`'+inner+'`';
     else if(tag==='SUP')out+='@[sup]'+inner+'@[/sup]';
     else if(tag==='SUB')out+='@[sub]'+inner+'@[/sub]';
@@ -754,7 +755,7 @@ function serializeAll(){
       if(el.nodeType!==1)return;
       if(el.classList.contains('gap'))return;
       if(el.classList.contains('docset')){ if(out.length&&out[out.length-1].trim()!==''&&prevKind!=='docset')out.push(''); out.push(el.textContent); prevKind='docset'; return }
-      if(el.classList.contains('comment-src')){ out.push(el.dataset.raw||el.textContent); prevKind='comment'; return }
+      if(el.classList.contains('comment-src')){ if(out.length&&out[out.length-1].trim()!==''&&prevKind!=='comment')out.push(''); out.push(el.dataset.raw||el.textContent); prevKind='comment'; return }
       // 原生 Enter 拆出的新块没有 data-bid,按通用规则识别类型
       var kind=el.dataset.kind||(/^H[1-6]$/.test(el.tagName)?'heading':el.tagName==='UL'?'ul':el.tagName==='OL'?'ol':el.tagName==='BLOCKQUOTE'?'quote':el.tagName==='TABLE'?'table':el.tagName==='HR'?'hr':'para');
       el.dataset.kind=kind;
@@ -1537,6 +1538,8 @@ function setSrc(s){
   if(ta)ta.value=s;
   recordHist(s,false);
   render(s);
+  var norm=serializeAll();
+  if(norm!==s){ render(norm); }
   updateDiagBar();
 }
 
