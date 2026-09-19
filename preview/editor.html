@@ -26,30 +26,30 @@ input.findbox{border:1px solid #c9cbce;border-radius:4px;padding:4px 6px;font-si
 .view-tabs button{font-size:12px;padding:4px 14px;border-radius:5px;color:#6b6d72}
 .view-tabs button.active{background:#fff;color:#222;box-shadow:0 1px 2px rgba(0,0,0,.08)}
 .ribbon{background:var(--bg3);border-bottom:1px solid var(--border2);flex:none;user-select:none}
-.ribbon-page{display:none;align-items:stretch;padding:4px 10px 0;min-height:92px;height:92px}
+.ribbon-page{display:none;align-items:stretch;padding:5px 16px 0;min-height:96px;height:96px}
 .ribbon-page.active{display:flex}
-.rgroup{display:flex;flex-direction:column;padding:0 12px;border-right:1px solid #e0e1e4;flex:none;justify-content:space-between}
+.rgroup{display:flex;flex-direction:column;padding:0 18px;border-right:1px solid #e0e1e4;flex:none;justify-content:center}
 .rgroup:last-child{border-right:0}
-.rg-body{display:flex;gap:6px;align-items:center;padding:7px 0}
-.rg-label{font-size:10px;color:#8a8c90;text-align:center;padding:0 2px 5px;line-height:1;white-space:nowrap}
-.rbtn{width:30px;height:30px;display:flex;align-items:center;justify-content:center;border-radius:4px;color:#303238;flex:none}
+.rg-body{display:flex;gap:10px;align-items:center}
+.rg-label{font-size:10px;color:#8a8c90;text-align:center;padding:4px 2px 6px;line-height:1;white-space:nowrap}
+.rbtn{width:34px;height:32px;display:flex;align-items:center;justify-content:center;border-radius:4px;color:#303238;flex:none}
 .rbtn:hover{background:#e6e7e9}
 .rbtn:active{background:#dcdde0}
-.rbtn svg{width:18px;height:18px;display:block}
-.rbtn.b{font-weight:700;font-size:15px}.rbtn.i{font-style:italic;font-family:Georgia,serif;font-size:15px}
-.rbtn.u span,.rbtn.s span{font-size:15px}
+.rbtn svg{width:19px;height:19px;display:block}
+.rbtn.b{font-weight:700;font-size:16px}.rbtn.i{font-style:italic;font-family:Georgia,serif;font-size:16px}
+.rbtn.u span,.rbtn.s span{font-size:16px}
 .rbtn.mono{font-family:var(--mono);font-size:12px;font-weight:600}
-.rbtn.supb span,.rbtn.subb span{font-size:13px}
+.rbtn.supb span,.rbtn.subb span{font-size:14px}
 .rbtn.supb span{vertical-align:super}.rbtn.subb span{vertical-align:sub}
-.rgrid{display:grid;grid-template-columns:repeat(4,30px);gap:3px}
-.rgrid3{display:grid;grid-template-columns:repeat(3,30px);gap:3px}
-.rgrid4{display:grid;grid-template-columns:repeat(4,30px);gap:3px}
-.fcol{display:flex;flex-direction:column;gap:3px}
-.frow{display:flex;gap:3px;align-items:center}
-.frow select{height:28px;font-size:12px;padding:2px 5px}
-.frow #sel-style{width:82px}
-.frow #sel-font{width:112px}
-.frow #sel-size{width:68px}
+.rgrid{display:grid;grid-template-columns:repeat(5,34px);gap:3px}
+.rgrid3{display:grid;grid-template-columns:repeat(4,34px);gap:3px}
+.rgrid4{display:grid;grid-template-columns:repeat(4,34px);gap:3px}
+.fcol{display:flex;flex-direction:column;gap:4px}
+.frow{display:flex;gap:4px;align-items:center}
+.frow select{height:28px;font-size:12px;padding:2px 6px}
+.frow #sel-style{width:100px}
+.frow #sel-font{width:130px}
+.frow #sel-size{width:78px}
 .vsel{display:flex;flex-direction:column;justify-content:center;gap:4px;padding:0 2px}
 .vsel select{height:26px;padding:2px 5px;font-size:12px}
 .vsel #sel-font{width:126px}
@@ -172,8 +172,8 @@ input.docname:focus{outline:none;border-color:var(--accent);background:#fff}
 <div class="ribbon">
 <div class="ribbon-page active" data-page="home">
 <div class="rgroup"><div class="rg-body">
-<button class="rbtn" onclick="doUndo()" title="撤销 (Ctrl+Z)"><span data-icon="undo"></span></button>
-<button class="rbtn" onclick="doRedo()" title="重做 (Ctrl+Y)"><span data-icon="redo"></span></button>
+<button class="rbtn" style="width:38px" onclick="doUndo()" title="撤销 (Ctrl+Z)"><span data-icon="undo"></span></button>
+<button class="rbtn" style="width:38px" onclick="doRedo()" title="重做 (Ctrl+Y)"><span data-icon="redo"></span></button>
 </div><div class="rg-label">剪贴板</div></div>
 <div class="rgroup"><div class="rg-body"><div class="fcol">
 <div class="frow">
@@ -213,6 +213,8 @@ input.docname:focus{outline:none;border-color:var(--accent);background:#fff}
 <div class="rgrid3">
 <button class="rbtn" onclick="listCmd('ul')" title="项目符号列表"><span data-icon="ul"></span></button>
 <button class="rbtn" onclick="listCmd('ol')" title="编号列表"><span data-icon="ol"></span></button>
+<button class="rbtn" onclick="insertBlock('quote')" title="插入引用"><span data-icon="quote"></span></button>
+<button class="rbtn" onclick="insertBlock('hr')" title="插入分隔线"><span data-icon="hr"></span></button>
 <button class="rbtn" onclick="fmtCmd('justifyLeft')" title="左对齐"><span data-icon="al"></span></button>
 <button class="rbtn" onclick="fmtCmd('justifyCenter')" title="居中"><span data-icon="ac"></span></button>
 <button class="rbtn" onclick="fmtCmd('justifyRight')" title="右对齐"><span data-icon="ar"></span></button>
@@ -240,7 +242,6 @@ input.docname:focus{outline:none;border-color:var(--accent);background:#fff}
 <button class="rbtn" onclick="insertBlock('image')" title="插入图片"><span data-icon="image"></span></button>
 <button class="rbtn" onclick="insertBlock('link')" title="插入链接"><span data-icon="link"></span></button>
 <button class="rbtn" onclick="insertBlock('hr')" title="插入分隔线"><span data-icon="hr"></span></button>
-<button class="rbtn" onclick="insertBlock('quote')" title="插入引用"><span data-icon="quote"></span></button>
 <button class="rbtn" onclick="insertBlock('footnote')" title="插入脚注"><span data-icon="footnote"></span></button>
 <button class="rbtn" onclick="insertBlock('toc')" title="插入目录 @[toc depth: 2]"><span data-icon="toc"></span></button>
 </div>
@@ -331,7 +332,7 @@ input.docname:focus{outline:none;border-color:var(--accent);background:#fff}
 <select id="sel-zoom" style="background:#fff;color:#303238;border:none;border-radius:3px;height:20px;padding:0 4px" onchange="applyZoom(this.value)">
 <option value="0.7">70%</option><option value="0.85">85%</option><option value="1" selected>100%</option><option value="1.25">125%</option><option value="1.5">150%</option>
 </select>
-<span class="item" id="st-page">—</span>
+<span class="item" id="st-page">共 — 页</span>
 </div>
 </div>
 <script>
@@ -657,7 +658,7 @@ function renderStatus(){
   }
   document.getElementById('st-words').textContent=chars+' 字';
   document.getElementById('st-labels').textContent='标签 '+labels;
-  document.getElementById('st-page').textContent=gPages.length+' 页';
+  document.getElementById('st-page').textContent='共 '+gPages.length+' 页';
 }
 
 // ═══ DOM → 源码序列化(§85:纸面原生编辑,DOM 是输入,源码是权威)═══
