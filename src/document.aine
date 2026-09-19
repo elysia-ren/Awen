@@ -1,10 +1,10 @@
 // awen-proto/src/document.aine —— Document State(核心规范 §1/§3/§五)
 // M3:从 parse 输出构建语义树,分配 NodeId,追踪 Source Span。
 //
-// ⚠ Aine 限制:
-//   - Vec.push 是原地修改,不要 x = x.push(y)
-//   - 不用 .unwrap()/.is_some()/.is_none()
-//   - 枚举变体名全局唯一
+// ⚠ Aine 注意事项(2026-09-19 随新版编译器更新):
+//   - Vec.push 返回容器(新版已恢复),`x = x.push(y)` 为标准写法
+//   - .unwrap() 已可用,但本项目统一用 match(风格一致,便于移植 Rust)
+//   - 枚举变体名全局唯一,避免与 UI 内建名冲突
 
 // ── Node ID(§1:会话内部身份,不持久化)───────────────────
 
@@ -42,8 +42,9 @@ struct SemNode {
     // Raw 块命令类型
     raw_cmd: ExplicitCommand
     // 表格:表头 + 数据行
+    // tbl_header:单行表头,cell = Vec<Inline>;tbl_rows:行 × cell
     tbl_header: Vec<Vec<Inline>>
-    tbl_rows: Vec<Vec<Inline>>
+    tbl_rows: Vec<Vec<Vec<Inline>>>
     tbl_has_delim: bool
     // 独立对象的 CommandUse
     obj_cu: CommandUse
@@ -268,7 +269,14 @@ fn build_node(node: DocNode, nodes: Vec<SemNode>, next_id: i32, parent: i32, sou
             }
             acc_nodes = acc_nodes.push(sem)
         }
-        TblNode(header, rows, has_delim) {
+        TblNode(header_opt, rows, has_delim) {
+            // DocNode 的 tbl_header 是 Option(§15 表格无表头时为 None);
+            // SemNode 统一为 Vec,空 Vec 表示无表头
+            var header: Vec<Vec<Inline>> = []
+            match header_opt {
+                Some(h) { header = h }
+                None { }
+            }
             let sem = SemNode {
                 id: my_id,
                 kind: "table",

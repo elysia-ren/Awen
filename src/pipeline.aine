@@ -21,10 +21,10 @@ struct PipelineResult {
     duplicate_labels: Vec<String>
     // 词法/语法诊断
     diags: Vec<Diagnostic>
-    theme: Theme
-    render_items: Vec<RenderItem>
     // 主题(从文档级设置构建)
+    theme: Theme
     // 渲染结果
+    render_items: Vec<RenderItem>
 }
 
 // ── 完整管线:源码 → 全部中间表示 ────────────────────────

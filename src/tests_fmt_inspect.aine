@@ -1,0 +1,84 @@
+// 测试模块:tests_fmt_inspect(M4 审计拆分;由 tests.aine 聚合声明)
+
+@test
+fn seed_label_charset() -> Result<i32, String> {
+    assert(label_parse("架构图") != None, "CJK 合法")
+    assert(label_parse("fig-1") != None, "连字符")
+    assert(label_parse("a b") == None, "空格非法")
+    assert(label_parse("") == None, "空串非法")
+    return Ok(0)
+}
+
+@test
+fn seed_span_after_edit() -> Result<i32, String> {
+    let s_opt = span_new(10, 20)
+    let s = match s_opt {
+        Some(x) { x }
+        None { return Err("span_new 失败") }
+    }
+    let r = span_after_edit(s, 0, 5, 3)
+    match r {
+        Some(rs) {
+            if rs.start != 8 || rs.end != 18 { return Err("平移错误") }
+        }
+        None { return Err("平移不应失效") }
+    }
+    match span_after_edit(s, 15, 18, 2) {
+        Some(_) { return Err("相交应失效") }
+        None { }
+    }
+    return Ok(0)
+}
+
+@test
+fn seed_patch_and_undo() -> Result<i32, String> {
+    let r1 = buffer_insert(buffer_new("你好,世界"), 3, "Awen")?
+    if r1.buf.content != "你好,Awen世界" { return Err("插入错误") }
+    let inv0 = patch_invert(r1.patch)
+    let restored = buffer_apply(r1.buf, inv0)?
+    if restored.content != "你好,世界" { return Err("逆补丁错误") }
+    let bad = TextPatch { start: 0, old: "xyz", new: "q" }
+    match buffer_apply(buffer_new("abc"), bad) {
+        Err(e) { if e != "补丁不匹配" { return Err("错误消息") } }
+        Ok(_) { return Err("错误补丁不应成功") }
+    }
+    // Undo 链(LIFO:先撤 DELETE 再撤 INSERT)
+    let b0 = buffer_new("第一段 @[b]粗体@[/b]")
+    let original = b0.content
+    let s1 = buffer_insert(b0, 0, "前缀:")?
+    let s2 = buffer_delete(s1.buf, 3, 6)?
+    let inv2 = patch_invert(s2.patch)
+    let r = buffer_apply(s2.buf, inv2)?
+    let inv1 = patch_invert(s1.patch)
+    let r2 = buffer_apply(r, inv1)?
+    if r2.content != original { return Err("Undo 栈回放必须逐字节还原") }
+    return Ok(0)
+}
+
+@test
+fn fmt_normalizes_headings() -> Result<i32, String> {
+    let src = "#标题\n##  二级\n###三级\n"
+    let formatted = fmt(src)
+    let lines = formatted.split("\n")
+    assert(lines[0] == "# 标题", f"# 后一个空格")
+    assert(lines[1] == "## 二级", f"## 后一个空格")
+    assert(lines[2] == "### 三级", f"### 后一个空格")
+    return Ok(0)
+}
+
+@test
+fn fmt_preserves_raw_blocks() -> Result<i32, String> {
+    let src = "@[c py]\n  indented code  here\n@[/c]\n"
+    let formatted = fmt(src)
+    assert(formatted.contains("  indented code  here"), "Raw 内容不变")
+    return Ok(0)
+}
+
+@test
+fn fmt_idempotent() -> Result<i32, String> {
+    let src = "# 标题\n- 项目\n正文\n"
+    let pass1 = fmt(src)
+    let pass2 = fmt(pass1)
+    assert(pass1 == pass2, f"fmt 应幂等")
+    return Ok(0)
+}

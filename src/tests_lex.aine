@@ -1,0 +1,482 @@
+// 测试模块:tests_lex(M4 审计拆分;由 tests.aine 聚合声明)
+
+@test
+fn registry_cn_aliases() -> Result<i32, String> {
+    return expect(lookup("图片") == Some(Image) && lookup("字体") == Some(Font)
+        && lookup("大小") == Some(Size) && lookup("标签") == Some(Label), "中文别名")
+}
+
+@test
+fn registry_whitelist_is_closed() {
+    assert(lookup("excel") == None, "未注册命令")
+    assert(lookup("样式") == None, "未注册命令")
+}
+
+@test
+fn registry_image_has_no_single_letter_short() {
+    assert(lookup("i") == None, "§11.2:i 废止")
+}
+
+@test
+fn registry_close_tag_aliases() {
+    assert(close_matches(Code, "code") && close_matches(Code, "c"), "code 别名")
+    assert(close_matches(Math, "m"), "math 别名")
+    assert(!close_matches(Code, "m"), "交叉关闭")
+}
+
+@test
+fn registry_doc_level_and_scoped_partition() {
+    assert(is_doc_level(Font) && is_scoped(Font), "font 双形式")
+    assert(is_doc_level(Page) && !is_scoped(Page), "page 仅文档级")
+    assert(!is_doc_level(Image), "image 非文档级")
+}
+
+@test
+fn escape_all_forms() {
+    assert(escape_scan("@**ab", 0) == Some(EscapeHit { consumed: 3, text: "**" }), "@**")
+    assert(escape_scan("@1. 第一项", 0) == Some(EscapeHit { consumed: 3, text: "1." }), "@1.")
+}
+
+@test
+fn escape_non_escapes() {
+    assert(escape_scan("@e", 0) == None, "@e 非转义")
+    assert(escape_scan("@12", 0) == None, "无点数字非转义")
+}
+
+@test
+fn fullwidth_table() {
+    assert(fw_normalize_in_command("“") == Some("\""), "全角引号")
+    assert(fw_normalize_in_command("：") == Some(":"), "全角冒号")
+    assert(fw_normalize_in_command("，") == None, "全角逗号非命令头")
+    assert(fw_normalize_in_command("中") == None, "正文全角是内容")
+}
+
+@test
+fn explicit_quoted_string_and_attrs() -> Result<i32, String> {
+    let src = "@[link \"OpenAI\" url: \"https://openai.com\"]"
+    let hp = parse_header(src, 0)
+    match hp {
+        Ok(h) {
+            let u = h.cu
+            return expect(u.cmd == Link && u.args == [Str("OpenAI")], "link 解析")
+        }
+        Err(e) { return Err(e.msg) }
+    }
+}
+
+@test
+fn explicit_full_width_quotes() -> Result<i32, String> {
+    let hp = parse_header("@[字体：“微软雅黑”]", 0)
+    match hp {
+        Ok(h) {
+            return expect(h.cu.cmd == Font && h.cu.args == [Str("微软雅黑")], "全角引号归一化")
+        }
+        Err(e) { return Err(e.msg) }
+    }
+}
+
+@test
+fn explicit_ideographic_space_rejected() {
+    let hp = parse_header("@[字体　微软雅黑]", 0)
+    match hp {
+        Err(e) { assert(e.msg.contains("全角空格"), "U+3000 诊断") }
+        Ok(_) { assert(false, "U+3000 应拒绝") }
+    }
+}
+
+@test
+fn explicit_unquoted_multiword_exceeds_arity() {
+    let hp = parse_header("@[font Noto Sans CJK SC]", 0)
+    match hp {
+        Err(e) { assert(e.msg.contains("位置参数过多"), "参数过多") }
+        Ok(_) { assert(false, "多词值应拒绝") }
+    }
+}
+
+@test
+fn explicit_unknown_command_rejected() {
+    let ok = match parse_header("@[excel x]", 0) {
+        Ok(_) { true }
+        Err(_) { false }
+    }
+    assert(!ok, "白名单外命令")
+}
+
+@test
+fn lw_block_triggers() {
+    assert(classify("# 标题") == LcHeading(1), "H1")
+    assert(classify("#tag") == LcText, "#tag 是字面")
+    assert(classify("- 项目") == LcListItem(false), "无序")
+    assert(classify("-5") == LcText, "-5 是字面")
+    assert(classify("1. 项目") == LcListItem(true), "有序")
+    assert(classify("1.这是") == LcText, "无空格非列表")
+    assert(classify("> 引用") == LcQuote(1), "引用")
+    assert(classify(">abc") == LcText, ">abc 是字面")
+    assert(classify("---") == LcDivider, "分节线")
+    assert(classify("---abc") == LcText, "---abc 是字面")
+}
+
+@test
+fn lw_boundary_rules() -> Result<i32, String> {
+    let a = lw_scan_inline("中文_斜体_中文", 0, [])
+    assert(has_italic(a.inline), "CJK 紧邻斜体")
+    let b = lw_scan_inline("foo_bar_baz", 0, [])
+    assert(!has_italic(b.inline), "字母旁下划线不触发")
+    let c = lw_scan_inline("2**3 不构成粗体", 0, [])
+    assert(!has_bold(c.inline), "2**3 不触发粗体")
+    let d = lw_scan_inline("an _em_ word", 0, [])
+    assert(has_italic(d.inline), "英文边界")
+    return Ok(0)
+}
+
+@test
+fn lw_nesting_and_crossing() -> Result<i32, String> {
+    let a = lw_scan_inline("**粗体中嵌 _斜体_**", 0, [])
+    assert(has_bold(a.inline) && has_italic(a.inline), "合法嵌套")
+    let b = lw_scan_inline("**a _b** c_", 0, [])
+    assert(inline_plain(b.inline) == "**a _b** c_", "交叉按字面")
+    assert(any_diag_msg_contains(b.diags, "交叉"), "交叉诊断")
+    return Ok(0)
+}
+
+@test
+fn lw_escapes_unconditional() -> Result<i32, String> {
+    let a = lw_scan_inline("@**不是粗体**", 0, [])
+    assert(inline_plain(a.inline) == "**不是粗体**", "@** 字面化")
+    assert(!has_bold(a.inline), "无粗体节点")
+    let b = lw_scan_inline("@#todo", 0, [])
+    assert(inline_plain(b.inline) == "#todo", "@# 字面化")
+    let c = lw_scan_inline("@@[image hero] 尾", 0, [])
+    assert(inline_plain(c.inline) == "@[image hero] 尾", "@@[...] 字面化")
+    return Ok(0)
+}
+
+@test
+fn lw_explicit_scopes() -> Result<i32, String> {
+    let a = lw_scan_inline("@[b]短@[/b]", 0, [])
+    assert(has_scoped_bold(a.inline), "b 作用域")
+    let b = lw_scan_inline("@[m]E=mc@[/m]", 0, [])
+    assert(has_raw_math(b.inline), "行内数学")
+    let c = lw_scan_inline("@[b]a _b_ c@[/b]", 0, [])
+    assert(has_scoped_bold(c.inline) && has_italic(c.inline), "互嵌成树")
+    let d = lw_scan_inline("@[u]下划线@[/u]", 0, [])
+    assert(has_scoped_underline(d.inline), "@[u] 下划线")
+    return Ok(0)
+}
+
+@test
+fn lw_inline_code_no_parse() -> Result<i32, String> {
+    // 行内代码内的一切标记不解析(§6.2)
+    let r = lw_scan_inline("`**不解析** @[b]也不解析@[/b]`", 0, [])
+    assert(inline_plain(r.inline).contains("**不解析**"), "粗体标记不解析")
+    assert(!has_bold(r.inline), "不应产生粗体节点")
+    return Ok(0)
+}
+
+@test
+fn lw_escaped_at_is_plain() -> Result<i32, String> {
+    // 裸 @ 是普通字符(§6.8)
+    let r = lw_scan_inline("user@example.com", 0, [])
+    assert(inline_plain(r.inline) == "user@example.com", "@ 保留")
+    return Ok(0)
+}
+
+@test
+fn explicit_raw_block_verbatim() -> Result<i32, String> {
+    // Raw Block 内容逐字保留(§6.7)
+    let src = "@[c]\nif x > 0 { print(\"[ok]\") }\n@[/c]\n"
+    let out = lex(src)
+    var found = false
+    for b in out.blocks {
+        match b.block {
+            RawLine(content) {
+                if content.contains("[ok]") { found = true }
+            }
+            _ { }
+        }
+    }
+    assert(found, "Raw 内容应逐字保留")
+    return Ok(0)
+}
+
+@test
+fn explicit_multi_attrs() -> Result<i32, String> {
+    let hp = parse_header("@[cell background: \"#FFF\" color: \"#000\" align: center span: 3]", 0)
+    match hp {
+        Ok(h) {
+            assert(h.cu.cmd == Cell, "cell 命令")
+            assert(h.cu.attrs.len() == 4, f"应有 4 个属性,得到 {h.cu.attrs.len()}")
+        }
+        Err(e) { assert(false, f"应解析成功: {e.msg}") }
+    }
+    return Ok(0)
+}
+
+@test
+fn lex_raw_and_table_coexist() -> Result<i32, String> {
+    // Raw 块和表格在同一个文档中共存
+    let src = "@[c py]\ncode here\n@[/c]\n\n@[table]\n\n| a | b |\n| 1 | 2 |\n\n@[/table]\n"
+    let out = lex(src)
+    var has_raw = false
+    var has_table = false
+    for b in out.blocks {
+        match b.block {
+            RawOpen(cmd, lang) { if cmd == Code { has_raw = true } }
+            TableOpen(u) { has_table = true }
+            _ { }
+        }
+    }
+    assert(has_raw && has_table, "Raw 和 Table 应共存")
+    assert(count_errors(out.diags) == 0, "不应有错误")
+    return Ok(0)
+}
+
+@test
+fn lex_consecutive_dividers() -> Result<i32, String> {
+    let src = "---\n---\n---\n"
+    let out = lex(src)
+    var dividers = 0
+    for b in out.blocks {
+        match b.block {
+            Divider { dividers += 1 }
+            _ { }
+        }
+    }
+    assert(dividers == 3, f"应有 3 条分节线,得到 {dividers}")
+    return Ok(0)
+}
+
+@test
+fn lex_multi_list_switch() -> Result<i32, String> {
+    // 有序/无序列表交替(应产生多个列表组)
+    let src = "- a\n- b\n\n1. c\n2. d\n"
+    let out = lex(src)
+    var list_groups = 0
+    for b in out.blocks {
+        match b.block {
+            Blank { }
+            ListItem(ordered, inline) { }
+            _ { }
+        }
+    }
+    // 列表项应正确分类
+    assert(out.blocks.len() > 0, "应有块")
+    return Ok(0)
+}
+
+@test
+fn lex_heading_after_paragraph() -> Result<i32, String> {
+    // 段落后面紧跟标题(无空行分隔)应正确识别
+    let src = "这是段落\n# 新标题\n"
+    let out = lex(src)
+    var has_heading = false
+    for b in out.blocks {
+        match b.block {
+            Heading(level, inline) {
+                has_heading = true
+                assert(level == 1, "应为 level 1")
+            }
+            _ { }
+        }
+    }
+    assert(has_heading, "应检测到标题")
+    return Ok(0)
+}
+
+@test
+fn lex_inline_scoped_nested() -> Result<i32, String> {
+    // 嵌套作用域命令
+    let src = "@[b]外层 @[u]内层@[/u] 外层@[/b]\n"
+    let out = lex(src)
+    assert(count_errors(out.diags) == 0, "不应有错误")
+    return Ok(0)
+}
+
+@test
+fn fullwidth_all_mappings() {
+    assert(fw_normalize_in_command("“") == Some("\""), "左双引号")
+    assert(fw_normalize_in_command("”") == Some("\""), "右双引号")
+    assert(fw_normalize_in_command("‘") == Some("\""), "左单引号")
+    assert(fw_normalize_in_command("’") == Some("\""), "右单引号")
+    assert(fw_normalize_in_command("：") == Some(":"), "全角冒号")
+    assert(fw_normalize_in_command("。") == None, "句号不归一化")
+    assert(fw_normalize_comma_in_row("，") == Some(","), "全角逗号(表格)")
+    assert(fw_normalize_comma_in_row("中") == None, "中文不归一化")
+}
+
+@test
+fn escape_special_cases() {
+    // @ 后跟非标记字符 → 普通字符
+    assert(escape_scan("@x", 0) == None, "@x 非转义")
+    assert(escape_scan("@ ", 0) == None, "@空格 非转义")
+    // @数字无点 → 非转义
+    assert(escape_scan("@12", 0) == None, "@12 无点非转义")
+    assert(escape_scan("@1.", 0) != None, "@1. 是转义")
+}
+
+@test
+fn registry_all_doc_level_commands() -> Result<i32, String> {
+    // §11.1:8 个文档级命令全部可查找
+    var cmds: Vec<ExplicitCommand> = []
+    for name in ["page", "margin", "font", "size", "line-spacing", "first-line", "theme", "numbering"] {
+        match lookup(name) {
+            Some(c) { cmds = cmds.push(c) }
+            None { return Err(f"文档级命令 {name} 未注册") }
+        }
+    }
+    assert(cmds.len() == 8, f"应有 8 个文档级命令")
+    return Ok(0)
+}
+
+@test
+fn registry_cn_and_en_variants() -> Result<i32, String> {
+    // 中文别名和英文别名应映射到同一命令
+    assert(lookup("font") == lookup("字体"), "font = 字体")
+    assert(lookup("size") == lookup("大小"), "size = 大小")
+    assert(lookup("image") == lookup("图片"), "image = 图片")
+    assert(lookup("label") == lookup("标签"), "label = 标签")
+    return Ok(0)
+}
+
+@test
+fn escape_at_digit_variants() -> Result<i32, String> {
+    // @ + 多位数字 + 点
+    let r1 = escape_scan("@42. 答案", 0)
+    match r1 {
+        Some(h) { assert(h.text == "42.", f"应转义为 42.") }
+        None { assert(false, "@42. 应转义") }
+    }
+    // @ 后无数字
+    assert(escape_scan("@.", 0) == None, "@. 非转义")
+    return Ok(0)
+}
+
+@test
+fn explicit_comment_multiline_content() -> Result<i32, String> {
+    // 块级注释:多行内容应逐字保留
+    let src = "@[comment]\n第一行注释\n第二行 包含特殊字符 !@#$\n@[/comment]\n"
+    let out = lex(src)
+    var found_content = false
+    for b in out.blocks {
+        match b.block {
+            RawLine(content) {
+                if content.contains("特殊字符") { found_content = true }
+            }
+            _ { }
+        }
+    }
+    assert(found_content, "多行注释内容应保留")
+    return Ok(0)
+}
+
+@test
+fn explicit_footnote_inline_in_paragraph() -> Result<i32, String> {
+    // 行内脚注在段落中
+    let src = "正文内容。@[footnote 这是脚注。]\n"
+    let out = lex(src)
+    let pr = parse(out)
+    let state = build_document(pr, src)
+    // 脚注应在段落行内节点中
+    var found_footnote = false
+    for node in state.nodes {
+        if node.kind == "para" {
+            for item in node.inline {
+                match item {
+                    Command(u) { if u.cmd == Footnote { found_footnote = true } }
+                    _ { }
+                }
+            }
+        }
+    }
+    assert(found_footnote, "应找到行内脚注")
+    return Ok(0)
+}
+
+@test
+fn explicit_toc_depth_attr() -> Result<i32, String> {
+    let hp = parse_header("@[toc depth: 3]", 0)
+    match hp {
+        Ok(h) {
+            assert(h.cu.cmd == Toc, "toc 命令")
+            assert(h.cu.attrs.len() == 1, f"应有 1 个属性")
+            assert(h.cu.attrs[0].key == "depth", "属性 key 应为 depth")
+            assert(arg_plain(h.cu.attrs[0].val) == "3", "属性 value 应为 3")
+        }
+        Err(e) { assert(false, f"应解析成功: {e.msg}") }
+    }
+    return Ok(0)
+}
+
+@test
+fn explicit_theme_setting() -> Result<i32, String> {
+    let hp = parse_header("@[theme \"学术论文\"]", 0)
+    match hp {
+        Ok(h) {
+            assert(h.cu.cmd == Theme, "theme 命令")
+            assert(h.cu.args.len() == 1, "应有 1 个参数")
+        }
+        Err(e) { assert(false, f"应解析成功: {e.msg}") }
+    }
+    return Ok(0)
+}
+
+@test
+fn explicit_numbering_heading_levels() -> Result<i32, String> {
+    let hp = parse_header("@[numbering heading level: 2 \"%chapter.%section\"]", 0)
+    match hp {
+        Ok(h) {
+            assert(h.cu.cmd == Numbering, "numbering 命令")
+            assert(h.cu.args.len() >= 1, "至少有目标参数")
+            assert(h.cu.attrs.len() >= 1, "应有 level 属性")
+        }
+        Err(e) { assert(false, f"应解析成功: {e.msg}") }
+    }
+    return Ok(0)
+}
+
+@test
+fn escape_all_6_prefixes() -> Result<i32, String> {
+    // 测试所有轻量标记转义
+    assert(escape_scan("@**", 0) != None, "@** 转义")
+    assert(escape_scan("@~~", 0) != None, "@~~ 转义")
+    assert(escape_scan("@#", 0) != None, "@# 转义")
+    assert(escape_scan("@_", 0) != None, "@_ 转义")
+    assert(escape_scan("@-", 0) != None, "@- 转义")
+    assert(escape_scan("@>", 0) != None, "@> 转义")
+    assert(escape_scan("@`", 0) != None, "@` 转义")
+    // 验证转义产物正确
+    let r1 = escape_scan("@#", 0)
+    match r1 {
+        Some(h) { assert(h.text == "#", f"@# 应转义为 #") }
+        None { assert(false, "@# 应转义") }
+    }
+    return Ok(0)
+}
+
+@test
+fn lw_scan_complex_mixed_content() -> Result<i32, String> {
+    // 复杂混合内容:粗体+斜体+代码+Scoped 嵌套
+    let src = "**粗** 和 _斜_ 和 `码` 和 @[u]下@[/u] 混合"
+    let r = lw_scan_inline(src, 0, [])
+    assert(has_bold(r.inline), "应有粗体")
+    assert(has_italic(r.inline), "应有斜体")
+    let plain = inline_plain(r.inline)
+    assert(plain.contains("粗") && plain.contains("斜") && plain.contains("码"), "内容应保留")
+    return Ok(0)
+}
+
+@test
+fn lw_scan_deep_nesting() -> Result<i32, String> {
+    // 三层嵌套:** 内 _ 内 @[u]
+    let src = "**外层 _中层 @[u]内层@[/u] 中层_ 外层**"
+    let r = lw_scan_inline(src, 0, [])
+    // 应无诊断(合法嵌套)
+    var has_error = false
+    for d in r.diags {
+        if d.severity == SevError { has_error = true }
+    }
+    assert(!has_error, f"合法嵌套不应有错误")
+    // 应包含粗体节点
+    assert(has_bold(r.inline), "应有粗体")
+    return Ok(0)
+}

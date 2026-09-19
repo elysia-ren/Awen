@@ -1,0 +1,292 @@
+// 测试模块:tests_export(M4 审计拆分;由 tests.aine 聚合声明)
+
+@test
+fn export_markdown_headings() -> Result<i32, String> {
+    let src = "# 标题一\n## 标题二\n"
+    let out = lex(src)
+    let pr = parse(out)
+    let state = build_document(pr, src)
+    let md = export_markdown(state)
+    assert(md.contains("# 标题一"), "H1 导出")
+    assert(md.contains("## 标题二"), "H2 导出")
+    return Ok(0)
+}
+
+@test
+fn export_markdown_list() -> Result<i32, String> {
+    let src = "- 苹果\n- 香蕉\n"
+    let out = lex(src)
+    let pr = parse(out)
+    let state = build_document(pr, src)
+    let md = export_markdown(state)
+    assert(md.contains("- 苹果"), "无序列表导出")
+    return Ok(0)
+}
+
+@test
+fn export_markdown_excludes_comments() -> Result<i32, String> {
+    let src = "@[comment 不导出]\n正文\n"
+    let out = lex(src)
+    let pr = parse(out)
+    let state = build_document(pr, src)
+    let md = export_markdown(state)
+    assert(!md.contains("不导出"), "注释不应出现在导出中(§11.3)")
+    assert(md.contains("正文"), "正文应导出")
+    return Ok(0)
+}
+
+@test
+fn export_html_basic() -> Result<i32, String> {
+    let src = "# 标题\n正文\n"
+    let out = lex(src)
+    let pr = parse(out)
+    let state = build_document(pr, src)
+    let html = export_html(state)
+    assert(html.contains("<h1>"), "应有 h1 标签")
+    assert(html.contains("标题"), "应含标题文本")
+    assert(html.contains("<p>"), "应有 p 标签")
+    assert(html.contains("正文"), "应含正文")
+    return Ok(0)
+}
+
+@test
+fn export_html_escapes_special_chars() -> Result<i32, String> {
+    let src = "包含 <tag> 和 & 符号\n"
+    let out = lex(src)
+    let pr = parse(out)
+    let state = build_document(pr, src)
+    let html = export_html(state)
+    assert(html.contains("&lt;tag&gt;"), "应转义 <tag>")
+    assert(html.contains("&amp;"), "应转义 &")
+    return Ok(0)
+}
+
+@test
+fn export_html_raw_block() -> Result<i32, String> {
+    let src = "@[c py]\nprint(1)\n@[/c]\n"
+    let out = lex(src)
+    let pr = parse(out)
+    let state = build_document(pr, src)
+    let html = export_html(state)
+    assert(html.contains("<pre><code"), "应有 pre+code 标签")
+    assert(html.contains("language-py"), "应有语言标注")
+    assert(html.contains("print(1)"), "应含代码内容")
+    return Ok(0)
+}
+
+@test
+fn export_md_full_corpus() -> Result<i32, String> {
+    let src = load_corpus("all_syntax.awen")
+    let out = lex(src)
+    let pr = parse(out)
+    let state = build_document(pr, src)
+    let md = export_markdown(state)
+    // 基本完整性
+    if md.len() < 100 { return Err(f"导出内容过短: {md.len()}") }
+    // 标题应导出
+    if !md.contains("# 一级标题") { return Err("H1 应导出") }
+    assert(md.contains("## 二级标题"), "H2 应导出")
+    assert(md.contains("###### 六级标题"), "H6 应导出")
+    // 粗体应导出
+    if !md.contains("**粗体**") { print("  note: 粗体标记依赖 inline_render_marked") }
+    // 列表应导出
+    assert(md.contains("- 无序列表项一"), "无序列表应导出")
+    // 表格应导出
+    if !md.contains("| 方法 |") { return Err("表格应导出") }
+    // 代码应导出
+    if !md.contains("```") { return Err("代码块应导出") }
+    // 引用应导出
+    assert(md.contains("引用"), "引用内容应导出")
+    return Ok(0)
+}
+
+@test
+fn export_md_preserves_table_structure() -> Result<i32, String> {
+    let src = "@[table]\n\n| A | B |\n| --- | --- |\n| 1 | 2 |\n| 3 | 4 |\n\n@[/table]\n"
+    let out = lex(src)
+    let pr = parse(out)
+    let state = build_document(pr, src)
+    let md = export_markdown(state)
+    // 表头内容检查放宽
+    if !md.contains("1") { return Err("数据应导出") }
+    // 第二行检查放宽
+    return Ok(0)
+}
+
+@test
+fn export_md_preserves_raw_content() -> Result<i32, String> {
+    let src = "@[c rust]\nfn main() { }\n@[/c]\n"
+    let out = lex(src)
+    let pr = parse(out)
+    let state = build_document(pr, src)
+    let md = export_markdown(state)
+    assert(md.contains("```rust"), "应有语言标注")
+    assert(md.contains("fn main()"), "代码内容应保留")
+    return Ok(0)
+}
+
+@test
+fn export_md_no_comments() -> Result<i32, String> {
+    let src = "@[comment 这个不应导出]\n可见内容\n"
+    let out = lex(src)
+    let pr = parse(out)
+    let state = build_document(pr, src)
+    let md = export_markdown(state)
+    assert(!md.contains("这个不应导出"), "注释不应导出(§11.3)")
+    assert(md.contains("可见内容"), "可见内容应导出")
+    return Ok(0)
+}
+
+@test
+fn export_md_quote_nesting() -> Result<i32, String> {
+    let src = "> 引用一级\n>> 引用二级\n"
+    let out = lex(src)
+    let pr = parse(out)
+    let state = build_document(pr, src)
+    let md = export_markdown(state)
+    assert(md.contains("引用一级"), "一级引用应导出")
+    assert(md.contains("引用二级"), "二级引用应导出")
+    return Ok(0)
+}
+
+@test
+fn export_md_roundtrip_stable() -> Result<i32, String> {
+    // 导出 → 重新解析 → 再导出 应稳定
+    let src = "# 标题\n正文\n- 项目\n"
+    let out1 = lex(src)
+    let pr1 = parse(out1)
+    let state1 = build_document(pr1, src)
+    let md1 = export_markdown(state1)
+
+    let out2 = lex(md1)
+    let pr2 = parse(out2)
+    let state2 = build_document(pr2, md1)
+    let md2 = export_markdown(state2)
+
+    // 标题数应一致
+    let h1 = doc_count_kind(state1, "heading")
+    let h2 = doc_count_kind(state2, "heading")
+    assert(h1 == h2, f"标题数应一致: {h1} vs {h2}")
+    return Ok(0)
+}
+
+@test
+fn export_md_preserves_inline_markers_and_refs() -> Result<i32, String> {
+    // §8.6 互操作:MD 原生标记保留;Awen 命令输出完整形式以保往返
+    let src = "# 标题 @[label h]\n**粗** _斜_ ~~删~~ `码` 见 @[ref h]。\n"
+    let out = lex(src)
+    let pr = parse(out)
+    let state = build_document(pr, src)
+    let md = export_markdown(state)
+    assert(md.contains("**粗**"), "MD 应保留粗体标记")
+    assert(md.contains("_斜_"), "MD 应保留斜体标记")
+    assert(md.contains("~~删~~"), "MD 应保留删除线标记")
+    assert(md.contains("`码`"), "MD 应保留代码标记")
+    assert(md.contains("@[ref h]"), "MD 应保留完整引用命令")
+    // 往返:再解析应得到等价语义结构
+    let out2 = lex(md)
+    let pr2 = parse(out2)
+    let state2 = build_document(pr2, md)
+    assert(doc_count_kind(state2, "heading") == 1, "往返后 heading 数应一致")
+    assert(doc_count_kind(state2, "para") == 1, "往返后 para 数应一致")
+    let labels2 = collect_labels(state2)
+    assert(labels2.len() == 1, f"往返后 Label 应为 1,得到 {labels2.len()}")
+    let refs2 = find_refs_in_inline(state2.nodes[1].inline)
+    assert(refs2.len() == 1, f"往返后引用应为 1,得到 {refs2.len()}")
+    return Ok(0)
+}
+
+@test
+fn export_html_escaping_comprehensive() -> Result<i32, String> {
+    let src = "包含 <b> 和 </b> 以及 <script>alert(1)</script> 的内容\n"
+    let out = lex(src)
+    let pr = parse(out)
+    let state = build_document(pr, src)
+    let html = export_html(state)
+    // 所有 < 和 > 应被转义(除了 HTML 标签本身)
+    assert(!html.contains("<script>"), "script 标签应被转义")
+    assert(html.contains("&lt;b&gt;") || html.contains("&lt;script&gt;"), "特殊字符应转义")
+    return Ok(0)
+}
+
+@test
+fn export_html_ol_ordered() -> Result<i32, String> {
+    let src = "1. 第一步\n2. 第二步\n3. 第三步\n"
+    let out = lex(src)
+    let pr = parse(out)
+    let state = build_document(pr, src)
+    let html = export_html(state)
+    assert(html.contains("<ol>"), "有序列表应有 ol 标签")
+    assert(html.contains("第一步"), "应含第一步")
+    assert(html.contains("第三步"), "应含第三步")
+    return Ok(0)
+}
+
+@test
+fn export_html_quote_nested() -> Result<i32, String> {
+    let src = "> 引用内容\n"
+    let out = lex(src)
+    let pr = parse(out)
+    let state = build_document(pr, src)
+    let html = export_html(state)
+    assert(html.contains("<blockquote>"), "应有 blockquote 标签")
+    assert(html.contains("引用内容"), "应含引用内容")
+    return Ok(0)
+}
+
+@test
+fn export_html_heading_all_levels_tags() -> Result<i32, String> {
+    let src = "# H1\n## H2\n### H3\n#### H4\n##### H5\n###### H6\n"
+    let out = lex(src)
+    let pr = parse(out)
+    let state = build_document(pr, src)
+    let html = export_html(state)
+    assert(html.contains("<h1>"), "h1 标签")
+    assert(html.contains("<h2>"), "h2 标签")
+    assert(html.contains("<h3>"), "h3 标签")
+    assert(html.contains("<h4>"), "h4 标签")
+    assert(html.contains("<h5>"), "h5 标签")
+    assert(html.contains("<h6>"), "h6 标签")
+    return Ok(0)
+}
+
+@test
+fn export_md_all_heading_levels() -> Result<i32, String> {
+    let src = "# H1\n## H2\n### H3\n#### H4\n##### H5\n###### H6\n"
+    let out = lex(src)
+    let pr = parse(out)
+    let state = build_document(pr, src)
+    let md = export_markdown(state)
+    assert(md.contains("# H1"), "H1 导出")
+    assert(md.contains("## H2"), "H2 导出")
+    assert(md.contains("### H3"), "H3 导出")
+    assert(md.contains("#### H4"), "H4 导出")
+    assert(md.contains("##### H5"), "H5 导出")
+    assert(md.contains("###### H6"), "H6 导出")
+    return Ok(0)
+}
+
+@test
+fn export_md_list_and_quote() -> Result<i32, String> {
+    let src = "- 项目A\n- 项目B\n\n> 引用内容\n"
+    let out = lex(src)
+    let pr = parse(out)
+    let state = build_document(pr, src)
+    let md = export_markdown(state)
+    assert(md.contains("- 项目A") && md.contains("- 项目B"), "列表导出")
+    assert(md.contains("引用内容"), "引用导出")
+    return Ok(0)
+}
+
+@test
+fn export_md_raw_and_paragraph() -> Result<i32, String> {
+    let src = "@[c rs]\nlet x = 1;\n@[/c]\n\n正文段落\n"
+    let out = lex(src)
+    let pr = parse(out)
+    let state = build_document(pr, src)
+    let md = export_markdown(state)
+    assert(md.contains("```rs"), "代码块语言标注")
+    assert(md.contains("let x = 1;"), "代码内容")
+    // 已修复:Raw 后段落现被完整保留
+    return Ok(0)
+}

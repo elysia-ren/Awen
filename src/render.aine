@@ -120,20 +120,19 @@ fn render_raw(node: SemNode) -> String {
 
 fn render_table(node: SemNode) -> String {
     var out = ""
-    // 表头
+    // 表头:tbl_header 是单行,元素即 cell(每个 cell 是 Vec<Inline>)
     if node.tbl_header.len() > 0 {
-        var header = node.tbl_header[0]
         out = out + "|"
-        for cell in header {
-            out = out + " " + inline_plain([cell]) + " |"
+        for cell in node.tbl_header {
+            out = out + " " + inline_plain(cell) + " |"
         }
         out = out + "\n"
     }
-    // 数据行
+    // 数据行:每行是 cell 列表
     for row in node.tbl_rows {
         out = out + "|"
         for cell in row {
-            out = out + " " + inline_plain([cell]) + " |"
+            out = out + " " + inline_plain(cell) + " |"
         }
         out = out + "\n"
     }
@@ -178,7 +177,7 @@ fn render_plain_text(state: DocState) -> String {
             }
             out = out + hashes + " " + text + "\n\n"
         } else if node.kind == "para" {
-            out = out + inline_plain(node.inline) + "\n\n"
+            out = out + escape_plain_para(inline_plain(node.inline)) + "\n\n"
         } else if node.kind == "list" {
             out = out + render_list(node) + "\n"
         } else if node.kind == "quote" {
@@ -192,6 +191,49 @@ fn render_plain_text(state: DocState) -> String {
         }
     }
     return out
+}
+
+// ── 段落纯文本转义(§86 双视图零漂移)───────────────────────
+// 段落渲染为纯文本后,若行首是块级标记(井号、引用、列表等),
+// 原样输出会被重新解析为其他块;文本中的 "@[" 会被重新解析为命令
+// → 按转义规则输出(@ 前缀 / @@[),保证 渲染 → 再解析 语义不变。
+
+fn escape_plain_para(t: String) -> String {
+    // "@[" → "@@["(字面命令转义)
+    var s = ""
+    var i = 0
+    while i < t.len() {
+        if starts_with_at(t, i, "@[") {
+            s = s + "@@["
+            i += 2
+        } else {
+            s = s + t[i]
+            i += 1
+        }
+    }
+    // 行首块级标记转义
+    if s.len() > 0 {
+        let c0 = s[0]
+        var is_marker = c0 == "#" || c0 == ">"
+        if !is_marker && c0 == "-" && s.len() >= 2 && s[1] == " " {
+            is_marker = true
+        }
+        if !is_marker {
+            var digits = 0
+            while digits < s.len() && s[digits] >= "0" && s[digits] <= "9" {
+                digits += 1
+            }
+            if digits > 0 && digits < s.len() && s[digits] == "." {
+                if digits + 1 < s.len() && s[digits + 1] == " " {
+                    is_marker = true
+                }
+            }
+        }
+        if is_marker {
+            s = "@" + s
+        }
+    }
+    return s
 }
 
 // ── 行内渲染(带标记)───────────────────────────────────────

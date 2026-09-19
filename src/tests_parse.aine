@@ -1,0 +1,207 @@
+// 测试模块:tests_parse(M4 审计拆分;由 tests.aine 聚合声明)
+
+@test
+fn parser_list_grouping() -> Result<i32, String> {
+    let out = lex("- 项目一\n- 项目二\n1. 有序项\n")
+    let pr = parse(out)
+    let n_lists = count_nodes(pr.nodes, "list")
+    if n_lists != 2 { return Err(f"应有 2 个列表组(无序+有序),得到 {n_lists}") }
+    return Ok(0)
+}
+
+@test
+fn parser_quote_and_divider() -> Result<i32, String> {
+    let out = lex("> 引用\n\n---\n")
+    let pr = parse(out)
+    let n_q = count_nodes(pr.nodes, "quote")
+    let n_hr = count_nodes(pr.nodes, "hr")
+    if n_q < 1 { return Err("缺少引用块") }
+    if n_hr < 1 { return Err("缺少分节线") }
+    return Ok(0)
+}
+
+@test
+fn parser_table_structure() -> Result<i32, String> {
+    let out = lex("@[table]\n\n| A | B |\n| --- | --- |\n| 1 | 2 |\n\n@[/table]\n")
+    let pr = parse(out)
+    let n_t = count_nodes(pr.nodes, "table")
+    if n_t != 1 { return Err(f"应有 1 个表格,得到 {n_t}") }
+    return Ok(0)
+}
+
+@test
+fn parser_raw_block() -> Result<i32, String> {
+    let out = lex("@[c py]\nprint(1)\n@[/c]\n")
+    let pr = parse(out)
+    let n_r = count_nodes(pr.nodes, "raw")
+    if n_r != 1 { return Err(f"应有 1 个 Raw 块,得到 {n_r}") }
+    return Ok(0)
+}
+
+@test
+fn parser_para_after_table_preserved() -> Result<i32, String> {
+    let src = "@[table]\n\n| A | B |\n| --- | --- |\n| 1 | 2 |\n\n@[/table]\n\n表格之后的段落。\n"
+    let out = lex(src)
+    let pr = parse(out)
+    let n_t = count_nodes(pr.nodes, "table")
+    let n_p = count_nodes(pr.nodes, "para")
+    if n_t != 1 { return Err(f"应有 1 个表格,得到 {n_t}") }
+    if n_p != 1 { return Err(f"表格后的段落被吞掉:para={n_p}") }
+    return Ok(0)
+}
+
+@test
+fn parser_para_after_raw_preserved() -> Result<i32, String> {
+    let src = "@[c js]\nlet x = 1\n@[/c]\n\n代码之后的段落。\n"
+    let out = lex(src)
+    let pr = parse(out)
+    let n_r = count_nodes(pr.nodes, "raw")
+    let n_p = count_nodes(pr.nodes, "para")
+    if n_r != 1 { return Err(f"应有 1 个 Raw 块,得到 {n_r}") }
+    if n_p != 1 { return Err(f"Raw 块后的段落被吞掉:para={n_p}") }
+    return Ok(0)
+}
+
+@test
+fn parser_para_between_containers_preserved() -> Result<i32, String> {
+    let src = "@[table]\n\n| a |\n| --- |\n| b |\n\n@[/table]\n中间段落。\n@[c]\ncode\n@[/c]\n末尾段落。\n"
+    let out = lex(src)
+    let pr = parse(out)
+    let n_t = count_nodes(pr.nodes, "table")
+    let n_r = count_nodes(pr.nodes, "raw")
+    let n_p = count_nodes(pr.nodes, "para")
+    if n_t != 1 { return Err(f"应有 1 个表格,得到 {n_t}") }
+    if n_r != 1 { return Err(f"应有 1 个 Raw 块,得到 {n_r}") }
+    if n_p != 2 { return Err(f"应有 2 个段落,得到 {n_p}") }
+    return Ok(0)
+}
+
+@test
+fn parser_table_closed_diag_and_shape() -> Result<i32, String> {
+    // 正常闭合:无诊断;表头/数据行形状正确
+    let src = "@[table]\n\n| 名 | 值 |\n| --- | --- |\n| 测试 | 42 |\n\n@[/table]\n"
+    let out = lex(src)
+    let pr = parse(out)
+    if pr.diags.len() != 0 { return Err(f"正常闭合不应有诊断:{pr.diags.len()}") }
+    let state = build_document(pr, src)
+    var found = false
+    for n in state.nodes {
+        if n.kind == "table" {
+            found = true
+            // 表头:单行 2 个 cell(每个 cell 是 Vec<Inline>)
+            if n.tbl_header.len() != 2 { return Err(f"表头应有 2 个 cell,得到 {n.tbl_header.len()}") }
+            // 数据行:1 行 2 个 cell
+            if n.tbl_rows.len() != 1 { return Err(f"应有 1 个数据行,得到 {n.tbl_rows.len()}") }
+            if n.tbl_rows[0].len() != 2 { return Err(f"数据行应有 2 个 cell,得到 {n.tbl_rows[0].len()}") }
+        }
+    }
+    if !found { return Err("应存在表格节点") }
+    return Ok(0)
+}
+
+@test
+fn container_save_load_roundtrip() -> Result<i32, String> {
+    let src = "# 标题\n正文内容\n@[image hero]\n"
+    let out = lex(src)
+    let pr = parse(out)
+    let state = build_document(pr, src)
+
+    // 保存
+    let path = "test_output.awen"
+    let saved = save_awen(state, path)?
+    assert(saved > 0, "保存应写入内容")
+
+    // 加载
+    let loaded = load_awen(path)?
+    // User Syntax 应一致
+    assert(loaded.state.source == state.source, f"加载源码应与原始一致")
+    // 节点数应一致
+    assert(loaded.state.nodes.len() == state.nodes.len(), f"节点数应一致: {loaded.state.nodes.len()} vs {state.nodes.len()}")
+    return Ok(0)
+}
+
+@test
+fn container_manifest_has_version() -> Result<i32, String> {
+    let src = "# 测试\n"
+    let out = lex(src)
+    let pr = parse(out)
+    let state = build_document(pr, src)
+    let path = "test_output_manifest.awen"
+    save_awen(state, path)?
+    let content = read_file(path)
+    assert(content.contains("# awen v0.4"), "Manifest 应含版本信息")
+    assert(content.contains("# ---"), "Manifest 应有分隔符")
+    return Ok(0)
+}
+
+@test
+fn parse_and_render_idempotent() -> Result<i32, String> {
+    // 渲染纯文本两次应产生相同结果(幂等)
+    let src = "# 标题\n段落一。\n\n段落二。\n"
+    let out1 = lex(src)
+    let pr1 = parse(out1)
+    let state1 = build_document(pr1, src)
+    let text1 = render_plain_text(state1)
+
+    let out2 = lex(text1)
+    let pr2 = parse(out2)
+    let state2 = build_document(pr2, text1)
+    let text2 = render_plain_text(state2)
+
+    assert(text1 == text2, f"渲染应幂等")
+    return Ok(0)
+}
+
+@test
+fn container_empty_document() -> Result<i32, String> {
+    let out = lex("")
+    let pr = parse(out)
+    let state = build_document(pr, "")
+    assert(state.nodes.len() == 0, f"空文档应无节点,得到 {state.nodes.len()}")
+    assert(doc_node_count(state) == 0, "节点数为 0")
+    return Ok(0)
+}
+
+@test
+fn container_single_line() -> Result<i32, String> {
+    let out = lex("只有一行\n")
+    assert(out.blocks.len() >= 1, "至少有一个块")
+    return Ok(0)
+}
+
+@test
+fn container_save_load_preserves_headings() -> Result<i32, String> {
+    let src = "# 标题 A\n## 标题 B\n### 标题 C\n"
+    let out = lex(src)
+    let pr = parse(out)
+    let state = build_document(pr, src)
+    let path = "test_container_headings.awen"
+    save_awen(state, path)?
+    let loaded = load_awen(path)?
+    // heading 数应一致
+    let h_before = doc_count_kind(state, "heading")
+    let loaded_state = loaded.state
+    let h_after = doc_count_kind(loaded_state, "heading")
+    assert(h_before == h_after, f"heading 数应一致: {h_before} vs {h_after}")
+    return Ok(0)
+}
+
+@test
+fn container_roundtrip_preserves_raw_content() -> Result<i32, String> {
+    let src = "@[c rust]\nfn main() {\n    print(\"hello\");\n}\n@[/c]\n"
+    let out = lex(src)
+    let pr = parse(out)
+    let state = build_document(pr, src)
+    // Raw 内容应保留
+    for node in state.nodes {
+        if node.kind == "raw" {
+            assert(node.raw_lines.len() == 3, f"应有 3 行代码,得到 {node.raw_lines.len()}")
+            match node.raw_lang {
+                Some(lang) { assert(lang == "rust", f"语言应为 rust") }
+                None { assert(false, "应保留语言标注") }
+            }
+            return Ok(0)
+        }
+    }
+    return Err("找不到 Raw 块")
+}

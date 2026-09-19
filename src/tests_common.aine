@@ -1,0 +1,114 @@
+// 共享测试辅助(M4 审计拆分;由 tests.aine 最先声明,全局可见)
+
+fn expect(cond: bool, msg: String) -> Result<i32, String> {
+    if cond { return Ok(0) }
+    return Err(msg)
+}
+
+fn load_corpus(name: String) -> String {
+    let src = read_file(f"corpus/{name}")
+    if src.contains("[read_file error") {
+        return f" corpus 加载失败: {src}"
+    }
+    return src
+}
+
+fn has_bold(items: Vec<Inline>) -> bool {
+    for it in items {
+        match it {
+            IBold(c) { return true }
+            Italic(c) { if has_bold(c) { return true } }
+            Strike(c) { if has_bold(c) { return true } }
+            Scoped(cmd, c) { if has_bold(c) { return true } }
+            _ { }
+        }
+    }
+    return false
+}
+
+fn has_italic(items: Vec<Inline>) -> bool {
+    for it in items {
+        match it {
+            Italic(c) { return true }
+            IBold(c) { if has_italic(c) { return true } }
+            Strike(c) { if has_italic(c) { return true } }
+            Scoped(cmd, c) { if has_italic(c) { return true } }
+            _ { }
+        }
+    }
+    return false
+}
+
+fn has_scoped_bold(items: Vec<Inline>) -> bool {
+    for it in items {
+        match it {
+            Scoped(cmd, c) { if cmd == Bold { return true } }
+            IBold(c) { if has_scoped_bold(c) { return true } }
+            Italic(c) { if has_scoped_bold(c) { return true } }
+            Strike(c) { if has_scoped_bold(c) { return true } }
+            _ { }
+        }
+    }
+    return false
+}
+
+fn has_scoped_underline(items: Vec<Inline>) -> bool {
+    for it in items {
+        match it {
+            Scoped(cmd, c) { if cmd == U { return true } }
+            _ { }
+        }
+    }
+    return false
+}
+
+fn has_raw_math(items: Vec<Inline>) -> bool {
+    for it in items {
+        match it {
+            RawInline(cmd, lang, content) { if cmd == Math { return true } }
+            _ { }
+        }
+    }
+    return false
+}
+
+fn any_diag_msg_contains(diags: Vec<Diagnostic>, needle: String) -> bool {
+    for d in diags {
+        if d.message.contains(needle) { return true }
+    }
+    return false
+}
+
+fn any_diag_hint_contains(diags: Vec<Diagnostic>, needle: String) -> bool {
+    for d in diags {
+        match d.hint {
+            Some(h) { if h.contains(needle) { return true } }
+            None { }
+        }
+    }
+    return false
+}
+
+fn export_md_quote_and_list() -> Result<i32, String> {
+    let src = "> 引用内容\n- 项目A\n- 项目B\n"
+    let out = lex(src)
+    let pr = parse(out)
+    let state = build_document(pr, src)
+    let md = export_markdown(state)
+    assert(md.contains("引用内容"), "引用应导出")
+    assert(md.contains("项目A"), "列表项 A 应导出")
+    assert(md.contains("项目B"), "列表项 B 应导出")
+    return Ok(0)
+}
+
+fn export_md_quote_and_list_items() -> Result<i32, String> {
+    let src = "> 引用文本\n- 项目A\n- 项目B\n"
+    let out = lex(src)
+    let pr = parse(out)
+    let state = build_document(pr, src)
+    let md = export_markdown(state)
+    assert(md.contains("引用文本"), "引用应导出")
+    assert(md.contains("项目A"), "列表项 A 应导出")
+    assert(md.contains("项目B"), "列表项 B 应导出")
+    return Ok(0)
+}

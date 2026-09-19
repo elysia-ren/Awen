@@ -1,0 +1,200 @@
+// 测试模块:tests_numbering(M4 审计拆分;由 tests.aine 聚合声明)
+
+@test
+fn toc_generate_basic() -> Result<i32, String> {
+    let src = "# 第一章\n## 第一节\n## 第二节\n# 第二章\n"
+    let out = lex(src)
+    let pr = parse(out)
+    let state = build_document(pr, src)
+    let entries = generate_toc(state, 0)
+    if entries.len() != 4 { return Err(f"应有 4 条目录,得到 {entries.len()}") }
+    // 验证编号
+    if entries[0].number != "1" { return Err(f"第一章编号应为 1") }
+    if entries[1].number != "1.1" { return Err(f"第一节编号应为 1.1") }
+    if entries[2].number != "1.2" { return Err(f"第二节编号应为 1.2") }
+    if entries[3].number != "2" { return Err(f"第二章编号应为 2") }
+    return Ok(0)
+}
+
+@test
+fn toc_depth_filter() -> Result<i32, String> {
+    let src = "# H1\n## H2\n### H3\n"
+    let out = lex(src)
+    let pr = parse(out)
+    let state = build_document(pr, src)
+    // depth 2:只包含 level 1-2
+    let entries = generate_toc(state, 2)
+    assert(entries.len() == 2, f"depth 2 应有 2 条,得到 {entries.len()}")
+    // depth 0:全部
+    let all = generate_toc(state, 0)
+    assert(all.len() == 3, f"depth 0 应有 3 条")
+    return Ok(0)
+}
+
+@test
+fn toc_format_output() -> Result<i32, String> {
+    let src = "# 引言\n## 背景\n"
+    let out = lex(src)
+    let pr = parse(out)
+    let state = build_document(pr, src)
+    let entries = generate_toc(state, 0)
+    let text = format_toc(entries)
+    assert(text.contains("1 引言"), f"TOC 应含编号+标题")
+    assert(text.contains("  1.1 背景"), f"TOC 应含缩进的子条目")
+    return Ok(0)
+}
+
+@test
+fn outline_tree_basic() -> Result<i32, String> {
+    let src = "# 章 1\n## 节 1.1\n## 节 1.2\n# 章 2\n"
+    let out = lex(src)
+    let pr = parse(out)
+    let state = build_document(pr, src)
+    let tree = build_outline(state)
+    // 顶层应有 2 个 H1
+    assert(tree.len() == 2, f"顶层应有 2 个 H1,得到 {tree.len()}")
+    // 第一个 H1 应有 2 个 H2 子节点
+    if tree.len() == 2 {
+        assert(tree[0].children.len() == 2, f"章 1 应有 2 个子节,得到 {tree[0].children.len()}")
+        assert(tree[1].children.len() == 0, f"章 2 无子节")
+    }
+    return Ok(0)
+}
+
+@test
+fn outline_tree_deep_nesting() -> Result<i32, String> {
+    let src = "# H1\n## H2\n### H3\n## H2b\n# H1b\n"
+    let out = lex(src)
+    let pr = parse(out)
+    let state = build_document(pr, src)
+    let tree = build_outline(state)
+    // 顶层应有 2 个 H1
+    assert(tree.len() == 2, f"顶层应有 2 个,得到 {tree.len()}")
+    // 第一个 H1 应有 2 个 H2 子节点
+    assert(tree[0].children.len() == 2, "H1 应有 2 个 H2 子节点")
+    // 第一个 H2 应有 1 个 H3 子节点
+    if tree[0].children.len() == 2 {
+        assert(tree[0].children[0].children.len() == 1, "H2 应有 1 个 H3 子节点")
+    }
+    return Ok(0)
+}
+
+@test
+fn numbering_headings_basic() -> Result<i32, String> {
+    let src = "# 第一章\n## 第一节\n## 第二节\n# 第二章\n"
+    let out = lex(src)
+    let pr = parse(out)
+    let state = build_document(pr, src)
+    let numbered = number_headings(state)
+    if numbered.len() != 4 { return Err(f"应有 4 个编号,得到 {numbered.len()}") }
+    if numbered[0].number != "第 1 章" { return Err(f"[0] 应为 [第 1 章],得到 [{numbered[0].number}]") }
+    if numbered[1].number != "1.1" { return Err(f"[1] 应为 [1.1],得到 [{numbered[1].number}]") }
+    if numbered[2].number != "1.2" { return Err(f"[2] 应为 [1.2],得到 [{numbered[2].number}]") }
+    if numbered[3].number != "第 2 章" { return Err(f"[3] 应为 [第 2 章],得到 [{numbered[3].number}]") }
+    return Ok(0)
+}
+
+@test
+fn numbering_figures() -> Result<i32, String> {
+    let src = "@[figure 架构图 \"a.png\"]\n正文\n@[figure 流程图 \"b.png\"]\n"
+    let out = lex(src)
+    let pr = parse(out)
+    let state = build_document(pr, src)
+    let figs = number_figures(state)
+    if figs.len() != 2 { return Err(f"应有 2 个图片编号,得到 {figs.len()}") }
+    if figs[0].number != "1" { return Err(f"第一个图片编号应为 1") }
+    if figs[1].number != "2" { return Err(f"第二个图片编号应为 2") }
+    return Ok(0)
+}
+
+@test
+fn numbering_ref_via_label() -> Result<i32, String> {
+    let src = "# 章 A @[label chap-a]\n见 @[ref chap-a]。\n# 章 B @[label chap-b]\n"
+    let out = lex(src)
+    let pr = parse(out)
+    let state = build_document(pr, src)
+    let labels = collect_labels(state)
+    let num = find_number_by_label(state, labels, "chap-a")
+    if num != "第 1 章" { return Err(f"chap-a 编号应为 [第 1 章],得到 [{num}]") }
+    let num2 = find_number_by_label(state, labels, "chap-b")
+    if num2 != "第 2 章" { return Err(f"chap-b 编号应为 [第 2 章],得到 [{num2}]") }
+    return Ok(0)
+}
+
+@test
+fn numbering_with_outline_tree() -> Result<i32, String> {
+    // 大纲树 + 编号系统协同:heading 层级 → 编号 → TOC
+    let src = "# 引言\n## 背景\n## 方法\n# 实验\n## 结果\n"
+    let out = lex(src)
+    let pr = parse(out)
+    let state = build_document(pr, src)
+    let tree = build_outline(state)
+    let numbered = number_headings(state)
+
+    // 大纲树结构:2 个 H1,每个有子节点
+    assert(tree.len() == 2, f"大纲应有 2 个顶层,得到 {tree.len()}")
+    assert(tree[0].children.len() == 2, f"第一个应有 2 个子节")
+    assert(tree[1].children.len() == 1, f"第二个应有 1 个子节")
+
+    // 编号应正确
+    assert(numbered[0].number == "第 1 章", f"第一个应为第 1 章")
+    assert(numbered[1].number == "1.1", f"第二个应为 1.1")
+    if numbered[2].number.len() == 0 { return Err(f"编号不应为空: {numbered[2].number}") }
+    assert(numbered[3].number == "第 2 章", f"第四个应为第 2 章")
+    assert(numbered[4].number == "2.1", f"第五个应为 2.1")
+
+    // TOC 应与编号一致
+    let entries = generate_toc(state, 0)
+    assert(entries.len() == 5, f"TOC 应有 5 条,得到 {entries.len()}")
+    assert(entries[0].number == "1", "TOC 编号应匹配")
+    assert(entries[1].number == "1.1", "TOC 子编号应匹配")
+    return Ok(0)
+}
+
+@test
+fn outline_tree_numbering_alignment() -> Result<i32, String> {
+    // 大纲树的层级编号应与 number_headings 一致
+    let src = "# 引言\n## 背景\n# 方法\n## 实验设计\n### 数据收集\n"
+    let out = lex(src)
+    let pr = parse(out)
+    let state = build_document(pr, src)
+    let tree = build_outline(state)
+    let numbered = number_headings(state)
+
+    // 大纲树顶层应有 2 个 H1
+    assert(tree.len() == 2, f"大纲顶层应有 2 个 H1,得到 {tree.len()}")
+
+    // 编号验证
+    assert(numbered[0].number == "第 1 章", f"第一个应为第 1 章")
+    assert(numbered[1].number == "1.1", f"第二个应为 1.1")
+    assert(numbered[2].number == "第 2 章", f"第三个应为第 2 章")
+    assert(numbered[3].number == "2.1", f"第四个应为 2.1")
+    assert(numbered[4].number == "2.1.1", f"第五个应为 2.1.1")
+    return Ok(0)
+}
+
+@test
+fn outline_tree_label_preserved() -> Result<i32, String> {
+    // 带 Label 的 heading 在大纲树中应保留 NodeId
+    let src = "# 引言 @[label intro]\n正文\n## 方法 @[label method]\n"
+    let out = lex(src)
+    let pr = parse(out)
+    let state = build_document(pr, src)
+    let tree = build_outline(state)
+    assert(tree.len() >= 1, f"大纲应有条目")
+    // H1 的 NodeId 应指向正确的 Label
+    if tree.len() > 0 {
+        let h1_node = doc_find_by_id(state, tree[0].node_id)
+        match h1_node {
+            Some(n) {
+                let label = find_label_in_inline(n.inline)
+                match label {
+                    Some(l) { assert(l == "intro", f"H1 Label 应为 intro") }
+                    None { }
+                }
+            }
+            None { return Err("找不到 H1 节点") }
+        }
+    }
+    return Ok(0)
+}
