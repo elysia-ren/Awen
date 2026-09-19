@@ -26,30 +26,30 @@ input.findbox{border:1px solid #c9cbce;border-radius:4px;padding:4px 6px;font-si
 .view-tabs button{font-size:12px;padding:4px 14px;border-radius:5px;color:#6b6d72}
 .view-tabs button.active{background:#fff;color:#222;box-shadow:0 1px 2px rgba(0,0,0,.08)}
 .ribbon{background:var(--bg3);border-bottom:1px solid var(--border2);flex:none;user-select:none}
-.ribbon-page{display:none;align-items:stretch;padding:4px 10px 0;min-height:92px;height:92px}
+.ribbon-page{display:none;align-items:stretch;padding:5px 16px 0;min-height:96px;height:96px}
 .ribbon-page.active{display:flex}
-.rgroup{display:flex;flex-direction:column;padding:0 12px;border-right:1px solid #e0e1e4;flex:none;justify-content:space-between}
+.rgroup{display:flex;flex-direction:column;padding:0 18px;border-right:1px solid #e0e1e4;flex:none;justify-content:center}
 .rgroup:last-child{border-right:0}
-.rg-body{display:flex;gap:6px;align-items:center;padding:7px 0}
-.rg-label{font-size:10px;color:#8a8c90;text-align:center;padding:0 2px 5px;line-height:1;white-space:nowrap}
-.rbtn{width:30px;height:30px;display:flex;align-items:center;justify-content:center;border-radius:4px;color:#303238;flex:none}
+.rg-body{display:flex;gap:10px;align-items:center}
+.rg-label{font-size:10px;color:#8a8c90;text-align:center;padding:4px 2px 6px;line-height:1;white-space:nowrap}
+.rbtn{width:34px;height:32px;display:flex;align-items:center;justify-content:center;border-radius:4px;color:#303238;flex:none}
 .rbtn:hover{background:#e6e7e9}
 .rbtn:active{background:#dcdde0}
-.rbtn svg{width:18px;height:18px;display:block}
-.rbtn.b{font-weight:700;font-size:15px}.rbtn.i{font-style:italic;font-family:Georgia,serif;font-size:15px}
-.rbtn.u span,.rbtn.s span{font-size:15px}
+.rbtn svg{width:19px;height:19px;display:block}
+.rbtn.b{font-weight:700;font-size:16px}.rbtn.i{font-style:italic;font-family:Georgia,serif;font-size:16px}
+.rbtn.u span,.rbtn.s span{font-size:16px}
 .rbtn.mono{font-family:var(--mono);font-size:12px;font-weight:600}
-.rbtn.supb span,.rbtn.subb span{font-size:13px}
+.rbtn.supb span,.rbtn.subb span{font-size:14px}
 .rbtn.supb span{vertical-align:super}.rbtn.subb span{vertical-align:sub}
-.rgrid{display:grid;grid-template-columns:repeat(4,30px);gap:3px}
-.rgrid3{display:grid;grid-template-columns:repeat(3,30px);gap:3px}
-.rgrid4{display:grid;grid-template-columns:repeat(4,30px);gap:3px}
-.fcol{display:flex;flex-direction:column;gap:3px}
-.frow{display:flex;gap:3px;align-items:center}
-.frow select{height:28px;font-size:12px;padding:2px 5px}
-.frow #sel-style{width:82px}
-.frow #sel-font{width:112px}
-.frow #sel-size{width:68px}
+.rgrid{display:grid;grid-template-columns:repeat(5,34px);gap:3px}
+.rgrid3{display:grid;grid-template-columns:repeat(4,34px);gap:3px}
+.rgrid4{display:grid;grid-template-columns:repeat(4,34px);gap:3px}
+.fcol{display:flex;flex-direction:column;gap:4px}
+.frow{display:flex;gap:4px;align-items:center}
+.frow select{height:28px;font-size:12px;padding:2px 6px}
+.frow #sel-style{width:100px}
+.frow #sel-font{width:130px}
+.frow #sel-size{width:78px}
 .vsel{display:flex;flex-direction:column;justify-content:center;gap:4px;padding:0 2px}
 .vsel select{height:26px;padding:2px 5px;font-size:12px}
 .vsel #sel-font{width:126px}
@@ -172,8 +172,8 @@ input.docname:focus{outline:none;border-color:var(--accent);background:#fff}
 <div class="ribbon">
 <div class="ribbon-page active" data-page="home">
 <div class="rgroup"><div class="rg-body">
-<button class="rbtn" onclick="doUndo()" title="撤销 (Ctrl+Z)"><span data-icon="undo"></span></button>
-<button class="rbtn" onclick="doRedo()" title="重做 (Ctrl+Y)"><span data-icon="redo"></span></button>
+<button class="rbtn" style="width:38px" onclick="doUndo()" title="撤销 (Ctrl+Z)"><span data-icon="undo"></span></button>
+<button class="rbtn" style="width:38px" onclick="doRedo()" title="重做 (Ctrl+Y)"><span data-icon="redo"></span></button>
 </div><div class="rg-label">剪贴板</div></div>
 <div class="rgroup"><div class="rg-body"><div class="fcol">
 <div class="frow">
@@ -213,6 +213,8 @@ input.docname:focus{outline:none;border-color:var(--accent);background:#fff}
 <div class="rgrid3">
 <button class="rbtn" onclick="listCmd('ul')" title="项目符号列表"><span data-icon="ul"></span></button>
 <button class="rbtn" onclick="listCmd('ol')" title="编号列表"><span data-icon="ol"></span></button>
+<button class="rbtn" onclick="insertBlock('quote')" title="插入引用"><span data-icon="quote"></span></button>
+<button class="rbtn" onclick="insertBlock('hr')" title="插入分隔线"><span data-icon="hr"></span></button>
 <button class="rbtn" onclick="fmtCmd('justifyLeft')" title="左对齐"><span data-icon="al"></span></button>
 <button class="rbtn" onclick="fmtCmd('justifyCenter')" title="居中"><span data-icon="ac"></span></button>
 <button class="rbtn" onclick="fmtCmd('justifyRight')" title="右对齐"><span data-icon="ar"></span></button>
@@ -240,7 +242,6 @@ input.docname:focus{outline:none;border-color:var(--accent);background:#fff}
 <button class="rbtn" onclick="insertBlock('image')" title="插入图片"><span data-icon="image"></span></button>
 <button class="rbtn" onclick="insertBlock('link')" title="插入链接"><span data-icon="link"></span></button>
 <button class="rbtn" onclick="insertBlock('hr')" title="插入分隔线"><span data-icon="hr"></span></button>
-<button class="rbtn" onclick="insertBlock('quote')" title="插入引用"><span data-icon="quote"></span></button>
 <button class="rbtn" onclick="insertBlock('footnote')" title="插入脚注"><span data-icon="footnote"></span></button>
 <button class="rbtn" onclick="insertBlock('toc')" title="插入目录 @[toc depth: 2]"><span data-icon="toc"></span></button>
 </div>
@@ -331,7 +332,7 @@ input.docname:focus{outline:none;border-color:var(--accent);background:#fff}
 <select id="sel-zoom" style="background:#fff;color:#303238;border:none;border-radius:3px;height:20px;padding:0 4px" onchange="applyZoom(this.value)">
 <option value="0.7">70%</option><option value="0.85">85%</option><option value="1" selected>100%</option><option value="1.25">125%</option><option value="1.5">150%</option>
 </select>
-<span class="item" id="st-page">—</span>
+<span class="item" id="st-page">共 — 页</span>
 </div>
 </div>
 <script>
@@ -520,27 +521,63 @@ function blockWeight(b){
   else n=breakLines(displayText(b.text)).length+0.3;
   return Math.max(n,0.5);
 }
+// 像素级实测分页:隐藏容器量每块真实高度,按像素预算分配页面
+var _pxPerMm=null;
+function pxPerMm(){
+  if(_pxPerMm)return _pxPerMm;
+  var d=document.createElement('div');
+  d.style.cssText='position:absolute;visibility:hidden;height:100mm';
+  document.body.appendChild(d);
+  _pxPerMm=d.getBoundingClientRect().height/100;
+  document.body.removeChild(d);
+  return _pxPerMm;
+}
 function layoutPages(blocks){
-  var pages=[], cur=[], used=0, bid=0;
+  var mm=pxPerMm();
+  var gapPx=0.55*FONT_PT*(96/72);
+  var capacity=(PAGE_H-2*MARGIN-8)*mm;
+  var m=document.createElement('div');
+  m.style.cssText='position:absolute;visibility:hidden;left:-9999px;top:0;width:'+(PAGE_W-2*MARGIN)+'mm;font-family:var(--serif);font-size:'+FONT_PT+'pt;line-height:'+LINE_H+';color:#303238';
+  document.body.appendChild(m);
+  var items=[];
   for(var i=0;i<blocks.length;i++){
-    var b=blocks[i]; b.bid=bid++;
-    var w=blockWeight(b);
-    if(used>0&&used+w>LINES_PER_PAGE&&w<=LINES_PER_PAGE){ pages.push(cur); cur=[]; used=0 }
-    if(w>LINES_PER_PAGE&&b.kind==='para'){
-      var lines=breakLines(displayText(b.text));
-      var l0=0;
-      while(l0<lines.length){
-        var room=Math.floor(LINES_PER_PAGE-used);
-        if(room<=0){ pages.push(cur); cur=[]; used=0; room=LINES_PER_PAGE }
-        var take=Math.min(room,lines.length-l0);
-        cur.push({b:b,l0:l0,l1:l0+take,partLines:lines});
-        l0+=take; used+=take;
-        if(used>=LINES_PER_PAGE&&l0<lines.length){ pages.push(cur); cur=[]; used=0 }
+    var b=blocks[i]; b.bid=i;
+    var el;
+    if(b.kind==='para'){
+      el=document.createElement('p');
+      el.innerHTML=fmtH(b.text);
+    }else{
+      var wrap=document.createElement('div');
+      wrap.innerHTML=blockHtml(b);
+      el=wrap.firstElementChild;
+    }
+    m.appendChild(el);
+    var h=el.getBoundingClientRect().height;
+    var pl=(b.kind==='para'||b.kind==='ul'||b.kind==='ol'||b.kind==='quote')?breakLines(displayText(b.text)):null;
+    items.push({b:b,h:h,lines:pl,lineH:h/Math.max(pl?pl.length:1,1)});
+    m.removeChild(el);
+  }
+  document.body.removeChild(m);
+  var pages=[],cur=[],used=0;
+  var gapPxEach=0.55*FONT_PT*(96/72);
+  for(var k=0;k<items.length;k++){
+    var it=items[k];
+    if(it.h>capacity&&it.b.kind==='para'){
+      if(cur.length){pages.push(cur);cur=[]}
+      var linesCount=Math.max(1,Math.round(it.h/it.lineH));
+      var perPage=Math.max(1,Math.floor(capacity/it.lineH));
+      var pos=0;
+      while(pos<linesCount){
+        var take=Math.min(perPage,linesCount-pos);
+        cur.push({b:it.b,l0:pos,l1:pos+take,partLines:it.lines,h:take*it.lineH});
+        pos+=take;
+        if(pos<linesCount){pages.push(cur);cur=[]}
       }
       continue;
     }
-    cur.push({b:b,whole:true});
-    used+=w;
+    if(used>0&&used+it.h>capacity){pages.push(cur);cur=[];used=0}
+    cur.push({b:it.b,whole:true,h:it.h});
+    used+=it.h+gapPxEach;
   }
   if(cur.length)pages.push(cur);
   return pages;
@@ -609,8 +646,7 @@ function makeBlock(b,item){
   el.dataset.bid=b.bid;
   el.dataset.kind='para';
   el.dataset.l0=item.l0; el.dataset.l1=item.l1;
-  if(item.l0>0)el.style.textIndent='0';
-  el.innerHTML=fmtH(text);
+  if(item.l0>0)el.style.textIndent='0';  el.innerHTML=fmtH(text);
   return el;
 }
 function objHtml(b){
@@ -657,7 +693,7 @@ function renderStatus(){
   }
   document.getElementById('st-words').textContent=chars+' 字';
   document.getElementById('st-labels').textContent='标签 '+labels;
-  document.getElementById('st-page').textContent=gPages.length+' 页';
+  document.getElementById('st-page').textContent='共 '+gPages.length+' 页';
 }
 
 // ═══ DOM → 源码序列化(§85:纸面原生编辑,DOM 是输入,源码是权威)═══
@@ -673,6 +709,7 @@ function inlineSource(el){
     else if(tag==='U')out+='@[u]'+inner+'@[/u]';
     else if(tag==='SUP')out+='@[sup]'+inner+'@[/sup]';
     else if(tag==='SUB')out+='@[sub]'+inner+'@[/sub]';
+    else if(tag==='A')out+='@[link '+inner+' url: '+n.getAttribute('href')+']';
     else if(tag==='CODE')out+='`'+inner+'`';
     else if(tag==='SUP')out+='@[sup]'+inner+'@[/sup]';
     else if(tag==='SUB')out+='@[sub]'+inner+'@[/sub]';
@@ -754,7 +791,7 @@ function serializeAll(){
       if(el.nodeType!==1)return;
       if(el.classList.contains('gap'))return;
       if(el.classList.contains('docset')){ if(out.length&&out[out.length-1].trim()!==''&&prevKind!=='docset')out.push(''); out.push(el.textContent); prevKind='docset'; return }
-      if(el.classList.contains('comment-src')){ out.push(el.dataset.raw||el.textContent); prevKind='comment'; return }
+      if(el.classList.contains('comment-src')){ if(out.length&&out[out.length-1].trim()!==''&&prevKind!=='comment')out.push(''); out.push(el.dataset.raw||el.textContent); prevKind='comment'; return }
       // 原生 Enter 拆出的新块没有 data-bid,按通用规则识别类型
       var kind=el.dataset.kind||(/^H[1-6]$/.test(el.tagName)?'heading':el.tagName==='UL'?'ul':el.tagName==='OL'?'ol':el.tagName==='BLOCKQUOTE'?'quote':el.tagName==='TABLE'?'table':el.tagName==='HR'?'hr':'para');
       el.dataset.kind=kind;
@@ -780,21 +817,23 @@ function serializeAll(){
 var repagTimer=null;
 function onPaperInput(){
   if(repagTimer)clearTimeout(repagTimer);
-  repagTimer=setTimeout(function(){
-    var newSrc=serializeAll();
-    if(newSrc===gSrc)return;
-    gSrc=newSrc;
-    var ta=document.getElementById('syntax-src');
-    if(ta)ta.value=gSrc;
-    recordHist(gSrc,true);
-    var caret=saveCaret();
-    var before=gPages.length+'|'+gPages.map(function(p){return p.length?p[0].b.bid:-1}).join(',');
-    gNodes=miniParse(gSrc);
-    gPages=layoutPages(gNodes);
-    var after=gPages.length+'|'+gPages.map(function(p){return p.length?p[0].b.bid:-1}).join(',');
-    if(before!==after){ render(gSrc); restoreCaret(caret) }
-    else { renderOutline(); renderStatus() }
-  },300);
+  repagTimer=setTimeout(applySyncNow,300);
+}
+function applySyncNow(){
+  if(repagTimer){clearTimeout(repagTimer);repagTimer=null}
+  var newSrc=serializeAll();
+  if(newSrc===gSrc)return;
+  gSrc=newSrc;
+  var ta=document.getElementById('syntax-src');
+  if(ta)ta.value=gSrc;
+  recordHist(gSrc,true);
+  var caret=saveCaret();
+  var before=gPages.length+'|'+gPages.map(function(p){return p.length?p[0].b.bid:-1}).join(',');
+  gNodes=miniParse(gSrc);
+  gPages=layoutPages(gNodes);
+  var after=gPages.length+'|'+gPages.map(function(p){return p.length?p[0].b.bid:-1}).join(',');
+  if(before!==after){ render(gSrc); restoreCaret(caret) }
+  else { renderOutline(); renderStatus() }
 }
 function saveCaret(){
   var s=window.getSelection();
@@ -1517,11 +1556,13 @@ function updateUndoButtons(){
   document.querySelectorAll('button[onclick="doRedo()"]').forEach(function(b){b.disabled=histIdx>=hist.length-1});
 }
 function doUndo(){
+  applySyncNow();
   if(histIdx<=0)return;
   histIdx--;
   applyHistory(hist[histIdx]);
 }
 function doRedo(){
+  applySyncNow();
   if(histIdx>=hist.length-1)return;
   histIdx++;
   applyHistory(hist[histIdx]);
@@ -1537,6 +1578,8 @@ function setSrc(s){
   if(ta)ta.value=s;
   recordHist(s,false);
   render(s);
+  var norm=serializeAll();
+  if(norm!==s){ render(norm); }
   updateDiagBar();
 }
 
@@ -1793,10 +1836,11 @@ function spyOutline(){
   var heads=document.querySelectorAll('#display-pane [data-kind="heading"]');
   var pane=document.getElementById('display-pane');
   var top=pane.getBoundingClientRect().top;
+  var threshold=pane.clientHeight*0.3;
   var cur=null;
   heads.forEach(function(h){
     var r=h.getBoundingClientRect();
-    if(r.top-top<=120)cur=h;
+    if(r.top-top<=threshold)cur=h;
   });
   document.querySelectorAll('.outline-item').forEach(function(o){o.classList.remove('active')});
   if(cur){
