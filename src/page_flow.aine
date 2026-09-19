@@ -261,18 +261,67 @@ fn page_flow(state: DocState) -> PageFlowResult {
     }
 }
 
-// Label 锚点 → 页码(§7.2;导出路径用)
-fn page_flow_anchor_pages(state: DocState, result: PageFlowResult) -> Vec<(String, i32)> {
-    var out: Vec<(String, i32)> = []
+// ── 页码 resolver(§7.2 两级解析;§7.4 导出收敛 ≤4 次;P2-3)──────
+
+struct AnchorEntry {
+    label: String
+    page: i32
+}
+
+// Label 锚点 → 页码(基于当前分页结果)
+fn page_flow_anchor_pages(state: DocState, result: PageFlowResult) -> Vec<AnchorEntry> {
+    var out: Vec<AnchorEntry> = []
     let ls = collect_labels(state)
     for e in ls {
         for b in result.boxes {
             if b.node_id == e.node_id {
-                out = out.push((e.label, b.start_page))
+                out = out.push(AnchorEntry { label: e.label, page: b.start_page })
             }
         }
     }
     return out
+}
+
+fn anchors_equal(a: Vec<AnchorEntry>, b: Vec<AnchorEntry>) -> bool {
+    if a.len() != b.len() { return false }
+    var i = 0
+    while i < a.len() {
+        if a[i].label != b[i].label || a[i].page != b[i].page { return false }
+        i += 1
+    }
+    return true
+}
+
+struct PageFlowConv {
+    result: PageFlowResult
+    anchors: Vec<AnchorEntry>
+    iters: i32
+    converged: bool
+}
+
+// 导出/打印路径(§7.4):迭代排版至锚点页码稳定(上限 max_iters);
+// 正常文档 1 次即收敛;超限视为异常循环依赖。实时路径(§7.3)允许 stale,
+// 不走此函数。
+fn page_flow_converged(state: DocState, max_iters: i32) -> PageFlowConv {
+    var result = page_flow(state)
+    var anchors = page_flow_anchor_pages(state, result)
+    var iters = 0
+    var converged = false
+    var guard = 0
+    while guard < max_iters {
+        guard += 1
+        iters += 1
+        let r2 = page_flow(state)
+        let a2 = page_flow_anchor_pages(state, r2)
+        result = r2
+        if anchors_equal(anchors, a2) {
+            anchors = a2
+            converged = true
+            break
+        }
+        anchors = a2
+    }
+    return PageFlowConv { result: result, anchors: anchors, iters: iters, converged: converged }
 }
 
 // ── 增量排版(P1-2;§42:失效传播 + 稳定点终止)────────────────
