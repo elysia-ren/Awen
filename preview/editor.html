@@ -325,7 +325,7 @@ input.docname:focus{outline:none;border-color:var(--accent);background:#fff}
 <span class="item" id="st-words">—</span>
 <span class="item" id="st-labels">Label —</span>
 <span class="item" id="st-find"></span>
-<span class="item" id="st-pos">—</span>
+<span class="item" id="st-pos">第 1 页 · 行 1, 列 1</span>
 <span class="spacer"></span>
 <div class="statuspop" id="diagpop"></div>
 <select id="sel-zoom" style="background:#fff;color:#303238;border:none;border-radius:3px;height:20px;padding:0 4px" onchange="applyZoom(this.value)">
@@ -1092,7 +1092,7 @@ function updateCaretPos(){
   var el=document.getElementById('st-pos');
   if(!el)return;
   var c=saveCaret();
-  if(!c){el.textContent='—';return}
+  if(!c){el.textContent='第 1 页 · 行 1, 列 1';return}
   var blk=document.querySelector('#display-pane [data-bid="'+c.bid+'"]');
   var page=1;
   if(blk){
