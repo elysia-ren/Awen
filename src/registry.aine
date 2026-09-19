@@ -59,6 +59,7 @@ fn is_raw_block(cmd: ExplicitCommand) -> bool {
 fn is_doc_level(cmd: ExplicitCommand) -> bool {
     return cmd == Page || cmd == Margin || cmd == Font || cmd == Size
         || cmd == LineSpacing || cmd == FirstLine || cmd == Theme || cmd == Numbering
+        || cmd == Toc
 }
 
 fn is_scoped(cmd: ExplicitCommand) -> bool {
