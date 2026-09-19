@@ -149,8 +149,9 @@ input.docname:focus{outline:none;border-color:var(--accent);background:#fff}
 .paper img{max-width:100%;display:block}
 .paper .docset{font-family:var(--mono);font-size:8pt;color:#c8cad0;user-select:none}
 .paper .comment-src{background:#fffbe8;color:#b09a3e;font-family:var(--mono);font-size:9pt;border-radius:3px;padding:0 4px}
-.statusbar{height:24px;background:var(--accent);color:#fff;display:flex;align-items:center;padding:0 14px;font-size:12px;gap:16px;flex:none}
-.statusbar .item{white-space:nowrap;opacity:.9}
+.statusbar{height:26px;background:var(--bg3);border-top:1px solid var(--border2);color:#5a5c60;display:flex;align-items:center;padding:0 14px;font-size:12px;gap:16px;flex:none}
+.statusbar .item{white-space:nowrap}
+.statusbar #st-diag{cursor:pointer}
 .statusbar .spacer{flex:1}
 </style>
 </head>
@@ -304,6 +305,7 @@ input.docname:focus{outline:none;border-color:var(--accent);background:#fff}
 <section class="pane" id="syntax-pane" style="display:none;flex:0 0 50%;border-left:1px solid #d7d9dc;background:#f0f1f2"></section>
 </div>
 <div id="tblpop"><span class="lbl">行</span><input id="tbl-rows" type="number" min="1" max="20" value="3"><span class="lbl">列</span><input id="tbl-cols" type="number" min="1" max="8" value="3"><button class="sbtn" onclick="insertTableGrid()">插入</button></div>
+<div id="float-pal" class="cpalette" style="position:fixed;display:none;z-index:200"></div>
 <div id="minibar">
 <div class="mb-row">
 <button class="rbtn b" onclick="fmtCmd('bold')" title="加粗">B</button>
@@ -311,8 +313,10 @@ input.docname:focus{outline:none;border-color:var(--accent);background:#fff}
 <button class="rbtn u" onclick="fmtCmd('underline')" title="下划线"><span style="text-decoration:underline">U</span></button>
 <button class="rbtn s" onclick="fmtCmd('strikeThrough')" title="删除线"><span style="text-decoration:line-through">S</span></button>
 <div class="sep"></div>
-<button class="rbtn" onclick="applyColor(curFore)" title="字体颜色"><span data-icon="fontcolor"></span></button>
-<button class="rbtn" onclick="applyMark(curMark)" title="底纹"><span data-icon="mark"></span></button>
+<button class="rbtn" onclick="applyColor(curFore)" title="字体颜色:点击应用,箭头选更多颜色"><span data-icon="fontcolor"></span></button>
+<button class="rbtn" style="width:14px;font-size:9px" onclick="toggleMbPal(event,'fore')" title="更多字体颜色">▾</button>
+<button class="rbtn" onclick="applyMark(curMark)" title="底纹:点击应用,箭头选更多颜色"><span data-icon="mark"></span></button>
+<button class="rbtn" style="width:14px;font-size:9px" onclick="toggleMbPal(event,'mark')" title="更多底纹颜色">▾</button>
 <div class="sep"></div>
 <button class="rbtn supb" onclick="fmtCmd('superscript')" title="上标"><span>x²</span></button>
 <button class="rbtn subb" onclick="fmtCmd('subscript')" title="下标"><span>x₂</span></button>
@@ -1260,6 +1264,36 @@ function buildPalettes(){
     if(!el.innerHTML)el.innerHTML=ICONS[el.dataset.icon]||'';
   });
 }
+function toggleMbPal(e,kind){
+  e.stopPropagation();
+  var pal=document.getElementById('float-pal');
+  var id='pal-'+kind;
+  buildPalettes();
+  var content=document.getElementById(id);
+  while(pal.firstChild)pal.removeChild(pal.firstChild);
+  var nodes=[];
+  [...content.childNodes].forEach(function(n){nodes.push(n)});
+  nodes.forEach(function(n){pal.appendChild(n)});
+  var kindNow=kind;
+  [...pal.querySelectorAll('.sw')].forEach(function(sw){
+    var col=sw.title;
+    sw.onclick=function(){pickMbColor(col)};
+  });
+  var more=pal.querySelector('.cp-more input');
+  if(more)more.onchange=function(){pickMbColor(more.value)};
+  var r=e.target.getBoundingClientRect();
+  pal.style.left=Math.max(8,r.left-60)+'px';
+  pal.style.top=(r.bottom+8)+'px';
+  pal.classList.add('open');
+  window._mbPalKind=kind;
+}
+function pickMbColor(c){
+  var kind=window._mbPalKind||'fore';
+  if(kind==='fore'){curFore=c;applyColor(c)}
+  else{curMark=c;applyMark(c)}
+  var fp=document.getElementById('float-pal');
+  if(fp)fp.classList.remove('open');
+}
 function togglePalette(e,id){
   e.stopPropagation();
   var el=document.getElementById(id);
@@ -1269,7 +1303,11 @@ function togglePalette(e,id){
   if(!was)el.classList.add('open');
 }
 document.addEventListener('click',function(e){
-  if(!e.target.closest('.colordrop'))document.querySelectorAll('.cpalette').forEach(function(x){x.classList.remove('open')});
+  if(!e.target.closest('.colordrop')&&!e.target.closest('#float-pal')&&!e.target.closest('#minibar')){
+    document.querySelectorAll('.cpalette').forEach(function(x){x.classList.remove('open')});
+    var fp=document.getElementById('float-pal');
+    if(fp)fp.classList.remove('open');
+  }
 });
 function pickColor(id,c){
   if(id==='pal-fore'){curFore=c;applyColor(c)}
