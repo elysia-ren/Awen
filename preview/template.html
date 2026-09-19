@@ -6,163 +6,185 @@
 <title>Awen</title>
 <style>
 :root{
-  --bg:#f3f4f6;--bg2:#fafafa;--border:#dedfe2;--border2:#d9dade;
-  --fg:#24262a;--fg2:#6b6d72;--fg3:#85878b;
-  --accent:#007acc;--page-w:min(820px,100%);
   --serif:Georgia,"Times New Roman","Noto Serif SC","Source Han Serif SC","Microsoft YaHei",serif;
   --sans:"Segoe UI","Microsoft YaHei",system-ui,sans-serif;
   --mono:"Cascadia Code","Consolas","Microsoft YaHei",monospace;
+  --bg:#f3f4f6;--bg2:#fafafa;--bg3:#f7f7f8;
+  --border:#dedfe2;--border2:#d9dade;
+  --fg:#24262a;--fg2:#6b6d72;--fg3:#85878b;
+  --accent:#4b6f8d;
+  --paper-w:min(820px,100%);
 }
 *{box-sizing:border-box;margin:0;padding:0}
 html,body{height:100%;overflow:hidden}
 body{font-family:var(--sans);background:var(--bg);color:#24262a;font-size:14px}
 button{font:inherit;border:0;background:none;color:inherit;cursor:pointer}
-button:disabled{opacity:.35;cursor:default}
+input,textarea,select{font:inherit}
 
-/* ── 布局骨架 ── */
 .app{height:100vh;display:flex;flex-direction:column}
-.workspace{min-height:0;flex:1;display:flex}
 
-/* ── 标题栏 ── */
-.titlebar{height:42px;background:var(--bg2);border-bottom:1px solid var(--border);display:flex;align-items:center;padding:0 14px;gap:12px;flex:none;user-select:none}
-.brand{font-weight:700;font-size:15px;letter-spacing:.3px;color:#1a1c1f}
+/* 标题栏 */
+.titlebar{height:40px;background:var(--bg2);border-bottom:1px solid var(--border);
+  display:flex;align-items:center;padding:0 14px;gap:12px;flex:none;user-select:none}
+.brand{font-weight:700;font-size:15px;color:#1a1c1f;letter-spacing:.3px}
 .docname{font-size:13px;color:var(--fg2)}
 .title-actions{margin-left:auto;display:flex;gap:2px}
-.icon{width:30px;height:28px;border-radius:6px;display:grid;place-items:center;color:#6d7076}
-.icon:hover{background:#e9eaec}
+.icon-btn{width:28px;height:26px;border-radius:5px;display:grid;place-items:center;color:#6d7076;font-size:14px}
+.icon-btn:hover{background:#e9eaec}
 
-/* ── 工具栏 ── */
-.toolbar{height:44px;background:#fbfbfc;border-bottom:1px solid var(--border);display:flex;align-items:center;padding:0 14px;gap:4px;flex:none;user-select:none}
-.tool{height:30px;min-width:30px;padding:0 8px;border-radius:6px;display:flex;align-items:center;justify-content:center;font-size:13px;color:#3d3f43}
-.tool:hover{background:#e8e9eb}
-.tool.active{background:#dce5f0;color:var(--accent)}
-.tool.bold{font-weight:700}.tool.italic{font-style:italic}.tool.strike{text-decoration:line-through}
-.tool.underline{text-decoration:underline}
-.sep{height:22px;width:1px;background:#ddd;margin:0 5px}
-.tool-group{display:flex;gap:2px;align-items:center}
+/* 工具栏 */
+.toolbar{height:42px;background:var(--bg3);border-bottom:1px solid var(--border2);
+  display:flex;align-items:center;padding:0 12px;gap:4px;flex:none;user-select:none}
+.tbtn{height:28px;min-width:28px;padding:0 7px;border-radius:5px;
+  display:flex;align-items:center;justify-content:center;font-size:12px;color:#3d3f43}
+.tbtn:hover{background:#e8e9eb}
+.tbtn.bold{font-weight:700}.tbtn.italic{font-style:italic}
+.tbtn.underline{text-decoration:underline}.tbtn.strike{text-decoration:line-through}
+.tsep{height:20px;width:1px;background:#ddd;margin:0 4px;flex:none}
 .view-tabs{margin-left:auto;display:flex;background:#e9eaec;padding:3px;border-radius:7px;gap:2px}
-.view-tabs button{font-size:12px;padding:5px 12px;border-radius:5px;color:#6b6d72}
+.view-tabs button{font-size:12px;padding:4px 12px;border-radius:5px;color:#6b6d72}
 .view-tabs button.active{background:#fff;color:#222;box-shadow:0 1px 2px rgba(0,0,0,.08)}
 
-/* ── 侧栏 ── */
-.sidebar{width:220px;background:var(--bg2);border-right:1px solid var(--border);display:flex;flex-direction:column;flex:none}
-.side-head{padding:14px 14px 6px;font-size:12px;font-weight:600;color:#74777c;user-select:none}
-.outline{padding:2px 8px;overflow-y:auto;flex:1}
-.outline-item{padding:6px 8px;border-radius:6px;font-size:12px;color:#5d6066;cursor:pointer;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+/* 工作区 */
+.workspace{min-height:0;flex:1;display:flex;overflow:hidden}
+
+/* 侧栏 */
+.sidebar{width:210px;background:var(--bg2);border-right:1px solid var(--border);
+  display:flex;flex-direction:column;flex:none;overflow:hidden}
+.side-head{padding:12px 14px 6px;font-size:12px;font-weight:600;color:#74777c;user-select:none}
+.outline{flex:1;overflow-y:auto;padding:2px 8px}
+.outline-item{padding:6px 8px;border-radius:6px;font-size:12px;color:#5d6066;
+  cursor:pointer;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;user-select:none}
 .outline-item:hover{background:#ececee;color:#2d3035}
-.outline-item.active{background:#e8e9eb;color:#16181b;font-weight:600}
-.outline-item.lvl1{font-weight:600;color:#2d3035}
-.outline-item.lvl2{padding-left:22px}
-.outline-item.lvl3{padding-left:34px}
-.outline-item.lvl4{padding-left:46px}
-.side-bottom{margin-top:auto;border-top:1px solid #e2e3e5;padding:8px}
-.side-row{font-size:12px;color:#73767b;padding:6px 8px;border-radius:6px;cursor:pointer}
+.outline-item.lv1{font-weight:600;color:#2d3035}
+.outline-item.lv2{padding-left:20px}
+.outline-item.lv3{padding-left:32px}
+.outline-item.lv4{padding-left:44px}
+.outline-item.lv5{padding-left:56px}
+.outline-item.lv6{padding-left:68px}
+.side-bottom{border-top:1px solid #e2e3e5;padding:6px;flex:none}
+.side-row{font-size:12px;color:#73767b;padding:5px 8px;border-radius:5px;cursor:pointer}
 .side-row:hover{background:#ececee}
 
-/* ── 编辑区 ── */
-.editor-area{min-width:0;flex:1;display:flex;flex-direction:column;background:#e8e9eb}
-.tabs{height:34px;background:#f7f7f8;border-bottom:1px solid #d9dade;display:flex;align-items:flex-end;padding-left:10px;flex:none}
-.tab{font-size:12px;padding:8px 14px 7px;color:#73767c;cursor:pointer}
-.tab.active{background:#fff;color:#222;border:1px solid #d9dade;border-bottom:1px solid #fff;border-radius:6px 6px 0 0}
+/* 编辑区 */
+.editor-area{min-width:0;flex:1;display:flex;flex-direction:column;background:#e8e9eb;overflow:hidden}
+.tabs{height:34px;background:var(--bg3);border-bottom:1px solid var(--border2);
+  display:flex;align-items:flex-end;padding-left:10px;flex:none}
+.tab{font-size:12px;padding:8px 14px 6px;color:#73767c;cursor:pointer;user-select:none}
+.tab.active{background:#fff;color:#222;border:1px solid var(--border2);border-bottom:1px solid #fff;border-radius:6px 6px 0 0}
 .editor-scroll{min-height:0;flex:1;overflow-y:auto;display:flex;justify-content:center;padding:28px 32px 60px}
 
-/* ── 纸张 ── */
+/* 纸张 */
 .paper{
-  width:var(--page-w);min-height:1100px;background:#fff;position:relative;
-  box-shadow:0 1px 4px rgba(0,0,0,.12),0 0 1px rgba(0,0,0,.08);
+  width:var(--paper-w);min-height:1100px;background:#fff;position:relative;
+  box-shadow:0 1px 4px rgba(0,0,0,.12),0 0 1px rgba(0,0,0,.06);
   padding:72px 80px 90px;
   font-family:var(--serif);font-size:15px;line-height:1.9;color:#303238;
 }
-.paper .docset{font-family:var(--mono);font-size:11px;color:#b0b0b0;margin:2px 0;padding:1px 0}
-.paper .docset::before{content:"◇ "}
-.paper h1{font-family:var(--serif);font-size:28px;line-height:1.3;font-weight:700;color:#1a1c1f;margin:0 0 6px}
-.paper .h-label{font-size:12px;color:#b0b0b0;font-family:var(--mono);vertical-align:middle;margin-left:8px}
+.paper .docset{font-family:var(--mono);font-size:10px;color:#c8cad0;margin:1px 0;padding:0;user-select:none}
+.paper h1{font-size:28px;line-height:1.3;font-weight:700;color:#1a1c1f;margin:0 0 6px}
 .paper h2{font-size:18px;font-weight:700;color:#2a2c30;margin:28px 0 8px}
 .paper h3{font-size:15px;font-weight:650;color:#2d3035;margin:20px 0 6px}
-.paper h4,.paper h5,.paper h6{font-size:14px;font-weight:600;margin:14px 0 4px}
+.paper h4{font-size:14px;font-weight:600;margin:14px 0 4px}
+.paper h5{font-size:13px;font-weight:600;margin:12px 0 4px}
+.paper h6{font-size:12px;font-weight:600;margin:10px 0 2px;color:#888}
 .paper p{margin:8px 0;text-indent:2em}
-.paper p.no-indent{text-indent:0}
-.paper .first-para{text-indent:0}
+.paper p.no-indent{text-indent:0;margin-top:0}
 .paper strong{font-weight:700}
 .paper em{font-style:italic}
 .paper del{text-decoration:line-through;color:#999}
-.paper code{font-family:var(--mono);font-size:.88em;background:#f0f1f2;padding:2px 5px;border-radius:3px}
-.paper .hr-line{border:none;border-top:1px solid #ccc;margin:18px 0}
+.paper code{font-family:var(--mono);font-size:.87em;background:#f0f1f2;padding:1px 5px;border-radius:3px}
+.paper hr{border:none;border-top:1px solid #ccc;margin:18px 0}
 .paper blockquote{border-left:3px solid #c8cad0;padding:8px 16px;margin:12px 0;color:#5a5c60;font-size:.95em}
 .paper blockquote p{text-indent:0;margin:0}
-.paper .quote-lv2{margin-left:16px;border-left-color:#d8dade}
-.paper .quote-lv3{margin-left:32px;border-left-color:#e0e1e4}
-.paper .list{margin:6px 0;padding-left:8px}
-.paper .list-item{margin:3px 0;padding-left:18px;text-indent:-18px}
-.paper .list-item.ul::before{content:"• ";color:#888}
-.paper .list-item.ol::before{content:counter(item) ". ";color:#888}
-.paper table-wrap{margin:16px 0}
-.paper table{width:100%;border-collapse:collapse;font-size:13px;margin:14px 0}
+.paper blockquote.lv2{margin-left:16px;border-left-color:#d8dade}
+.paper blockquote.lv3{margin-left:32px;border-left-color:#e0e1e4}
+.paper ul,.paper ol{margin:6px 0;padding-left:8px;list-style:none}
+.paper ul li,.paper ol li{margin:3px 0;padding-left:20px;text-indent:-20px}
+.paper ul li::before{content:"• ";color:#999}
+.paper ol{counter-reset:ol-counter}
+.paper ol li::before{content:counter(ol-counter) ". ";counter-increment:ol-counter;color:#999}
+.paper table{width:100%;border-collapse:collapse;font-size:13px;margin:16px 0}
 .paper table th,.paper table td{border:1px solid #d0d2d5;padding:8px 10px;text-align:left}
 .paper table th{font-weight:600;background:#f5f5f6}
-.paper .img-placeholder{
-  width:100%;height:160px;background:#f0f1f3;border:1px dashed #c5c7ca;
-  display:flex;align-items:center;justify-content:center;color:#999;font-size:13px;margin:14px 0
-}
-.paper .page-break{page-break-after:always;height:0;border:none}
-
-/* 页码 */
+.paper .img-ph{width:100%;height:160px;background:#f0f1f3;border:1px dashed #c5c7ca;
+  display:flex;align-items:center;justify-content:center;color:#999;font-size:13px;margin:14px 0}
 .paper .page-no{position:absolute;bottom:28px;left:0;right:0;text-align:center;font-size:11px;color:#b5b7bb}
+.paper .raw-text{font-family:var(--mono);font-size:.87em;color:#444}
 
-/* ── 右侧属性面板 ── */
-.rightbar{width:220px;background:var(--bg2);border-left:1px solid var(--border);flex:none;padding:14px;overflow-y:auto}
+/* 属性面板 */
+.rightbar{width:220px;background:var(--bg2);border-left:1px solid var(--border);
+  flex:none;padding:14px;overflow-y:auto;user-select:none}
 .panel-title{font-size:12px;font-weight:600;margin-bottom:12px;color:#3d3f43}
 .field{margin-bottom:14px}
-.field-label{font-size:11px;color:var(--fg3);margin-bottom:5px;user-select:none}
-.field-value{height:30px;border:1px solid #d5d7da;border-radius:6px;background:#fff;padding:6px 9px;font-size:12px;display:flex;align-items:center;justify-content:space-between;cursor:pointer;color:#3d3f43}
+.field-label{font-size:11px;color:var(--fg3);margin-bottom:5px}
+.field-value{height:30px;border:1px solid #d5d7da;border-radius:6px;background:#fff;
+  padding:6px 9px;font-size:12px;display:flex;align-items:center;justify-content:space-between;cursor:pointer;color:#3d3f43}
 .field-value:hover{border-color:#b5b7bb}
 .field-value::after{content:"⌄";color:#999;font-size:10px}
 .swatches{display:flex;gap:5px}
 .swatch{width:22px;height:22px;border:1px solid #cfd1d4;border-radius:5px;cursor:pointer}
 .swatch.active{outline:2px solid var(--accent);outline-offset:1px}
 
-/* ── 状态栏 ── */
-.statusbar{height:24px;background:var(--accent);color:#fff;display:flex;align-items:center;padding:0 14px;font-size:12px;gap:18px;flex:none}
+/* 状态栏 */
+.statusbar{height:24px;background:var(--accent);color:#fff;display:flex;align-items:center;
+  padding:0 14px;font-size:12px;gap:16px;flex:none;user-select:none}
 .statusbar .item{white-space:nowrap;opacity:.9}
 .statusbar .spacer{flex:1}
 
-/* ── JSON 数据嵌入 ── */
-#data{display:none}
+/* 语法视图 */
+.syntax-view{display:none;background:#fff;border-left:1px solid #d7d9dc;overflow:hidden;flex-direction:column}
+.syntax-header{height:36px;border-bottom:1px solid #e0e1e4;display:flex;align-items:center;
+  justify-content:space-between;padding:0 14px;font-size:12px;color:#666;flex:none}
+.syntax-lang{padding:4px 8px;border:1px solid #dddfe2;border-radius:5px;background:#fafafa;font-size:12px}
+.syntax-editor{flex:1;display:flex;flex-direction:column;overflow:hidden}
+.syntax-editor textarea{flex:1;resize:none;border:0;outline:0;padding:20px 24px;
+  font:13px/1.75 var(--mono);color:#303238;background:#fff;tab-size:2}
+
+/* 分屏 */
+.view-shell.split .display-view{width:50%;flex:0 0 50%}
+.view-shell.split .syntax-view{width:50%;flex:0 0 50%;display:flex}
+.view-shell.syntax-only .display-view{display:none}
+.view-shell.syntax-only .syntax-view{display:flex}
 </style>
 </head>
 <body>
-<div id="data"><!--__JSON__--></div>
-
 <div class="app">
+
   <div class="titlebar">
     <div class="brand">Awen</div>
     <div class="docname" id="docname">未命名文档 · 已保存</div>
     <div class="title-actions">
-      <button class="icon">▤</button><button class="icon">—</button><button class="icon">□</button><button class="icon">×</button>
+      <button class="icon-btn">─</button><button class="icon-btn">□</button><button class="icon-btn">×</button>
     </div>
   </div>
 
   <div class="toolbar">
-    <button class="tool" title="撤销">↩</button>
-    <button class="tool" title="重做">↪</button>
-    <div class="sep"></div>
-    <button class="tool bold" title="粗体">B</button>
-    <button class="tool italic" title="斜体"><i>I</i></button>
-    <button class="tool underline" title="下划线"><u>U</u></button>
-    <button class="tool strike" title="删除线"><s>S</s></button>
-    <button class="tool" title="行内代码">&lt;/&gt;</button>
-    <div class="sep"></div>
-    <button class="tool">Noto Serif SC</button>
-    <button class="tool">11 pt</button>
-    <div class="sep"></div>
-    <button class="tool" title="插入图片">🖼</button>
-    <button class="tool" title="插入表格">▦</button>
-    <button class="tool" title="插入引用">❝</button>
+    <button class="tbtn" onclick="doUndo()" title="撤销">↩</button>
+    <button class="tbtn" onclick="doRedo()" title="重做">↪</button>
+    <div class="tsep"></div>
+    <button class="tbtn bold" onclick="doToggle('bold')" title="粗体 Ctrl+B"><b>B</b></button>
+    <button class="tbtn italic" onclick="doToggle('italic')" title="斜体"><i>I</i></button>
+    <button class="tbtn strike" onclick="doToggle('strike')" title="删除线"><s>S</s></button>
+    <button class="tbtn" onclick="doToggle('code')" title="行内代码"><>&lt;/&gt;</button>
+    <div class="tsep"></div>
+    <button class="tbtn">Noto Serif SC</button>
+    <button class="tbtn">11 pt</button>
+    <div class="tsep"></div>
+    <button class="tbtn" onclick="insertText('\n\n@[image ]\n\n')">＋ 图片</button>
+    <button class="tbtn" onclick="insertText('\n\n@[table]\n\n| 列1 | 列2 |\n| --- | --- |\n| 内容 | 内容 |\n\n@[/table]\n\n')">＋ 表格</button>
+    <button class="tbtn" onclick="insertText('\n\n> 引用内容\n\n')">＋ 引用</button>
+
+    <div class="view-tabs">
+      <button class="active" data-mode="display">显示</button>
+      <button data-mode="syntax">语法</button>
+      <button data-mode="split">分屏</button>
+    </div>
   </div>
 
   <div class="workspace">
     <aside class="sidebar">
-      <div class="side-head">大纲</div>
+      <div class="side-head">文档结构</div>
       <div class="outline" id="outline"></div>
       <div class="side-bottom">
         <div class="side-row">⌕ 查找</div>
@@ -172,121 +194,248 @@ button:disabled{opacity:.35;cursor:default}
 
     <main class="editor-area">
       <div class="tabs">
-        <div class="tab active" id="doc-title-tab">未命名文档</div>
+        <div class="tab active">未命名文档</div>
       </div>
-      <div class="editor-scroll">
-        <article class="paper" id="paper"></article>
-      </div>
-      <div class="statusbar">
-        <span class="item" id="st-errors">诊断 —</span>
-        <span class="item" id="st-nodes">节点 —</span>
-        <span class="item" id="st-labels">Label —</span>
-        <span class="spacer"></span>
-        <span class="item" id="st-page">第 1 页</span>
+      <div class="view-shell" id="view-shell">
+
+        <section class="view display-view">
+          <div class="editor-scroll">
+            <article class="paper" id="paper"></article>
+          </div>
+        </section>
+
+        <section class="view syntax-view">
+          <div class="syntax-header">
+            <span>Awen 语法</span>
+            <span class="syntax-lang">中文语法 ⌄</span>
+          </div>
+          <div class="syntax-editor">
+            <textarea id="syntax-src" spellcheck="false"></textarea>
+          </div>
+        </section>
+
       </div>
     </main>
+  </div>
+
+  <div class="statusbar">
+    <span class="item" id="st-diag">诊断 ✓</span>
+    <span class="item" id="st-nodes">节点 —</span>
+    <span class="item" id="st-labels">Label —</span>
+    <span class="spacer"></span>
+    <span class="item" id="st-page">第 1 页</span>
   </div>
 </div>
 
 <script>
-// ── 嵌入 JSON ──
-const DATA = /*__JSON__*/{};
+// ── 初始化数据 ──
+const INITIAL_SOURCE = "从左侧选择文件，或在此输入内容。";
+
+// ── 简化管线 ──
+function miniParse(src) {
+  const lines = src.split('
+');
+  const nodes = [];
+  let para = [];
+  for (const line of lines) {
+    const t = line.trim();
+    if (t === '') {
+      if (para.length > 0) { nodes.push({kind:'para', text:para.join(' ')}); para=[]; }
+      continue;
+    }
+    if (t.startsWith('#')) {
+      if (para.length > 0) { nodes.push({kind:'para',text:para.join(' ')}); para=[]; }
+      const lvl = Math.min((t.match(/^#+/)||['#'])[0].length,6);
+      nodes.push({kind:'heading',level:lvl,text:t.replace(/^#+\s*/,'')});
+      continue;
+    }
+    if (t==='---'||t==='――――――――――') {
+      if (para.length>0){nodes.push({kind:'para',text:para.join(' ')});para=[];}
+      nodes.push({kind:'hr',text:''});
+      continue;
+    }
+    if (t.startsWith('- ')||t.startsWith('* ')) {
+      if (para.length>0){nodes.push({kind:'para',text:para.join(' ')});para=[];}
+      nodes.push({kind:'list',text:t});
+      continue;
+    }
+    if (/^\d+\.\s/.test(t)) {
+      if (para.length>0){nodes.push({kind:'para',text:para.join(' ')});para=[];}
+      nodes.push({kind:'list',text:t});
+      continue;
+    }
+    if (t.startsWith('> ')) {
+      if (para.length>0){nodes.push({kind:'para',text:para.join(' ')});para=[];}
+      nodes.push({kind:'quote',text:t});
+      continue;
+    }
+    if (t.startsWith('|')&&t.endsWith('|')) {
+      if (para.length>0){nodes.push({kind:'para',text:para.join(' ')});para=[];}
+      nodes.push({kind:'table',text:t});
+      continue;
+    }
+    if (t.startsWith('@[comment')) { nodes.push({kind:'comment',text:t}); continue; }
+    if (/^@\[(page|margin|font|size|line-spacing|first-line|theme|toc|numbering)/.test(t)) {
+      if (para.length>0){nodes.push({kind:'para',text:para.join(' ')});para=[];}
+      nodes.push({kind:'docset',text:t});
+      continue;
+    }
+    if (t.startsWith('@[')&&!t.startsWith('@@')) {
+      if (para.length>0){nodes.push({kind:'para',text:para.join(' ')});para=[];}
+      nodes.push({kind:'obj',text:t});
+      continue;
+    }
+    para.push(t);
+  }
+  if (para.length>0){nodes.push({kind:'para',text:para.join(' ')});para=[];}
+  return nodes;
+}
 
 // ── 渲染 ──
-function render(data) {
+function fmtH(t) {
+  let s = t.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+  s = s.replace(/\*\*(.+?)\*\*/g,'<strong>$1</strong>');
+  s = s.replace(/~~(.+?)~~/g,'<del>$1</del>');
+  s = s.replace(/`(.+?)`/g,'<code>$1</code>');
+  return s;
+}
+
+const LINES_PP = 40;
+function renderPreview(nodes) {
   const paper = document.getElementById('paper');
   paper.innerHTML = '';
+  let pageNum = 0, linesInPage = 0;
+  let pd = createPage(0);
 
-  // 按页分组
-  const pages = {};
-  for (const line of data.lines) {
-    if (!pages[line.page]) pages[line.page] = [];
-    pages[line.page].push(line);
-  }
-  const pageIdx = Object.keys(pages).map(Number).sort((a,b)=>a-b);
-
-  // 渲染每页
-  for (const pi of pageIdx) {
-    const pageDiv = document.createElement('div');
-    pageDiv.className = 'page-content';
-
-    for (const line of pages[pi]) {
-      const el = document.createElement('div');
-      el.className = 'line-' + line.id;
-      el.dataset.nodeId = line.id;
-
-      if (line.kind === 'heading') {
-        const tag = 'h' + Math.min(line.level, 6);
-        el.innerHTML = `<${tag}>${fmtHtml(line.text)}</${tag}>`;
-      } else if (line.kind === 'para') {
-        el.innerHTML = `<p>${fmtHtml(line.text)}</p>`;
-      } else if (line.kind === 'quote') {
-        el.innerHTML = `<blockquote><p>${fmtHtml(line.text)}</p></blockquote>`;
-      } else if (line.kind === 'list') {
-        el.innerHTML = `<div class="list-item">${fmtHtml(line.text)}</div>`;
-      } else if (line.kind === 'table') {
-        el.innerHTML = `<p style="font-family:var(--mono);font-size:12px;color:#666">${escHtml(line.text)}</p>`;
-      } else if (line.kind === 'hr') {
-        el.innerHTML = '<hr class="hr-line">';
-      } else if (line.kind === 'raw') {
-        el.innerHTML = `<p style="font-family:var(--mono);font-size:12px;color:#444">${escHtml(line.text)}</p>`;
-      } else if (line.kind === 'obj') {
-        el.innerHTML = `<div class="img-placeholder">🖼 ${escHtml(line.text)}</div>`;
-      } else if (line.kind === 'comment') {
-        continue;
-      } else if (line.kind === 'docset') {
-        continue;
-      } else {
-        el.innerHTML = `<p>${escHtml(line.text)}</p>`;
+  for (const node of nodes) {
+    if (node.kind==='comment'||node.kind==='docset') continue;
+    let html = '';
+    switch(node.kind) {
+      case 'heading': {
+        const tag='h'+Math.min(node.level,6);
+        html='<'+tag+'>'+fmtH(node.text)+'</'+tag+'>';
+        break;
       }
-      pageDiv.appendChild(el);
+      case 'para': html='<p>'+fmtH(node.text)+'</p>'; break;
+      case 'quote': html='<blockquote><p>'+fmtH(node.text.replace(/^>\s*/,''))+'</p></blockquote>'; break;
+      case 'list': {
+        const t=node.text;
+        if (t.startsWith('- ')||t.startsWith('* ')) html='<ul><li>'+fmtH(t.substring(2))+'</li></ul>';
+        else if (/^\d+/.test(t)) html='<ol><li>'+fmtH(t.replace(/^\d+\.\s*/,''))+'</li></ol>';
+        else html='<ul><li>'+fmtH(t)+'</li></ul>';
+        break;
+      }
+      case 'table': html='<p style="font-family:var(--mono);font-size:12px;color:#666">'+escHtml(node.text)+'</p>'; break;
+      case 'hr': html='<hr>'; break;
+      case 'obj': {
+        const sp=node.text.indexOf(' ');
+        const name=sp>0?node.text[0..sp]:node.text;
+        html='<div class="img-ph">'+escHtml(node.text)+'</div>';
+        break;
+      }
+      default: html='<p>'+fmtH(node.text)+'</p>';
     }
-
-    // 页码
-    const pn = document.createElement('div');
-    pn.className = 'page-no';
-    pn.textContent = pi + 1;
-    pageDiv.appendChild(pn);
-    paper.appendChild(pageDiv);
+    const el=document.createElement('div');
+    el.dataset.heading=node.kind==='heading'?node.text:'';
+    el.innerHTML=html;
+    pd.appendChild(el);
+    linesInPage++;
+    if (linesInPage>=LINES_PP) {
+      pageNum++; linesInPage=0;
+      pd=createPage(pageNum);
+    }
   }
+  paper.appendChild(pd);
+  return pageNum+1;
+}
 
-  // 大纲
-  const ol = document.getElementById('outline');
-  ol.innerHTML = '';
-  for (const o of (data.outline || [])) {
-    const d = document.createElement('div');
-    d.className = 'outline-item lvl' + o.level;
-    d.textContent = o.text;
-    d.onclick = () => {
-      const el = document.querySelector(`[data-node-id="${o.id}"]`);
-      if (el) el.scrollIntoView({behavior:'smooth', block:'start'});
+function createPage(idx) {
+  const pd=document.createElement('div');
+  pd.className='page';
+  const pn=document.createElement('div');
+  pn.className='page-no';
+  pn.textContent='第 '+(idx+1)+' 页';
+  pd.appendChild(pn);
+  return pd;
+}
+
+// ── 大纲 ──
+function renderOutline(nodes) {
+  const ol=document.getElementById('outline');
+  ol.innerHTML='';
+  for (const n of nodes) {
+    if (n.kind!=='heading') continue;
+    const d=document.createElement('div');
+    d.className='outline-item lvl'+n.level;
+    d.textContent=n.text;
+    d.onclick=()=>{
+      const el=document.querySelector('[data-heading="'+n.text+'"]');
+      if(el) el.scrollIntoView({behavior:'smooth',block:'start'});
     };
     ol.appendChild(d);
   }
-
-  // 锚点
-  const anchorList = (data.anchors || []).map(a => `${a.label} → 第${a.page + 1}页`).join(', ');
-
-  // 状态栏
-  document.getElementById('st-errors').textContent = '诊断 ' + (data.errors || 0);
-  document.getElementById('st-nodes').textContent = (data.lines || []).length + ' 行';
-  document.getElementById('st-labels').textContent = 'Label ' + (data.anchors || []).length;
-  document.getElementById('st-page').textContent = '共 ' + data.pages + ' 页';
 }
 
-function fmtHtml(text) {
-  let s = text.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
-  s = s.replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>');
-  s = s.replace(/~~(.+?)~~/g, '<del>$1</del>');
-  s = s.replace(/`(.+?)`/g, '<code>$1</code>');
-  s = s.replace(/(?<!\w)_(.+?)_(?!\w)/g, '<em>$1</em>');
-  return s;
-}
-function escHtml(s) {
-  return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+// ── 全量刷新 ──
+function refreshAll(src) {
+  const nodes=miniParse(src);
+  renderPreview(nodes);
+  renderOutline(nodes);
+  const hCount=nodes.filter(n=>n.kind==='heading').length;
+  const pCount=nodes.filter(n=>n.kind==='para').length;
+  return {hCount,pCount,total:nodes.length};
 }
 
-render(DATA);
+// ── 初始化 ──
+(function init() {
+  const src=INITIAL_SOURCE;
+  const nodes=miniParse(src);
+  renderPreview(nodes);
+  renderOutline(nodes);
+  const hCount=nodes.filter(n=>n.kind==='heading').length;
+  document.getElementById('st-nodes').textContent=hCount+' 标题 · '+nodes.filter(n=>n.kind==='para').length+' 段落';
+  document.getElementById('st-page').textContent=(pageNum||1)+' 页';
+})();
+
+// ── 语法视图编辑 ──
+const syntaxSrc=document.getElementById('syntax-src');
+let syntaxTimer=null;
+syntaxSrc.addEventListener('input',()=>{
+  clearTimeout(syntaxTimer);
+  syntaxTimer=setTimeout(()=>{
+    const src=syntaxSrc.value;
+    const nodes=miniParse(src);
+    renderPreview(nodes);
+    renderOutline(nodes);
+    const hCount=nodes.filter(n=>n.kind==='heading').length;
+    document.getElementById('st-nodes').textContent=hCount+' 标题 · '+nodes.filter(n=>n.kind==='para').length+' 段落';
+  },300);
+});
+
+// ── 视图模式切换 ──
+const modeBtns=document.querySelectorAll('.view-tabs button');
+const viewShell=document.getElementById('view-shell');
+const displayView=document.querySelector('.display-view');
+const syntaxViewEl=document.querySelector('.syntax-view');
+let currentMode='display';
+
+modeBtns.forEach(b=>b.addEventListener('click',()=>setMode(b.dataset.mode)));
+function setMode(mode) {
+  currentMode=mode;
+  modeBtns.forEach(b=>b.classList.toggle('active',b.dataset.mode===mode));
+  const paper=document.getElementById('paper');
+  const synTex=document.getElementById('syntax-src');
+  if (mode==='syntax') {
+    paper.style.display='none';
+    synTex.style.display='block';
+  } else if (mode==='split') {
+    paper.style.display='block';
+    synTex.style.display='block';
+  } else {
+    paper.style.display='block';
+    synTex.style.display='none';
+  }
+}
 </script>
 </body>
 </html>
