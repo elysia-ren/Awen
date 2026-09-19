@@ -13,75 +13,53 @@
   --border:#dedfe2;--border2:#d9dade;
   --fg:#24262a;--fg2:#6b6d72;--fg3:#85878b;
   --accent:#4b6f8d;
-  --paper-w:min(820px,100%);
 }
 *{box-sizing:border-box;margin:0;padding:0}
 html,body{height:100%;overflow:hidden}
 body{font-family:var(--sans);background:var(--bg);color:#24262a;font-size:14px}
 button{font:inherit;border:0;background:none;color:inherit;cursor:pointer}
-input,textarea,select{font:inherit}
 
 .app{height:100vh;display:flex;flex-direction:column}
 
-/* 标题栏 */
-.titlebar{height:40px;background:var(--bg2);border-bottom:1px solid var(--border);
-  display:flex;align-items:center;padding:0 14px;gap:12px;flex:none;user-select:none}
-.brand{font-weight:700;font-size:15px;color:#1a1c1f;letter-spacing:.3px}
+.titlebar{height:40px;background:var(--bg2);border-bottom:1px solid var(--border);display:flex;align-items:center;padding:0 14px;gap:12px;flex:none;user-select:none}
+.brand{font-weight:700;font-size:15px;color:#1a1c1f}
 .docname{font-size:13px;color:var(--fg2)}
 .title-actions{margin-left:auto;display:flex;gap:2px}
-.icon-btn{width:28px;height:26px;border-radius:5px;display:grid;place-items:center;color:#6d7076;font-size:14px}
-.icon-btn:hover{background:#e9eaec}
+.icon-btn{width:28px;height:26px;border-radius:5px;display:grid;place-items:center;color:#6d7076}
 
-/* 工具栏 */
-.toolbar{height:42px;background:var(--bg3);border-bottom:1px solid var(--border2);
-  display:flex;align-items:center;padding:0 12px;gap:4px;flex:none;user-select:none}
-.tbtn{height:28px;min-width:28px;padding:0 7px;border-radius:5px;
-  display:flex;align-items:center;justify-content:center;font-size:12px;color:#3d3f43}
+.toolbar{height:42px;background:var(--bg3);border-bottom:1px solid var(--border2);display:flex;align-items:center;padding:0 12px;gap:4px;flex:none;user-select:none;flex-wrap:nowrap}
+.tbtn{height:28px;min-width:28px;padding:0 7px;border-radius:5px;display:flex;align-items:center;justify-content:center;font-size:12px;color:#3d3f43;white-space:nowrap}
 .tbtn:hover{background:#e8e9eb}
 .tbtn.bold{font-weight:700}.tbtn.italic{font-style:italic}
-.tbtn.underline{text-decoration:underline}.tbtn.strike{text-decoration:line-through}
+.tbtn.strike{text-decoration:line-through}
 .tsep{height:20px;width:1px;background:#ddd;margin:0 4px;flex:none}
 .view-tabs{margin-left:auto;display:flex;background:#e9eaec;padding:3px;border-radius:7px;gap:2px}
 .view-tabs button{font-size:12px;padding:4px 12px;border-radius:5px;color:#6b6d72}
 .view-tabs button.active{background:#fff;color:#222;box-shadow:0 1px 2px rgba(0,0,0,.08)}
 
-/* 工作区 */
 .workspace{min-height:0;flex:1;display:flex;overflow:hidden}
 
-/* 侧栏 */
-.sidebar{width:210px;background:var(--bg2);border-right:1px solid var(--border);
-  display:flex;flex-direction:column;flex:none;overflow:hidden}
+.sidebar{width:210px;background:var(--bg2);border-right:1px solid var(--border);display:flex;flex-direction:column;flex:none;overflow:hidden}
 .side-head{padding:12px 14px 6px;font-size:12px;font-weight:600;color:#74777c;user-select:none}
 .outline{flex:1;overflow-y:auto;padding:2px 8px}
-.outline-item{padding:6px 8px;border-radius:6px;font-size:12px;color:#5d6066;
-  cursor:pointer;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;user-select:none}
+.outline-item{padding:6px 8px;border-radius:6px;font-size:12px;color:#5d6066;cursor:pointer;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;user-select:none}
 .outline-item:hover{background:#ececee;color:#2d3035}
 .outline-item.lv1{font-weight:600;color:#2d3035}
 .outline-item.lv2{padding-left:20px}
 .outline-item.lv3{padding-left:32px}
 .outline-item.lv4{padding-left:44px}
-.outline-item.lv5{padding-left:56px}
-.outline-item.lv6{padding-left:68px}
 .side-bottom{border-top:1px solid #e2e3e5;padding:6px;flex:none}
 .side-row{font-size:12px;color:#73767b;padding:5px 8px;border-radius:5px;cursor:pointer}
 .side-row:hover{background:#ececee}
 
-/* 编辑区 */
 .editor-area{min-width:0;flex:1;display:flex;flex-direction:column;background:#e8e9eb;overflow:hidden}
-.tabs{height:34px;background:var(--bg3);border-bottom:1px solid var(--border2);
-  display:flex;align-items:flex-end;padding-left:10px;flex:none}
-.tab{font-size:12px;padding:8px 14px 6px;color:#73767c;cursor:pointer;user-select:none}
-.tab.active{background:#fff;color:#222;border:1px solid var(--border2);border-bottom:1px solid #fff;border-radius:6px 6px 0 0}
 .editor-scroll{min-height:0;flex:1;overflow-y:auto;display:flex;justify-content:center;padding:28px 32px 60px}
 
-/* 纸张 */
-.paper{
-  width:var(--paper-w);min-height:1100px;background:#fff;position:relative;
+.paper{width:min(820px,100%);min-height:1100px;background:#fff;position:relative;
   box-shadow:0 1px 4px rgba(0,0,0,.12),0 0 1px rgba(0,0,0,.06);
   padding:72px 80px 90px;
-  font-family:var(--serif);font-size:15px;line-height:1.9;color:#303238;
-}
-.paper .docset{font-family:var(--mono);font-size:10px;color:#c8cad0;margin:1px 0;padding:0;user-select:none}
+  font-family:var(--serif);font-size:15px;line-height:1.9;color:#303238}
+.paper .docset{font-family:var(--mono);font-size:10px;color:#c8cad0;margin:1px 0;user-select:none}
 .paper h1{font-size:28px;line-height:1.3;font-weight:700;color:#1a1c1f;margin:0 0 6px}
 .paper h2{font-size:18px;font-weight:700;color:#2a2c30;margin:28px 0 8px}
 .paper h3{font-size:15px;font-weight:650;color:#2d3035;margin:20px 0 6px}
@@ -97,55 +75,42 @@ input,textarea,select{font:inherit}
 .paper hr{border:none;border-top:1px solid #ccc;margin:18px 0}
 .paper blockquote{border-left:3px solid #c8cad0;padding:8px 16px;margin:12px 0;color:#5a5c60;font-size:.95em}
 .paper blockquote p{text-indent:0;margin:0}
-.paper blockquote.lv2{margin-left:16px;border-left-color:#d8dade}
-.paper blockquote.lv3{margin-left:32px;border-left-color:#e0e1e4}
+.paper blockquote.lv2{margin-left:16px}
+.paper blockquote.lv3{margin-left:32px}
 .paper ul,.paper ol{margin:6px 0;padding-left:8px;list-style:none}
 .paper ul li,.paper ol li{margin:3px 0;padding-left:20px;text-indent:-20px}
 .paper ul li::before{content:"• ";color:#999}
-.paper ol{counter-reset:ol-counter}
-.paper ol li::before{content:counter(ol-counter) ". ";counter-increment:ol-counter;color:#999}
+.paper ol{counter-reset:olc}
+.paper ol li::before{content:counter(olc) ". ";counter-increment:olc;color:#999}
 .paper table{width:100%;border-collapse:collapse;font-size:13px;margin:16px 0}
 .paper table th,.paper table td{border:1px solid #d0d2d5;padding:8px 10px;text-align:left}
 .paper table th{font-weight:600;background:#f5f5f6}
-.paper .img-ph{width:100%;height:160px;background:#f0f1f3;border:1px dashed #c5c7ca;
-  display:flex;align-items:center;justify-content:center;color:#999;font-size:13px;margin:14px 0}
+.paper .img-ph{width:100%;height:160px;background:#f0f1f3;border:1px dashed #c5c7ca;display:flex;align-items:center;justify-content:center;color:#999;font-size:13px;margin:14px 0}
 .paper .page-no{position:absolute;bottom:28px;left:0;right:0;text-align:center;font-size:11px;color:#b5b7bb}
-.paper .raw-text{font-family:var(--mono);font-size:.87em;color:#444}
 
-/* 属性面板 */
-.rightbar{width:220px;background:var(--bg2);border-left:1px solid var(--border);
-  flex:none;padding:14px;overflow-y:auto;user-select:none}
-.panel-title{font-size:12px;font-weight:600;margin-bottom:12px;color:#3d3f43}
-.field{margin-bottom:14px}
-.field-label{font-size:11px;color:var(--fg3);margin-bottom:5px}
-.field-value{height:30px;border:1px solid #d5d7da;border-radius:6px;background:#fff;
-  padding:6px 9px;font-size:12px;display:flex;align-items:center;justify-content:space-between;cursor:pointer;color:#3d3f43}
-.field-value:hover{border-color:#b5b7bb}
-.field-value::after{content:"⌄";color:#999;font-size:10px}
-.swatches{display:flex;gap:5px}
-.swatch{width:22px;height:22px;border:1px solid #cfd1d4;border-radius:5px;cursor:pointer}
-.swatch.active{outline:2px solid var(--accent);outline-offset:1px}
-
-/* 状态栏 */
-.statusbar{height:24px;background:var(--accent);color:#fff;display:flex;align-items:center;
-  padding:0 14px;font-size:12px;gap:16px;flex:none;user-select:none}
-.statusbar .item{white-space:nowrap;opacity:.9}
-.statusbar .spacer{flex:1}
-
-/* 语法视图 */
 .syntax-view{display:none;background:#fff;border-left:1px solid #d7d9dc;overflow:hidden;flex-direction:column}
-.syntax-header{height:36px;border-bottom:1px solid #e0e1e4;display:flex;align-items:center;
-  justify-content:space-between;padding:0 14px;font-size:12px;color:#666;flex:none}
+.syntax-header{height:36px;border-bottom:1px solid #e0e1e4;display:flex;align-items:center;justify-content:space-between;padding:0 14px;font-size:12px;color:#666;flex:none}
 .syntax-lang{padding:4px 8px;border:1px solid #dddfe2;border-radius:5px;background:#fafafa;font-size:12px}
 .syntax-editor{flex:1;display:flex;flex-direction:column;overflow:hidden}
-.syntax-editor textarea{flex:1;resize:none;border:0;outline:0;padding:20px 24px;
-  font:13px/1.75 var(--mono);color:#303238;background:#fff;tab-size:2}
+.syntax-editor textarea{flex:1;resize:none;border:0;outline:0;padding:20px 24px;font:13px/1.75 var(--mono);color:#303238;background:#fff;tab-size:2}
 
-/* 分屏 */
 .view-shell.split .display-view{width:50%;flex:0 0 50%}
 .view-shell.split .syntax-view{width:50%;flex:0 0 50%;display:flex}
 .view-shell.syntax-only .display-view{display:none}
 .view-shell.syntax-only .syntax-view{display:flex}
+
+.rightbar{width:220px;background:var(--bg2);border-left:1px solid var(--border);flex:none;padding:14px;overflow-y:auto;user-select:none}
+.panel-title{font-size:12px;font-weight:600;margin-bottom:12px;color:#3d3f43}
+.field{margin-bottom:14px}
+.field-label{font-size:11px;color:var(--fg3);margin-bottom:5px}
+.field-value{height:30px;border:1px solid #d5d7da;border-radius:6px;background:#fff;padding:6px 9px;font-size:12px;display:flex;align-items:center;justify-content:space-between;cursor:pointer;color:#3d3f43}
+.field-value:hover{border-color:#b5b7bb}
+.swatches{display:flex;gap:5px}
+.swatch{width:22px;height:22px;border:1px solid #cfd1d4;border-radius:5px;cursor:pointer}
+
+.statusbar{height:24px;background:var(--accent);color:#fff;display:flex;align-items:center;padding:0 14px;font-size:12px;gap:16px;flex:none}
+.statusbar .item{white-space:nowrap;opacity:.9}
+.statusbar .spacer{flex:1}
 </style>
 <script>const DATA = {"pages":2,"lines":[{"id":14,"page":0,"y":0.0,"kind":"heading","level":1,"text":"一级标题 @[label]"},{"id":15,"page":0,"y":12.805841399999998,"kind":"para","level":0,"text":"这是第一章的正文。源码中的物理换行不会产生排版换行,这仍然是一个段落。"},{"id":16,"page":0,"y":19.208762099999998,"kind":"para","level":0,"text":"空行产生新段落。"},{"id":17,"page":0,"y":25.611682799999997,"kind":"heading","level":2,"text":"二级标题 @[标签]"},{"id":18,"page":0,"y":38.41752419999999,"kind":"heading","level":3,"text":"三级标题"},{"id":19,"page":0,"y":44.820444899999984,"kind":"heading","level":4,"text":"四级标题"},{"id":20,"page":0,"y":51.22336559999998,"kind":"heading","level":5,"text":"五级标题"},{"id":21,"page":0,"y":57.626286299999975,"kind":"heading","level":6,"text":"六级标题"},{"id":22,"page":0,"y":64.02920699999997,"kind":"heading","level":2,"text":"行内格式"},{"id":23,"page":0,"y":76.83504839999996,"kind":"para","level":0,"text":"**粗体** 与 _斜体_ 与 ~~删除线~~ 与 `行内代码` 与 下划线 与 长写下划线。"},{"id":24,"page":0,"y":83.23796909999996,"kind":"para","level":0,"text":"嵌套:**粗体中嵌 _斜体_**,以及 短命令粗体 和 长命令粗体。"},{"id":25,"page":0,"y":89.64088979999995,"kind":"para","level":0,"text":"行内数学 E = mc^2 出现在段落之中。脚注演示@[footnote]。"},{"id":26,"page":0,"y":96.04381049999995,"kind":"para","level":0,"text":"链接:@[link],以及裸 URL 自动识别 https://example.com/docs。"},{"id":27,"page":0,"y":102.44673119999995,"kind":"heading","level":2,"text":"块级对象"},{"id":32,"page":0,"y":195.25257259999995,"kind":"raw","level":0,"text":"\\int_0^\\infty e^{-x}\\,dx = 1"},{"id":33,"page":0,"y":201.65549329999996,"kind":"raw","level":0,"text":"a^2 + b^2 = c^2"},{"id":34,"page":0,"y":208.05841399999997,"kind":"raw","level":0,"text":"def hello():"},{"id":34,"page":0,"y":214.46133469999998,"kind":"raw","level":0,"text":"    print(\"Hello, Awen\")  # 代码内部的 @[b] 与 ] 均不参与 Awen 解析"},{"id":35,"page":0,"y":220.8642554,"kind":"raw","level":0,"text":"raw content: }{ ] @[ ** _ ~`"},{"id":36,"page":0,"y":227.2671761,"kind":"heading","level":2,"text":"引用与列表"},{"id":37,"page":0,"y":240.07301750000002,"kind":"quote","level":0,"text":"引用:一级引用"},{"id":38,"page":0,"y":246.47593820000003,"kind":"quote","level":0,"text":"引用:二级引用"},{"id":39,"page":1,"y":0.0,"kind":"quote","level":0,"text":"引用:三级引用"},{"id":40,"page":1,"y":6.402920699999999,"kind":"list","level":0,"text":"- 无序列表项一"},{"id":40,"page":1,"y":12.805841399999998,"kind":"list","level":0,"text":"- 无序列表项二"},{"id":41,"page":1,"y":19.208762099999998,"kind":"list","level":0,"text":"1. 有序列表项一"},{"id":41,"page":1,"y":25.611682799999997,"kind":"list","level":0,"text":"2. 有序列表项二"},{"id":42,"page":1,"y":32.01460349999999,"kind":"hr","level":0,"text":"――――――――――"},{"id":43,"page":1,"y":38.41752419999999,"kind":"heading","level":2,"text":"表格 @[label]"},{"id":44,"page":1,"y":51.22336559999998,"kind":"para","level":0,"text":"简单表格:"},{"id":45,"page":1,"y":57.626286299999975,"kind":"table","level":0,"text":"| 方法 | 速度 | 安全性 |"},{"id":45,"page":1,"y":64.02920699999997,"kind":"table","level":0,"text":"| A | 0.21 | 低 |"},{"id":45,"page":1,"y":70.43212769999997,"kind":"table","level":0,"text":"| B | 0.48 | 中 |"},{"id":46,"page":1,"y":76.83504839999996,"kind":"para","level":0,"text":"复杂单元格 @[label]:"},{"id":47,"page":1,"y":83.23796909999996,"kind":"table","level":0,"text":"| 姓名 | 备注 |"},{"id":47,"page":1,"y":89.64088979999995,"kind":"table","level":0,"text":"| \"Smith, John\" | 单元格含逗号无需转义 |"},{"id":47,"page":1,"y":96.04381049999995,"kind":"table","level":0,"text":"| A | 合并单元格 |"},{"id":47,"page":1,"y":102.44673119999995,"kind":"table","level":0,"text":"| 粗 | code 与 a+b |"},{"id":48,"page":1,"y":108.84965189999994,"kind":"para","level":0,"text":"表格引用:见 @[ref]。"},{"id":49,"page":1,"y":115.25257259999994,"kind":"heading","level":2,"text":"样式与全角输入"},{"id":50,"page":1,"y":128.05841399999994,"kind":"para","level":0,"text":"彩色文字。"},{"id":51,"page":1,"y":134.46133469999995,"kind":"para","level":0,"text":"局部字体 与 局部字号。"},{"id":52,"page":1,"y":140.86425539999996,"kind":"para","level":0,"text":"全角输入:“微软雅黑” ,以及 @[字体] 与 @[大小] 与 @[图片] 均为合法中文方言。"},{"id":53,"page":1,"y":147.26717609999997,"kind":"para","level":0,"text":"混合方言:同一文档允许中文语法、英文语法、短命令、长命令并存(规范 §6.14)。"},{"id":54,"page":1,"y":153.67009679999998,"kind":"heading","level":2,"text":"转义演示"},{"id":55,"page":1,"y":166.4759382,"kind":"para","level":0,"text":"# 不是标题**不是粗体**_不是斜体_~~不是删除线~~- 不是列表> 不是引用`不是代码`1. 不是有序"},{"id":55,"page":1,"y":172.8788589,"kind":"para","level":0,"text":"列表@[image hero] 按字面显示@[comment 这是正文中的示例] 按字面显示"},{"id":56,"page":1,"y":179.28177960000002,"kind":"heading","level":2,"text":"交叉引用"},{"id":57,"page":1,"y":192.08762100000004,"kind":"para","level":0,"text":"参见章节 @[ref],图片 @[ref],以及二级标题 @[ref]。"}],"anchors":[{"label":"chapter-intro","page":0},{"label":"二级示例","page":0},{"label":"hero.png","page":0},{"label":"架构图","page":0},{"label":"result-table-section","page":1}],"outline":[{"level":1,"text":"一级标题 @[label]","id":14},{"level":2,"text":"二级标题 @[标签]","id":17},{"level":3,"text":"三级标题","id":18},{"level":4,"text":"四级标题","id":19},{"level":5,"text":"五级标题","id":20},{"level":6,"text":"六级标题","id":21},{"level":2,"text":"行内格式","id":22},{"level":2,"text":"块级对象","id":27},{"level":2,"text":"引用与列表","id":36},{"level":2,"text":"表格 @[label]","id":43},{"level":2,"text":"样式与全角输入","id":49},{"level":2,"text":"转义演示","id":54},{"level":2,"text":"交叉引用","id":56}]};</script>
 </head>
@@ -154,7 +119,7 @@ input,textarea,select{font:inherit}
 
   <div class="titlebar">
     <div class="brand">Awen</div>
-    <div class="docname" id="docname">未命名文档 · 已保存</div>
+    <div class="docname">未命名文档 · 已保存</div>
     <div class="title-actions">
       <button class="icon-btn">─</button><button class="icon-btn">□</button><button class="icon-btn">×</button>
     </div>
@@ -164,17 +129,16 @@ input,textarea,select{font:inherit}
     <button class="tbtn" onclick="doUndo()" title="撤销">↩</button>
     <button class="tbtn" onclick="doRedo()" title="重做">↪</button>
     <div class="tsep"></div>
-    <button class="tbtn bold" onclick="doToggle('bold')" title="粗体 Ctrl+B"><b>B</b></button>
-    <button class="tbtn italic" onclick="doToggle('italic')" title="斜体"><i>I</i></button>
-    <button class="tbtn strike" onclick="doToggle('strike')" title="删除线"><s>S</s></button>
-    <button class="tbtn" onclick="doToggle('code')" title="行内代码"><>&lt;/&gt;</button>
+    <button class="tbtn bold" onclick="doWrapSel('**')" title="粗体"><b>B</b></button>
+    <button class="tbtn italic" onclick="doWrapSel('_')" title="斜体"><i>I</i></button>
+    <button class="tbtn strike" onclick="doWrapSel('~~')" title="删除线"><s>S</s></button>
+    <button class="tbtn" onclick="doWrapSel('`')" title="行内代码">&#96;</button>
     <div class="tsep"></div>
-    <button class="tbtn">Noto Serif SC</button>
-    <button class="tbtn">11 pt</button>
-    <div class="tsep"></div>
-    <button class="tbtn" onclick="insertText('\n\n@[image ]\n\n')">＋ 图片</button>
-    <button class="tbtn" onclick="insertText('\n\n@[table]\n\n| 列1 | 列2 |\n| --- | --- |\n| 内容 | 内容 |\n\n@[/table]\n\n')">＋ 表格</button>
     <button class="tbtn" onclick="insertText('\n\n> 引用内容\n\n')">＋ 引用</button>
+    <button class="tbtn" onclick="insertText('\n\n---\n\n')">＋ 分隔线</button>
+    <div class="tsep"></div>
+    <button class="tbtn" onclick="insertText('\n\n@[image hero.png]\n\n')">＋ 图片</button>
+    <button class="tbtn" onclick="insertText('\n\n@[table]\n\n| 列1 | 列2 |\n| --- | --- |\n| 内容 | 内容 |\n\n@[/table]\n\n')">＋ 表格</button>
 
     <div class="view-tabs">
       <button class="active" data-mode="display">显示</button>
@@ -194,248 +158,251 @@ input,textarea,select{font:inherit}
     </aside>
 
     <main class="editor-area">
-      <div class="tabs">
-        <div class="tab active">未命名文档</div>
-      </div>
-      <div class="view-shell" id="view-shell">
-
-        <section class="view display-view">
-          <div class="editor-scroll">
-            <article class="paper" id="paper"></article>
-          </div>
-        </section>
-
-        <section class="view syntax-view">
-          <div class="syntax-header">
-            <span>Awen 语法</span>
-            <span class="syntax-lang">中文语法 ⌄</span>
-          </div>
-          <div class="syntax-editor">
-            <textarea id="syntax-src" spellcheck="false"></textarea>
-          </div>
-        </section>
-
+      <div class="editor-scroll">
+        <article class="paper" id="paper"></article>
       </div>
     </main>
+
+    <section class="syntax-panel" id="syntax-panel" style="display:none;flex-direction:column;border-left:1px solid #d7d9dc;background:#fff;overflow:hidden;width:50%;flex:0 0 50%">
+      <div style="height:36px;border-bottom:1px solid #e0e1e4;display:flex;align-items:center;justify-content:space-between;padding:0 14px;font-size:12px;color:#666;flex:none">
+        <span>Awen 语法</span><span style="padding:4px 8px;border:1px solid #dddfe2;border-radius:5px;background:#fafafa;font-size:12px">中文语法</span>
+      </div>
+      <textarea id="syntax-src" spellcheck="false" style="flex:1;resize:none;border:0;outline:0;padding:20px 24px;font:13px/1.75 var(--mono);color:#303238;background:#fff"></textarea>
+    </section>
+
+    <aside class="rightbar">
+      <div class="panel-title">文本</div>
+      <div class="field"><div class="field-label">字体</div><div class="field-value">Noto Serif SC</div></div>
+      <div class="field"><div class="field-label">字号</div><div class="field-value">11 pt</div></div>
+      <div class="field"><div class="field-label">段落</div><div class="field-value">正文</div></div>
+      <div class="field"><div class="field-label">颜色</div>
+        <div class="swatches">
+          <div class="swatch active" style="background:#222"></div>
+          <div class="swatch" style="background:#666"></div>
+          <div class="swatch" style="background:#9b4b43"></div>
+          <div class="swatch" style="background:#4b6f8d"></div>
+          <div class="swatch" style="background:#fff"></div>
+        </div>
+      </div>
+    </aside>
   </div>
 
   <div class="statusbar">
     <span class="item" id="st-diag">诊断 ✓</span>
-    <span class="item" id="st-nodes">节点 —</span>
-    <span class="item" id="st-labels">Label —</span>
+    <span class="item" id="st-nodes">—</span>
+    <span class="item" id="st-words">—</span>
     <span class="spacer"></span>
-    <span class="item" id="st-page">第 1 页</span>
+    <span class="item" id="st-page">—</span>
   </div>
 </div>
 
 <script>
-// ── 初始化数据 ──
-const INITIAL_SOURCE = "从左侧选择文件，或在此输入内容。";
+// ═══ 状态 ═══
+var docSource = '';
+var syntaxPanelVisible = false;
+var undoStack = [];
+var redoStack = [];
 
-// ── 简化管线 ──
-function miniParse(src) {
-  const lines = src.split('
-');
-  const nodes = [];
-  let para = [];
-  for (const line of lines) {
-    const t = line.trim();
-    if (t === '') {
-      if (para.length > 0) { nodes.push({kind:'para', text:para.join(' ')}); para=[]; }
-      continue;
-    }
-    if (t.startsWith('#')) {
-      if (para.length > 0) { nodes.push({kind:'para',text:para.join(' ')}); para=[]; }
-      const lvl = Math.min((t.match(/^#+/)||['#'])[0].length,6);
-      nodes.push({kind:'heading',level:lvl,text:t.replace(/^#+\s*/,'')});
-      continue;
-    }
-    if (t==='---'||t==='――――――――――') {
-      if (para.length>0){nodes.push({kind:'para',text:para.join(' ')});para=[];}
-      nodes.push({kind:'hr',text:''});
-      continue;
-    }
-    if (t.startsWith('- ')||t.startsWith('* ')) {
-      if (para.length>0){nodes.push({kind:'para',text:para.join(' ')});para=[];}
-      nodes.push({kind:'list',text:t});
-      continue;
-    }
-    if (/^\d+\.\s/.test(t)) {
-      if (para.length>0){nodes.push({kind:'para',text:para.join(' ')});para=[];}
-      nodes.push({kind:'list',text:t});
-      continue;
-    }
-    if (t.startsWith('> ')) {
-      if (para.length>0){nodes.push({kind:'para',text:para.join(' ')});para=[];}
-      nodes.push({kind:'quote',text:t});
-      continue;
-    }
-    if (t.startsWith('|')&&t.endsWith('|')) {
-      if (para.length>0){nodes.push({kind:'para',text:para.join(' ')});para=[];}
-      nodes.push({kind:'table',text:t});
-      continue;
-    }
-    if (t.startsWith('@[comment')) { nodes.push({kind:'comment',text:t}); continue; }
-    if (/^@\[(page|margin|font|size|line-spacing|first-line|theme|toc|numbering)/.test(t)) {
-      if (para.length>0){nodes.push({kind:'para',text:para.join(' ')});para=[];}
-      nodes.push({kind:'docset',text:t});
-      continue;
-    }
-    if (t.startsWith('@[')&&!t.startsWith('@@')) {
-      if (para.length>0){nodes.push({kind:'para',text:para.join(' ')});para=[];}
-      nodes.push({kind:'obj',text:t});
-      continue;
-    }
-    para.push(t);
-  }
-  if (para.length>0){nodes.push({kind:'para',text:para.join(' ')});para=[];}
-  return nodes;
+// ═══ 工具函数 ═══
+function escHtml(s) {
+  return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
 }
-
-// ── 渲染 ──
 function fmtH(t) {
-  let s = t.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+  let s = escHtml(t);
   s = s.replace(/\*\*(.+?)\*\*/g,'<strong>$1</strong>');
   s = s.replace(/~~(.+?)~~/g,'<del>$1</del>');
   s = s.replace(/`(.+?)`/g,'<code>$1</code>');
   return s;
 }
 
-const LINES_PP = 40;
-function renderPreview(nodes) {
+// ═══ 简化管线 ═══
+function miniParse(src) {
+  const lines = src.split('\n');
+  const nodes = [];
+  let para = [];
+
+  for (const line of lines) {
+    const t = line.trim();
+
+    if (t === '') {
+      if (para.length > 0) { nodes.push({kind:'para', text:para.join(' ')}); para = []; }
+      continue;
+    }
+    if (t.startsWith('#')) {
+      if (para.length > 0) { nodes.push({kind:'para', text:para.join(' ')}); para = []; }
+      const level = Math.min((t.match(/^#+/) || ['#'])[0].length, 6);
+      nodes.push({kind:'heading', level: level, text: t.replace(/^#+\s*/, '')});
+      continue;
+    }
+    if (t === '---') {
+      if (para.length > 0) { nodes.push({kind:'para', text:para.join(' ')}); para = []; }
+      nodes.push({kind:'hr', text:''});
+      continue;
+    }
+    if (t.startsWith('- ') || t.startsWith('* ')) {
+      if (para.length > 0) { nodes.push({kind:'para', text:para.join(' ')}); para = []; }
+      nodes.push({kind:'list', text:t});
+      continue;
+    }
+    if (/^\d+\.\s/.test(t)) {
+      if (para.length > 0) { nodes.push({kind:'para', text:para.join(' ')}); para = []; }
+      nodes.push({kind:'list', text:t});
+      continue;
+    }
+    if (t.startsWith('> ')) {
+      if (para.length > 0) { nodes.push({kind:'para', text:para.join(' ')}); para = []; }
+      nodes.push({kind:'quote', text:t});
+      continue;
+    }
+    if (t.startsWith('|') && t.endsWith('|')) {
+      if (para.length > 0) { nodes.push({kind:'para', text:para.join(' ')}); para = []; }
+      nodes.push({kind:'table', text:t});
+      continue;
+    }
+    if (t.startsWith('@[comment')) {
+      nodes.push({kind:'comment', text:t});
+      continue;
+    }
+    if (/^@\[(page|margin|font|size|line-spacing|first-line|theme|toc|numbering)/.test(t)) {
+      if (para.length > 0) { nodes.push({kind:'para', text:para.join(' ')}); para = []; }
+      nodes.push({kind:'docset', text:t});
+      continue;
+    }
+    if (t.startsWith('@[') && !t.startsWith('@@')) {
+      if (para.length > 0) { nodes.push({kind:'para', text:para.join(' ')}); para = []; }
+      nodes.push({kind:'obj', text:t});
+      continue;
+    }
+    para.push(t);
+  }
+  if (para.length > 0) { nodes.push({kind:'para', text:para.join(' ')}); para = []; }
+  return nodes;
+}
+
+// ═══ 渲染 ═══
+function renderDoc(nodes) {
   const paper = document.getElementById('paper');
   paper.innerHTML = '';
-  let pageNum = 0, linesInPage = 0;
-  let pd = createPage(0);
+  let pageNum = 0;
+  let lineCount = 0;
+  let pd = makePage(pageNum);
 
   for (const node of nodes) {
-    if (node.kind==='comment'||node.kind==='docset') continue;
+    if (node.kind === 'comment' || node.kind === 'docset') continue;
+
     let html = '';
-    switch(node.kind) {
-      case 'heading': {
-        const tag='h'+Math.min(node.level,6);
-        html='<'+tag+'>'+fmtH(node.text)+'</'+tag+'>';
-        break;
+    if (node.kind === 'heading') {
+      const tag = 'h' + Math.min(node.level, 6);
+      html = '<' + tag + '>' + fmtH(node.text) + '</' + tag + '>';
+    } else if (node.kind === 'para') {
+      html = '<p>' + fmtH(node.text) + '</p>';
+    } else if (node.kind === 'quote') {
+      html = '<blockquote><p>' + fmtH(node.text.replace(/^>\s*/, '')) + '</p></blockquote>';
+    } else if (node.kind === 'list') {
+      const t = node.text;
+      if (t.startsWith('- ') || t.startsWith('* ')) {
+        html = '<ul><li>' + fmtH(t.substring(2)) + '</li></ul>';
+      } else if (/^\d+/.test(t)) {
+        html = '<ol><li>' + fmtH(t.replace(/^\d+\.\s*/, '')) + '</li></ol>';
+      } else {
+        html = '<ul><li>' + fmtH(t) + '</li></ul>';
       }
-      case 'para': html='<p>'+fmtH(node.text)+'</p>'; break;
-      case 'quote': html='<blockquote><p>'+fmtH(node.text.replace(/^>\s*/,''))+'</p></blockquote>'; break;
-      case 'list': {
-        const t=node.text;
-        if (t.startsWith('- ')||t.startsWith('* ')) html='<ul><li>'+fmtH(t.substring(2))+'</li></ul>';
-        else if (/^\d+/.test(t)) html='<ol><li>'+fmtH(t.replace(/^\d+\.\s*/,''))+'</li></ol>';
-        else html='<ul><li>'+fmtH(t)+'</li></ul>';
-        break;
-      }
-      case 'table': html='<p style="font-family:var(--mono);font-size:12px;color:#666">'+escHtml(node.text)+'</p>'; break;
-      case 'hr': html='<hr>'; break;
-      case 'obj': {
-        const sp=node.text.indexOf(' ');
-        const name=sp>0?node.text[0..sp]:node.text;
-        html='<div class="img-ph">'+escHtml(node.text)+'</div>';
-        break;
-      }
-      default: html='<p>'+fmtH(node.text)+'</p>';
+    } else if (node.kind === 'table') {
+      html = '<p style="font-family:var(--mono);font-size:12px;color:#666">' + escHtml(node.text) + '</p>';
+    } else if (node.kind === 'hr') {
+      html = '<hr>';
+    } else if (node.kind === 'obj') {
+      html = '<div class="img-ph">' + escHtml(node.text) + '</div>';
+    } else {
+      html = '<p>' + fmtH(node.text) + '</p>';
     }
-    const el=document.createElement('div');
-    el.dataset.heading=node.kind==='heading'?node.text:'';
-    el.innerHTML=html;
+
+    const el = document.createElement('div');
+    el.dataset.heading = node.kind === 'heading' ? node.text : '';
+    el.innerHTML = html;
     pd.appendChild(el);
-    linesInPage++;
-    if (linesInPage>=LINES_PP) {
-      pageNum++; linesInPage=0;
-      pd=createPage(pageNum);
+
+    lineCount++;
+    if (lineCount >= 40) {
+      pageNum++;
+      lineCount = 0;
+      pd = makePage(pageNum);
     }
   }
   paper.appendChild(pd);
-  return pageNum+1;
+  return pageNum + 1;
 }
 
-function createPage(idx) {
-  const pd=document.createElement('div');
-  pd.className='page';
-  const pn=document.createElement('div');
-  pn.className='page-no';
-  pn.textContent='第 '+(idx+1)+' 页';
+function makePage(idx) {
+  const pd = document.createElement('div');
+  pd.className = 'page';
+  const pn = document.createElement('div');
+  pn.className = 'page-no';
+  pn.textContent = '第 ' + (idx+1) + ' 页';
   pd.appendChild(pn);
   return pd;
 }
 
-// ── 大纲 ──
-function renderOutline(nodes) {
-  const ol=document.getElementById('outline');
-  ol.innerHTML='';
+function renderOutlineList(nodes) {
+  const ol = document.getElementById('outline');
+  ol.innerHTML = '';
   for (const n of nodes) {
-    if (n.kind!=='heading') continue;
-    const d=document.createElement('div');
-    d.className='outline-item lvl'+n.level;
-    d.textContent=n.text;
-    d.onclick=()=>{
-      const el=document.querySelector('[data-heading="'+n.text+'"]');
-      if(el) el.scrollIntoView({behavior:'smooth',block:'start'});
+    if (n.kind !== 'heading') continue;
+    const d = document.createElement('div');
+    d.className = 'outline-item lv' + n.level;
+    d.textContent = n.text;
+    d.onclick = () => {
+      const el = document.querySelector('[data-heading="' + n.text + '"]');
+      if (el) el.scrollIntoView({behavior:'smooth', block:'start'});
     };
     ol.appendChild(d);
   }
 }
 
-// ── 全量刷新 ──
-function refreshAll(src) {
-  const nodes=miniParse(src);
-  renderPreview(nodes);
-  renderOutline(nodes);
-  const hCount=nodes.filter(n=>n.kind==='heading').length;
-  const pCount=nodes.filter(n=>n.kind==='para').length;
-  return {hCount,pCount,total:nodes.length};
+function renderStatusBar(nodes, pageCount) {
+  const hCount = nodes.filter(n => n.kind === 'heading').length;
+  const pCount = nodes.filter(n => n.kind === 'para').length;
+  document.getElementById('st-nodes').textContent = hCount + ' 标题 · ' + pCount + ' 段落';
+  document.getElementById('st-page').textContent = pageCount + ' 页';
 }
 
-// ── 初始化 ──
-(function init() {
-  const src=INITIAL_SOURCE;
-  const nodes=miniParse(src);
-  renderPreview(nodes);
-  renderOutline(nodes);
-  const hCount=nodes.filter(n=>n.kind==='heading').length;
-  document.getElementById('st-nodes').textContent=hCount+' 标题 · '+nodes.filter(n=>n.kind==='para').length+' 段落';
-  document.getElementById('st-page').textContent=(pageNum||1)+' 页';
-})();
+// ═══ 工具栏操作 ═══
+function doUndo() { document.execCommand('undo'); refreshFromSource(); }
+function doRedo() { document.execCommand('redo'); refreshFromSource(); }
 
-// ── 语法视图编辑 ──
-const syntaxSrc=document.getElementById('syntax-src');
-let syntaxTimer=null;
-syntaxSrc.addEventListener('input',()=>{
-  clearTimeout(syntaxTimer);
-  syntaxTimer=setTimeout(()=>{
-    const src=syntaxSrc.value;
-    const nodes=miniParse(src);
-    renderPreview(nodes);
-    renderOutline(nodes);
-    const hCount=nodes.filter(n=>n.kind==='heading').length;
-    document.getElementById('st-nodes').textContent=hCount+' 标题 · '+nodes.filter(n=>n.kind==='para').length+' 段落';
-  },300);
-});
+function doWrapSel(marker) {
+  const ta = document.getElementById('syntax-src');
+  if (ta.style.display === 'none') return;
+  const start = ta.selectionStart;
+  const end = ta.selectionEnd;
+  const sel = ta.value.substring(start, end) || '文本';
+  const before = ta.value.substring(0, start);
+  const after = ta.value.substring(end);
+  ta.value = before + marker + sel + marker + after;
+  ta.selectionStart = start + marker.length;
+  ta.selectionEnd = ta.selectionStart + sel.length;
+  ta.focus();
+  refreshFromSource();
+}
 
-// ── 视图模式切换 ──
-const modeBtns=document.querySelectorAll('.view-tabs button');
-const viewShell=document.getElementById('view-shell');
-const displayView=document.querySelector('.display-view');
-const syntaxViewEl=document.querySelector('.syntax-view');
-let currentMode='display';
+function insertText(text) {
+  const ta = document.getElementById('syntax-src');
+  if (ta.style.display === 'none') return;
+  const start = ta.selectionStart;
+  ta.value = ta.value.substring(0, start) + text + ta.value.substring(ta.selectionEnd);
+  ta.selectionStart = ta.selectionEnd = start + text.length;
+  ta.focus();
+  refreshFromSource();
+}
 
-modeBtns.forEach(b=>b.addEventListener('click',()=>setMode(b.dataset.mode)));
-function setMode(mode) {
-  currentMode=mode;
-  modeBtns.forEach(b=>b.classList.toggle('active',b.dataset.mode===mode));
-  const paper=document.getElementById('paper');
-  const synTex=document.getElementById('syntax-src');
-  if (mode==='syntax') {
-    paper.style.display='none';
-    synTex.style.display='block';
-  } else if (mode==='split') {
-    paper.style.display='block';
-    synTex.style.display='block';
-  } else {
-    paper.style.display='block';
-    synTex.style.display='none';
-  }
+function refreshFromSource() {
+  const src = document.getElementById('syntax-src').value;
+  const nodes = miniParse(src);
+  renderDoc(nodes);
+  renderOutlineList(nodes);
+  const hCount = nodes.filter(n => n.kind === 'heading').length;
+  const pCount = nodes.filter(n => n.kind === 'para').length;
+  document.getElementById('st-nodes').textContent = hCount + ' 标题 · ' + pCount + ' 段落';
 }
 </script>
 </body>
