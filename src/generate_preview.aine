@@ -1,7 +1,7 @@
 // generate_preview.aine —— E1 演示入口
-// 读取源码 → 管线 → JSON → 生成自包含 HTML 预览文件
-// 运行: aine run src/generate_preview.aine (在 awen-proto-aine 根目录)
-// 输出: preview/preview.html (双击浏览器打开)
+// 读取源码 → 管线 → JSON → 注入模板 → 生成自包含编辑器 HTML
+// 运行: aine run src/generate_preview.aine
+// 输出: preview/preview.html
 
 module diag;
 module registry;
@@ -36,70 +36,36 @@ module export_md;
 module seed;
 module incremental_update;
 
-fn generate_preview_html(json: String) -> String {
-    var html = "<!DOCTYPE html>\n<html lang=\"zh-CN\">\n<head>\n"
-    html = html + "<meta charset=\"utf-8\">\n"
-    html = html + "<title>Awen 预览</title>\n"
-    html = html + "<style>\n"
-    html = html + "* { margin:0; padding:0; box-sizing:border-box; }\n"
-    html = html + "body { font-family:'Noto Sans SC','Source Han Sans SC','Microsoft YaHei',sans-serif;"
-    html = html + " background:#f0f0f0; padding:40px; }\n"
-    html = html + ".page { width:210mm; min-height:297mm; background:white;"
-    html = html + " box-shadow:0 2px 12px rgba(0,0,0,0.15); margin:0 auto 24px;"
-    html = html + " padding:20mm; font-size:11pt; line-height:1.65; color:#1a1a1a;"
-    html = html + " position:relative; }\n"
-    html = html + ".line { min-height:1.2em; }\n"
-    html = html + ".h1 { font-size:1.6em; font-weight:700; margin:0.5em 0 0.3em; }\n"
-    html = html + ".h2 { font-size:1.3em; font-weight:600; margin:0.8em 0 0.3em; }\n"
-    html = html + ".h3 { font-size:1.15em; font-weight:600; margin:0.6em 0 0.3em; }\n"
-    html = html + ".page-num { text-align:center; color:#999; font-size:9pt; margin-top:16px; }\n"
-    html = html + ".info { text-align:center; color:#666; margin-bottom:24px; font-size:13px; }\n"
-    html = html + "</style>\n</head>\n<body>\n"
-    html = html + "<div class=\"info\">Awen E1 预览 · page_flow 分页结果</div>\n"
-    html = html + "<div id=\"pages\"></div>\n"
-    html = html + "<script>\n"
-    html = html + "const DATA = " + json + ";\n"
-    html = html + "const pagesDiv = document.getElementById('pages');\n"
-    html = html + "const pageMap = {};\n"
-    html = html + "for (const line of DATA.lines) {\n"
-    html = html + "  if (!pageMap[line.page]) pageMap[line.page] = [];\n"
-    html = html + "  pageMap[line.page].push(line);\n"
-    html = html + "}\n"
-    html = html + "const pIndices = Object.keys(pageMap).map(Number).sort((a,b)=>a-b);\n"
-    html = html + "for (const pi of pIndices) {\n"
-    html = html + "  const pd = document.createElement('div'); pd.className = 'page';\n"
-    html = html + "  for (const line of pageMap[pi]) {\n"
-    html = html + "    const div = document.createElement('div'); div.className = 'line';\n"
-    html = html + "    if (line.kind === 'heading') {\n"
-    html = html + "      div.className = 'line h' + line.level;\n"
-    html = html + "    }\n"
-    html = html + "    div.textContent = line.text;\n"
-    html = html + "    pd.appendChild(div);\n"
-    html = html + "  }\n"
-    html = html + "  const pn = document.createElement('div'); pn.className = 'page-num';\n"
-    html = html + "  pn.textContent = '第 ' + (pi+1) + ' 页';\n"
-    html = html + "  pd.appendChild(pn);\n"
-    html = html + "  pagesDiv.appendChild(pd);\n"
-    html = html + "}\n"
-    html = html + "</script>\n</body>\n</html>\n"
-    return html
-}
-
 fn main() {
-    // 读取 corpus 或默认演示文档
+    // 1) 读取源码
     var src = read_file("corpus/all_syntax.awen")
     if src.contains("[read_file error") {
         print("corpus 不存在,使用内置示例")
         src = "# Awen 文档\n\n这是第一段。\n\n## 二级标题\n\n这是第二段。\n\n### 三级标题\n\n尾段。\n"
     }
 
-    // 管线
+    // 2) 读取模板
+    let template = read_file("preview/template.html")
+    if template.contains("[read_file error") {
+        print("错误:找不到 preview/template.html")
+        return
+    }
+
+    // 3) 管线 → JSON
     let json = src_to_json(src)
 
-    // 生成 HTML
-    let html = generate_preview_html(json)
+    // 4) 注入 JSON 到模板
+    let placeholder = "/*__JSON__*/{}"
+    var output = template
+    if output.contains(placeholder) {
+        output = output.replace(placeholder, json)
+    } else if output.contains("/*__JSON__*/") {
+        output = output.replace("/*__JSON__*/", json)
+    } else {
+        output = output.replace("</head>", "<script>const DATA = " + json + ";</script>\n</head>")
+    }
 
-    // 写文件
-    write_file("preview/preview.html", html)
+    // 5) 写出
+    write_file("preview/preview.html", output)
     print("已生成 preview/preview.html — 用浏览器打开即可预览")
 }
