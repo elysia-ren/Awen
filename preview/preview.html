@@ -69,6 +69,34 @@ input.findbox{border:1px solid #c9cbce;border-radius:4px;padding:4px 6px;font-si
 .cpalette .sw:hover{outline:2px solid var(--accent);outline-offset:1px}
 .cpalette .cp-more{margin-top:8px;font-size:12px;color:#2a4a66;cursor:pointer;display:flex;align-items:center;gap:5px}
 .cpalette .cp-more:hover{text-decoration:underline}
+/* ── 复合颜色按钮(Word 式一体化)── */
+.splitbtn{display:flex;border-radius:4px}
+.splitbtn:hover{background:#e6e7e9}
+.splitbtn .rbtn{border-radius:0;width:26px}
+.splitbtn .half-caret{width:12px;height:30px;font-size:9px;color:#5a5c60;display:flex;align-items:center;justify-content:center;border-radius:0 4px 4px 0}
+.splitbtn .half-caret:hover{background:#dcdde0}
+/* ── 撤销/重做禁用态 ── */
+.rbtn:disabled{opacity:.32;pointer-events:none}
+/* ── 文档名输入 ── */
+input.docname{background:transparent;border:1px solid transparent;border-radius:4px;padding:2px 8px;font-size:13px;color:#24262a;width:200px;font-family:var(--sans)}
+input.docname:hover{border-color:#d5d7da}
+input.docname:focus{outline:none;border-color:var(--accent);background:#fff}
+/* ── 浮动迷你工具栏 ── */
+#minibar{position:fixed;display:none;flex-direction:column;gap:2px;background:#fff;border:1px solid #c9cbce;border-radius:6px;box-shadow:0 4px 16px rgba(0,0,0,.2);padding:4px;z-index:120}
+#minibar .rbtn{width:28px;height:28px}
+#minibar .mb-row{display:flex;gap:2px}
+#minibar .sep{width:1px;background:#e0e1e4;margin:2px 3px}
+#minibar .sbtn{height:24px;padding:0 6px;font-size:11px}
+/* ── 大纲当前节高亮 ── */
+.outline-item.active{background:#d7e2ec;color:#2a4a66;font-weight:600}
+/* ── 查找全部高亮 ── */
+::highlight(findhit){background:#ffe98a;color:#303238}
+/* ── 诊断弹出面板 ── */
+.statuspop{display:none;position:fixed;bottom:32px;left:10px;z-index:110;background:#fff;border:1px solid #c9cbce;border-radius:6px;box-shadow:0 4px 16px rgba(0,0,0,.16);padding:8px 12px;max-width:460px;max-height:220px;overflow:auto;font-size:12px;color:#303238}
+.statuspop .dline{padding:3px 0;border-bottom:1px solid #f0f1f2;cursor:pointer}
+.statuspop .dline:hover{background:#f7f7f8}
+.diag-err{color:#c0392b;font-weight:600}
+.diag-warn{color:#8a6d1a;font-weight:600}
 @media print{.tabbar,.ribbon,.sidebar,.statusbar,.titlebar{display:none!important}.app{height:auto}.workspace{overflow:visible;display:block}.pane{overflow:visible;padding:0;background:#fff;gap:0}.sheet{box-shadow:none;page-break-after:always;min-height:auto}}
 .workspace{min-height:0;flex:1;display:flex;overflow:hidden}
 .sidebar{width:180px;background:var(--bg2);border-right:1px solid var(--border);display:flex;flex-direction:column;flex:none;overflow:hidden}
@@ -117,7 +145,7 @@ input.findbox{border:1px solid #c9cbce;border-radius:4px;padding:4px 6px;font-si
 <div class="app">
 <div class="titlebar">
 <div class="brand">Awen</div>
-<div class="docname" id="docname">未命名文档</div>
+<input class="docname" id="docname" value="未命名文档" title="点击修改文档名">
 <div style="margin-left:auto"><button class="rbtn" style="width:auto;padding:0 8px;gap:4px;font-size:12px" onclick="doSave()" title="保存 (Ctrl+S)"><span data-icon="save"></span>保存</button></div>
 </div>
 <div class="tabbar">
@@ -143,7 +171,8 @@ input.findbox{border:1px solid #c9cbce;border-radius:4px;padding:4px 6px;font-si
 <option value="" selected>正文</option><option value="1">标题 1</option><option value="2">标题 2</option><option value="3">标题 3</option><option value="4">标题 4</option><option value="5">标题 5</option><option value="6">标题 6</option>
 </select>
 <select id="sel-font" title="字体" onchange="applyFont(this.value)">
-<option value="SimSun" selected>宋体</option><option value="SimHei">黑体</option><option value="KaiTi">楷体</option><option value="FangSong">仿宋</option><option value="Microsoft YaHei">微软雅黑</option><option value="DengXian">等线</option>
+<optgroup label="中文"><option value="SimSun" selected>宋体</option><option value="SimHei">黑体</option><option value="KaiTi">楷体</option><option value="FangSong">仿宋</option><option value="Microsoft YaHei">微软雅黑</option><option value="DengXian">等线</option><option value="LiSu">隶书</option><option value="YouYuan">幼圆</option><option value="STZhongsong">华文中宋</option><option value="STXihei">华文细黑</option></optgroup>
+<optgroup label="西文"><option value="Times New Roman">Times New Roman</option><option value="Arial">Arial</option><option value="Calibri">Calibri</option><option value="Georgia">Georgia</option><option value="Cambria">Cambria</option><option value="Segoe UI">Segoe UI</option><option value="Courier New">Courier New</option><option value="Consolas">Consolas</option></optgroup>
 </select>
 <select id="sel-size" title="字号" onchange="applySize(this.value)">
 <option value="10.5" selected>五号</option><option value="9">小五</option><option value="11">11 号</option><option value="12">小四</option><option value="14">四号</option><option value="16">三号</option><option value="18">二号</option><option value="22">一号</option>
@@ -184,9 +213,10 @@ input.findbox{border:1px solid #c9cbce;border-radius:4px;padding:4px 6px;font-si
 <button class="rbtn" onclick="toggleFind()" title="查找和替换 (Ctrl+F)"><span data-icon="search"></span></button>
 </div><div class="rg-label">编辑</div></div>
 </div>
-<div class="ribbon-page" data-page="findbar" style="min-height:0;display:none;align-items:center;gap:8px;padding:6px 14px">
+<div class="ribbon-page" data-page="findbar" style="min-height:0;height:auto;display:none;align-items:center;gap:8px;padding:6px 14px">
 <input class="findbox" id="findbox" placeholder="查找内容" oninput="findCount()" onkeydown="findKey(event)">
 <input class="replacebox" id="replacebox" placeholder="替换为">
+<label style="display:flex;align-items:center;gap:3px;font-size:12px;color:#5d6066;flex:none"><input type="checkbox" id="cb-case">区分大小写</label>
 <button class="sbtn" onclick="findNext()">查找下一处</button>
 <button class="sbtn" onclick="replaceOne()">替换</button>
 <button class="sbtn" onclick="replaceAll()">全部替换</button>
@@ -215,23 +245,31 @@ input.findbox{border:1px solid #c9cbce;border-radius:4px;padding:4px 6px;font-si
 <option value="A4" selected>A4 210×297mm</option><option value="Letter">Letter 216×279mm</option><option value="B5">B5 176×250mm</option><option value="A3">A3 297×420mm</option><option value="A5">A5 148×210mm</option>
 </select>
 <select id="sel-margin" title="页边距" onchange="applyMargin(this.value)">
-<option value="20" selected>正常 20mm</option><option value="12.7">窄 12.7mm</option><option value="25.4">宽 25.4mm</option><option value="30">宽 30mm</option>
+<option value="20" selected>正常 20mm</option><option value="12.7">窄 12.7mm</option><option value="25.4">宽 25.4mm</option><option value="30">宽 30mm</option><option value="custom">自定义…</option>
 </select>
+<input type="number" id="margin-custom" min="5" max="60" step="0.5" style="display:none;width:64px;height:26px;border:1px solid #c9cbce;border-radius:4px" title="页边距 mm" onchange="applyMarginCustom(this.value)">
+<button class="sbtn" id="btn-orient" onclick="toggleOrientation()" title="纸张方向">纵向</button>
 </div></div><div class="rg-label">纸张</div></div>
 <div class="rgroup"><div class="rg-body">
 <button class="sbtn" onclick="toggleFirstLine()" id="btn-firstline" title="切换首行缩进 @[first-line 2em]">首行缩进</button>
 <div class="vsel">
 <select id="sel-linesp" title="行间距" onchange="applyLineSpacing(this.value)">
-<option value="1.9" selected>1.9 倍</option><option value="1.5">1.5 倍</option><option value="1.75">1.75 倍</option><option value="2.2">2.2 倍</option>
+<option value="1.15">单倍行距</option><option value="1.5">1.5 倍行距</option><option value="1.9" selected>默认 (1.9 倍)</option><option value="2">2 倍行距</option><option value="2.5">2.5 倍行距</option><option value="custom">自定义…</option>
 </select>
+<input type="number" id="linesp-custom" min="1" max="4" step="0.05" style="display:none;width:64px;height:26px;border:1px solid #c9cbce;border-radius:4px" title="行距倍数" onchange="applyLineSpacingCustom(this.value)">
 </div>
 </div><div class="rg-label">段落设置</div></div>
 </div>
 <div class="ribbon-page" data-page="file">
 <div class="rgroup"><div class="rg-body"><div class="rgrid3">
-<button class="rbtn" onclick="doSave()" title="保存为 Awen 源码文本"><span data-icon="save"></span></button>
-<button class="rbtn" onclick="doPrint()" title="打印 / 另存为 PDF"><span data-icon="print"></span></button>
-</div></div><div class="rg-label">保存·打印</div></div>
+<button class="rbtn" onclick="newDoc()" title="新建文档 (Ctrl+N)"><span data-icon="newdoc"></span></button>
+<button class="rbtn" onclick="openFileClick()" title="打开 (.awen / .txt / .md) (Ctrl+O)"><span data-icon="open"></span></button>
+<button class="rbtn" onclick="doSave()" title="保存为 Awen 源码 (Ctrl+S)"><span data-icon="save"></span></button>
+<button class="rbtn" onclick="doPrint()" title="打印 / 另存为 PDF (Ctrl+P)"><span data-icon="print"></span></button>
+</div></div><div class="rg-label">文档</div></div>
+<div class="rgroup"><div class="rg-body"><div class="frow">
+<label class="sbtn" style="cursor:pointer">文件名<input class="docname" id="export-name" value="文档" style="width:110px"></label>
+</div></div><div class="rg-label">导出名</div></div>
 <div class="rgroup"><div class="rg-body">
 <button class="sbtn" onclick="exportFile('md')">导出 Markdown</button>
 <button class="sbtn" onclick="exportFile('html')">导出 HTML</button>
@@ -248,12 +286,36 @@ input.findbox{border:1px solid #c9cbce;border-radius:4px;padding:4px 6px;font-si
 <main class="pane" id="display-pane" style="flex:1 1 auto"></main>
 <section class="pane" id="syntax-pane" style="display:none;flex:0 0 50%;border-left:1px solid #d7d9dc;background:#f0f1f2"></section>
 </div>
+<div id="minibar">
+<div class="mb-row">
+<button class="rbtn b" onclick="fmtCmd('bold')" title="加粗">B</button>
+<button class="rbtn i" onclick="fmtCmd('italic')" title="倾斜">I</button>
+<button class="rbtn u" onclick="fmtCmd('underline')" title="下划线"><span style="text-decoration:underline">U</span></button>
+<button class="rbtn s" onclick="fmtCmd('strikeThrough')" title="删除线"><span style="text-decoration:line-through">S</span></button>
+<div class="sep"></div>
+<button class="rbtn" onclick="applyColor(curFore)" title="字体颜色"><span data-icon="fontcolor"></span></button>
+<button class="rbtn" onclick="applyMark(curMark)" title="底纹"><span data-icon="mark"></span></button>
+<div class="sep"></div>
+<button class="rbtn supb" onclick="fmtCmd('superscript')" title="上标"><span>x²</span></button>
+<button class="rbtn subb" onclick="fmtCmd('subscript')" title="下标"><span>x₂</span></button>
+<button class="rbtn mono" onclick="fmtCmdInline()" title="行内代码">&lt;/&gt;</button>
+<button class="rbtn" onclick="fmtCmd('removeFormat')" title="清除格式"><span data-icon="clear"></span></button>
+</div>
+<div class="mb-row" id="mb-table" style="display:none">
+<button class="sbtn" onclick="tblInsRow()">+ 行</button>
+<button class="sbtn" onclick="tblDelRow()">− 行</button>
+<button class="sbtn" onclick="tblInsCol()">+ 列</button>
+<button class="sbtn" onclick="tblDelCol()">− 列</button>
+</div>
+</div>
 <div class="statusbar">
-<span class="item" id="st-diag">诊断 ✓</span>
+<span class="item" id="st-diag" style="cursor:pointer" onclick="toggleDiagPop()" title="点击查看诊断详情">诊断 ✓</span>
 <span class="item" id="st-words">—</span>
 <span class="item" id="st-labels">Label —</span>
 <span class="item" id="st-find"></span>
+<span class="item" id="st-pos">—</span>
 <span class="spacer"></span>
+<div class="statuspop" id="diagpop"></div>
 <select id="sel-zoom" style="background:#fff;color:#303238;border:none;border-radius:3px;height:20px;padding:0 4px" onchange="applyZoom(this.value)">
 <option value="0.7">70%</option><option value="0.85">85%</option><option value="1" selected>100%</option><option value="1.25">125%</option><option value="1.5">150%</option>
 </select>
@@ -261,8 +323,8 @@ input.findbox{border:1px solid #c9cbce;border-radius:4px;padding:4px 6px;font-si
 </div>
 </div>
 <script>
-// ═══ 数据通道:generate_preview.aine 将 {"pages":2,"lines":[{"id":14,"page":0,"y":0.0,"kind":"heading","level":1,"text":"一级标题 @[label]"},{"id":15,"page":0,"y":12.805841399999998,"kind":"para","level":0,"text":"这是第一章的正文。源码中的物理换行不会产生排版换行,这仍然是一个段落。"},{"id":16,"page":0,"y":19.208762099999998,"kind":"para","level":0,"text":"空行产生新段落。"},{"id":17,"page":0,"y":25.611682799999997,"kind":"heading","level":2,"text":"二级标题 @[标签]"},{"id":18,"page":0,"y":38.41752419999999,"kind":"heading","level":3,"text":"三级标题"},{"id":19,"page":0,"y":44.820444899999984,"kind":"heading","level":4,"text":"四级标题"},{"id":20,"page":0,"y":51.22336559999998,"kind":"heading","level":5,"text":"五级标题"},{"id":21,"page":0,"y":57.626286299999975,"kind":"heading","level":6,"text":"六级标题"},{"id":22,"page":0,"y":64.02920699999997,"kind":"heading","level":2,"text":"行内格式"},{"id":23,"page":0,"y":76.83504839999996,"kind":"para","level":0,"text":"**粗体** 与 _斜体_ 与 ~~删除线~~ 与 `行内代码` 与 下划线 与 长写下划线。"},{"id":24,"page":0,"y":83.23796909999996,"kind":"para","level":0,"text":"嵌套:**粗体中嵌 _斜体_**,以及 短命令粗体 和 长命令粗体。"},{"id":25,"page":0,"y":89.64088979999995,"kind":"para","level":0,"text":"行内数学 E = mc^2 出现在段落之中。脚注演示@[footnote]。"},{"id":26,"page":0,"y":96.04381049999995,"kind":"para","level":0,"text":"链接:@[link],以及裸 URL 自动识别 https://example.com/docs。"},{"id":27,"page":0,"y":102.44673119999995,"kind":"heading","level":2,"text":"块级对象"},{"id":32,"page":0,"y":195.25257259999995,"kind":"raw","level":0,"text":"\\int_0^\\infty e^{-x}\\,dx = 1"},{"id":33,"page":0,"y":201.65549329999996,"kind":"raw","level":0,"text":"a^2 + b^2 = c^2"},{"id":34,"page":0,"y":208.05841399999997,"kind":"raw","level":0,"text":"def hello():"},{"id":34,"page":0,"y":214.46133469999998,"kind":"raw","level":0,"text":"    print(\"Hello, Awen\")  # 代码内部的 @[b] 与 ] 均不参与 Awen 解析"},{"id":35,"page":0,"y":220.8642554,"kind":"raw","level":0,"text":"raw content: }{ ] @[ ** _ ~`"},{"id":36,"page":0,"y":227.2671761,"kind":"heading","level":2,"text":"引用与列表"},{"id":37,"page":0,"y":240.07301750000002,"kind":"quote","level":0,"text":"引用:一级引用"},{"id":38,"page":0,"y":246.47593820000003,"kind":"quote","level":0,"text":"引用:二级引用"},{"id":39,"page":1,"y":0.0,"kind":"quote","level":0,"text":"引用:三级引用"},{"id":40,"page":1,"y":6.402920699999999,"kind":"list","level":0,"text":"- 无序列表项一"},{"id":40,"page":1,"y":12.805841399999998,"kind":"list","level":0,"text":"- 无序列表项二"},{"id":41,"page":1,"y":19.208762099999998,"kind":"list","level":0,"text":"1. 有序列表项一"},{"id":41,"page":1,"y":25.611682799999997,"kind":"list","level":0,"text":"2. 有序列表项二"},{"id":42,"page":1,"y":32.01460349999999,"kind":"hr","level":0,"text":"――――――――――"},{"id":43,"page":1,"y":38.41752419999999,"kind":"heading","level":2,"text":"表格 @[label]"},{"id":44,"page":1,"y":51.22336559999998,"kind":"para","level":0,"text":"简单表格:"},{"id":45,"page":1,"y":57.626286299999975,"kind":"table","level":0,"text":"| 方法 | 速度 | 安全性 |"},{"id":45,"page":1,"y":64.02920699999997,"kind":"table","level":0,"text":"| A | 0.21 | 低 |"},{"id":45,"page":1,"y":70.43212769999997,"kind":"table","level":0,"text":"| B | 0.48 | 中 |"},{"id":46,"page":1,"y":76.83504839999996,"kind":"para","level":0,"text":"复杂单元格 @[label]:"},{"id":47,"page":1,"y":83.23796909999996,"kind":"table","level":0,"text":"| 姓名 | 备注 |"},{"id":47,"page":1,"y":89.64088979999995,"kind":"table","level":0,"text":"| \"Smith, John\" | 单元格含逗号无需转义 |"},{"id":47,"page":1,"y":96.04381049999995,"kind":"table","level":0,"text":"| A | 合并单元格 |"},{"id":47,"page":1,"y":102.44673119999995,"kind":"table","level":0,"text":"| 粗 | code 与 a+b |"},{"id":48,"page":1,"y":108.84965189999994,"kind":"para","level":0,"text":"表格引用:见 @[ref]。"},{"id":49,"page":1,"y":115.25257259999994,"kind":"heading","level":2,"text":"样式与全角输入"},{"id":50,"page":1,"y":128.05841399999994,"kind":"para","level":0,"text":"彩色文字。"},{"id":51,"page":1,"y":134.46133469999995,"kind":"para","level":0,"text":"局部字体 与 局部字号。"},{"id":52,"page":1,"y":140.86425539999996,"kind":"para","level":0,"text":"全角输入:“微软雅黑” ,以及 @[字体] 与 @[大小] 与 @[图片] 均为合法中文方言。"},{"id":53,"page":1,"y":147.26717609999997,"kind":"para","level":0,"text":"混合方言:同一文档允许中文语法、英文语法、短命令、长命令并存(规范 §6.14)。"},{"id":54,"page":1,"y":153.67009679999998,"kind":"heading","level":2,"text":"转义演示"},{"id":55,"page":1,"y":166.4759382,"kind":"para","level":0,"text":"# 不是标题**不是粗体**_不是斜体_~~不是删除线~~- 不是列表> 不是引用`不是代码`1. 不是有序"},{"id":55,"page":1,"y":172.8788589,"kind":"para","level":0,"text":"列表@[image hero] 按字面显示@[comment 这是正文中的示例] 按字面显示"},{"id":56,"page":1,"y":179.28177960000002,"kind":"heading","level":2,"text":"交叉引用"},{"id":57,"page":1,"y":192.08762100000004,"kind":"para","level":0,"text":"参见章节 @[ref],图片 @[ref],以及二级标题 @[ref]。"}],"anchors":[{"label":"chapter-intro","page":0},{"label":"二级示例","page":0},{"label":"hero.png","page":0},{"label":"架构图","page":0},{"label":"result-table-section","page":1}],"outline":[{"level":1,"text":"一级标题 @[label]","id":14},{"level":2,"text":"二级标题 @[标签]","id":17},{"level":3,"text":"三级标题","id":18},{"level":4,"text":"四级标题","id":19},{"level":5,"text":"五级标题","id":20},{"level":6,"text":"六级标题","id":21},{"level":2,"text":"行内格式","id":22},{"level":2,"text":"块级对象","id":27},{"level":2,"text":"引用与列表","id":36},{"level":2,"text":"表格 @[label]","id":43},{"level":2,"text":"样式与全角输入","id":49},{"level":2,"text":"转义演示","id":54},{"level":2,"text":"交叉引用","id":56}],"source":"@[page A4]\n@[margin 20mm]\n@[font \"Noto Sans CJK SC\"]\n@[size 11pt]\n@[line-spacing 1.65]\n@[first-line 2em]\n@[theme default]\n\n@[toc depth: 3]\n\n@[numbering figure \"图 %figure\"]\n@[numbering table \"表 %table\"]\n@[numbering equation \"(%equation)\"]\n@[numbering heading level: 1 \"第 %chapter 章\"]\n@[numbering heading level: 2 \"%chapter.%section\"]\n\n# 一级标题 @[label chapter-intro]\n这是第一章的正文。源码中的物理换行\n不会产生排版换行,这仍然是一个段落。\n\n空行产生新段落。\n\n## 二级标题 @[标签 二级示例]\n### 三级标题\n#### 四级标题\n##### 五级标题\n###### 六级标题\n\n## 行内格式\n\n**粗体** 与 _斜体_ 与 ~~删除线~~ 与 `行内代码` 与 @[u]下划线@[/u] 与 @[underline]长写下划线@[/underline]。\n\n嵌套:**粗体中嵌 _斜体_**,以及 @[b]短命令粗体@[/b] 和 @[bold]长命令粗体@[/bold]。\n\n行内数学 @[m]E = mc^2@[/m] 出现在段落之中。脚注演示@[footnote 这里是脚注内容。]。\n\n链接:@[link \"OpenAI\" url: \"https://openai.com\"],以及裸 URL 自动识别 https://example.com/docs。\n\n## 块级对象\n\n@[comment 本节演示块级对象;修改下方图片属性时,本行注释必须逐字保留。]\n\n@[image \"hero.png\" width 65% align center]\n\n@[figure 架构图 \"architecture.png\" width 50%]\n\n@[comment]\n这是块级源码注释:\n不进入渲染,但保留 Source Mapping(规范 §11.3)。\n@[/comment]\n\n@[m]\n\\int_0^\\infty e^{-x}\\,dx = 1\n@[/m]\n\n@[math]\na^2 + b^2 = c^2\n@[/math]\n\n@[c py]\ndef hello():\n    print(\"Hello, Awen\")  # 代码内部的 @[b] 与 ] 均不参与 Awen 解析\n@[/c]\n\n@[code python]\nraw content: }{ ] @[ ** _ ~`\n@[/code]\n\n## 引用与列表\n\n> 一级引用\n>> 二级引用\n>>> 三级引用\n\n- 无序列表项一\n- 无序列表项二\n\n1. 有序列表项一\n2. 有序列表项二\n\n---\n\n## 表格 @[label result-table-section]\n\n简单表格:\n\n@[table result-table]\n\n| 方法 | 速度 | 安全性 |\n| --- | ---: | :---: |\n| A | 0.21 | 低 |\n| B | 0.48 | 中 |\n\n@[/table]\n\n复杂单元格 @[label \"复杂 表格示例\"]:\n\n@[table]\n\n| 姓名 | 备注 |\n| --- | --- |\n| \"Smith, John\" | 单元格含逗号无需转义 |\n| A | @[cell background: \"#EEEEEE\" span: 2]合并单元格@[/cell] |\n| **粗** | @[cell border-bottom: 2pt double \"#000000\"]`code` 与 @[m]a+b@[/m]@[/cell] |\n\n@[/table]\n\n表格引用:见 @[ref result-table-section]。\n\n## 样式与全角输入\n\n@[color \"#3366CC\"]彩色文字@[/color]。\n\n@[font \"Noto Serif CJK SC\"]局部字体@[/font] 与 @[size 12pt]局部字号@[/size]。\n\n全角输入:“微软雅黑” ,以及 @[字体 \"微软雅黑\"] 与 @[大小 12pt] 与 @[图片 \"示例.png\"] 均为合法中文方言。\n\n混合方言:同一文档允许中文语法、英文语法、短命令、长命令并存(规范 §6.14)。\n\n## 转义演示\n\n@# 不是标题\n@**不是粗体@**\n@_不是斜体@_\n@~~不是删除线@~~\n@- 不是列表\n@> 不是引用\n@`不是代码`\n@1. 不是有序列表\n@@[image hero] 按字面显示\n@@[comment 这是正文中的示例] 按字面显示\n\n## 交叉引用\n\n参见章节 @[ref chapter-intro],图片 @[ref 架构图],以及二级标题 @[ref 二级示例]。\n"} 替换为核心渲染 JSON ═══
-var DOC_DATA = {"pages":2,"lines":[{"id":14,"page":0,"y":0.0,"kind":"heading","level":1,"text":"一级标题 @[label]"},{"id":15,"page":0,"y":12.805841399999998,"kind":"para","level":0,"text":"这是第一章的正文。源码中的物理换行不会产生排版换行,这仍然是一个段落。"},{"id":16,"page":0,"y":19.208762099999998,"kind":"para","level":0,"text":"空行产生新段落。"},{"id":17,"page":0,"y":25.611682799999997,"kind":"heading","level":2,"text":"二级标题 @[标签]"},{"id":18,"page":0,"y":38.41752419999999,"kind":"heading","level":3,"text":"三级标题"},{"id":19,"page":0,"y":44.820444899999984,"kind":"heading","level":4,"text":"四级标题"},{"id":20,"page":0,"y":51.22336559999998,"kind":"heading","level":5,"text":"五级标题"},{"id":21,"page":0,"y":57.626286299999975,"kind":"heading","level":6,"text":"六级标题"},{"id":22,"page":0,"y":64.02920699999997,"kind":"heading","level":2,"text":"行内格式"},{"id":23,"page":0,"y":76.83504839999996,"kind":"para","level":0,"text":"**粗体** 与 _斜体_ 与 ~~删除线~~ 与 `行内代码` 与 下划线 与 长写下划线。"},{"id":24,"page":0,"y":83.23796909999996,"kind":"para","level":0,"text":"嵌套:**粗体中嵌 _斜体_**,以及 短命令粗体 和 长命令粗体。"},{"id":25,"page":0,"y":89.64088979999995,"kind":"para","level":0,"text":"行内数学 E = mc^2 出现在段落之中。脚注演示@[footnote]。"},{"id":26,"page":0,"y":96.04381049999995,"kind":"para","level":0,"text":"链接:@[link],以及裸 URL 自动识别 https://example.com/docs。"},{"id":27,"page":0,"y":102.44673119999995,"kind":"heading","level":2,"text":"块级对象"},{"id":32,"page":0,"y":195.25257259999995,"kind":"raw","level":0,"text":"\\int_0^\\infty e^{-x}\\,dx = 1"},{"id":33,"page":0,"y":201.65549329999996,"kind":"raw","level":0,"text":"a^2 + b^2 = c^2"},{"id":34,"page":0,"y":208.05841399999997,"kind":"raw","level":0,"text":"def hello():"},{"id":34,"page":0,"y":214.46133469999998,"kind":"raw","level":0,"text":"    print(\"Hello, Awen\")  # 代码内部的 @[b] 与 ] 均不参与 Awen 解析"},{"id":35,"page":0,"y":220.8642554,"kind":"raw","level":0,"text":"raw content: }{ ] @[ ** _ ~`"},{"id":36,"page":0,"y":227.2671761,"kind":"heading","level":2,"text":"引用与列表"},{"id":37,"page":0,"y":240.07301750000002,"kind":"quote","level":0,"text":"引用:一级引用"},{"id":38,"page":0,"y":246.47593820000003,"kind":"quote","level":0,"text":"引用:二级引用"},{"id":39,"page":1,"y":0.0,"kind":"quote","level":0,"text":"引用:三级引用"},{"id":40,"page":1,"y":6.402920699999999,"kind":"list","level":0,"text":"- 无序列表项一"},{"id":40,"page":1,"y":12.805841399999998,"kind":"list","level":0,"text":"- 无序列表项二"},{"id":41,"page":1,"y":19.208762099999998,"kind":"list","level":0,"text":"1. 有序列表项一"},{"id":41,"page":1,"y":25.611682799999997,"kind":"list","level":0,"text":"2. 有序列表项二"},{"id":42,"page":1,"y":32.01460349999999,"kind":"hr","level":0,"text":"――――――――――"},{"id":43,"page":1,"y":38.41752419999999,"kind":"heading","level":2,"text":"表格 @[label]"},{"id":44,"page":1,"y":51.22336559999998,"kind":"para","level":0,"text":"简单表格:"},{"id":45,"page":1,"y":57.626286299999975,"kind":"table","level":0,"text":"| 方法 | 速度 | 安全性 |"},{"id":45,"page":1,"y":64.02920699999997,"kind":"table","level":0,"text":"| A | 0.21 | 低 |"},{"id":45,"page":1,"y":70.43212769999997,"kind":"table","level":0,"text":"| B | 0.48 | 中 |"},{"id":46,"page":1,"y":76.83504839999996,"kind":"para","level":0,"text":"复杂单元格 @[label]:"},{"id":47,"page":1,"y":83.23796909999996,"kind":"table","level":0,"text":"| 姓名 | 备注 |"},{"id":47,"page":1,"y":89.64088979999995,"kind":"table","level":0,"text":"| \"Smith, John\" | 单元格含逗号无需转义 |"},{"id":47,"page":1,"y":96.04381049999995,"kind":"table","level":0,"text":"| A | 合并单元格 |"},{"id":47,"page":1,"y":102.44673119999995,"kind":"table","level":0,"text":"| 粗 | code 与 a+b |"},{"id":48,"page":1,"y":108.84965189999994,"kind":"para","level":0,"text":"表格引用:见 @[ref]。"},{"id":49,"page":1,"y":115.25257259999994,"kind":"heading","level":2,"text":"样式与全角输入"},{"id":50,"page":1,"y":128.05841399999994,"kind":"para","level":0,"text":"彩色文字。"},{"id":51,"page":1,"y":134.46133469999995,"kind":"para","level":0,"text":"局部字体 与 局部字号。"},{"id":52,"page":1,"y":140.86425539999996,"kind":"para","level":0,"text":"全角输入:“微软雅黑” ,以及 @[字体] 与 @[大小] 与 @[图片] 均为合法中文方言。"},{"id":53,"page":1,"y":147.26717609999997,"kind":"para","level":0,"text":"混合方言:同一文档允许中文语法、英文语法、短命令、长命令并存(规范 §6.14)。"},{"id":54,"page":1,"y":153.67009679999998,"kind":"heading","level":2,"text":"转义演示"},{"id":55,"page":1,"y":166.4759382,"kind":"para","level":0,"text":"# 不是标题**不是粗体**_不是斜体_~~不是删除线~~- 不是列表> 不是引用`不是代码`1. 不是有序"},{"id":55,"page":1,"y":172.8788589,"kind":"para","level":0,"text":"列表@[image hero] 按字面显示@[comment 这是正文中的示例] 按字面显示"},{"id":56,"page":1,"y":179.28177960000002,"kind":"heading","level":2,"text":"交叉引用"},{"id":57,"page":1,"y":192.08762100000004,"kind":"para","level":0,"text":"参见章节 @[ref],图片 @[ref],以及二级标题 @[ref]。"}],"anchors":[{"label":"chapter-intro","page":0},{"label":"二级示例","page":0},{"label":"hero.png","page":0},{"label":"架构图","page":0},{"label":"result-table-section","page":1}],"outline":[{"level":1,"text":"一级标题 @[label]","id":14},{"level":2,"text":"二级标题 @[标签]","id":17},{"level":3,"text":"三级标题","id":18},{"level":4,"text":"四级标题","id":19},{"level":5,"text":"五级标题","id":20},{"level":6,"text":"六级标题","id":21},{"level":2,"text":"行内格式","id":22},{"level":2,"text":"块级对象","id":27},{"level":2,"text":"引用与列表","id":36},{"level":2,"text":"表格 @[label]","id":43},{"level":2,"text":"样式与全角输入","id":49},{"level":2,"text":"转义演示","id":54},{"level":2,"text":"交叉引用","id":56}],"source":"@[page A4]\n@[margin 20mm]\n@[font \"Noto Sans CJK SC\"]\n@[size 11pt]\n@[line-spacing 1.65]\n@[first-line 2em]\n@[theme default]\n\n@[toc depth: 3]\n\n@[numbering figure \"图 %figure\"]\n@[numbering table \"表 %table\"]\n@[numbering equation \"(%equation)\"]\n@[numbering heading level: 1 \"第 %chapter 章\"]\n@[numbering heading level: 2 \"%chapter.%section\"]\n\n# 一级标题 @[label chapter-intro]\n这是第一章的正文。源码中的物理换行\n不会产生排版换行,这仍然是一个段落。\n\n空行产生新段落。\n\n## 二级标题 @[标签 二级示例]\n### 三级标题\n#### 四级标题\n##### 五级标题\n###### 六级标题\n\n## 行内格式\n\n**粗体** 与 _斜体_ 与 ~~删除线~~ 与 `行内代码` 与 @[u]下划线@[/u] 与 @[underline]长写下划线@[/underline]。\n\n嵌套:**粗体中嵌 _斜体_**,以及 @[b]短命令粗体@[/b] 和 @[bold]长命令粗体@[/bold]。\n\n行内数学 @[m]E = mc^2@[/m] 出现在段落之中。脚注演示@[footnote 这里是脚注内容。]。\n\n链接:@[link \"OpenAI\" url: \"https://openai.com\"],以及裸 URL 自动识别 https://example.com/docs。\n\n## 块级对象\n\n@[comment 本节演示块级对象;修改下方图片属性时,本行注释必须逐字保留。]\n\n@[image \"hero.png\" width 65% align center]\n\n@[figure 架构图 \"architecture.png\" width 50%]\n\n@[comment]\n这是块级源码注释:\n不进入渲染,但保留 Source Mapping(规范 §11.3)。\n@[/comment]\n\n@[m]\n\\int_0^\\infty e^{-x}\\,dx = 1\n@[/m]\n\n@[math]\na^2 + b^2 = c^2\n@[/math]\n\n@[c py]\ndef hello():\n    print(\"Hello, Awen\")  # 代码内部的 @[b] 与 ] 均不参与 Awen 解析\n@[/c]\n\n@[code python]\nraw content: }{ ] @[ ** _ ~`\n@[/code]\n\n## 引用与列表\n\n> 一级引用\n>> 二级引用\n>>> 三级引用\n\n- 无序列表项一\n- 无序列表项二\n\n1. 有序列表项一\n2. 有序列表项二\n\n---\n\n## 表格 @[label result-table-section]\n\n简单表格:\n\n@[table result-table]\n\n| 方法 | 速度 | 安全性 |\n| --- | ---: | :---: |\n| A | 0.21 | 低 |\n| B | 0.48 | 中 |\n\n@[/table]\n\n复杂单元格 @[label \"复杂 表格示例\"]:\n\n@[table]\n\n| 姓名 | 备注 |\n| --- | --- |\n| \"Smith, John\" | 单元格含逗号无需转义 |\n| A | @[cell background: \"#EEEEEE\" span: 2]合并单元格@[/cell] |\n| **粗** | @[cell border-bottom: 2pt double \"#000000\"]`code` 与 @[m]a+b@[/m]@[/cell] |\n\n@[/table]\n\n表格引用:见 @[ref result-table-section]。\n\n## 样式与全角输入\n\n@[color \"#3366CC\"]彩色文字@[/color]。\n\n@[font \"Noto Serif CJK SC\"]局部字体@[/font] 与 @[size 12pt]局部字号@[/size]。\n\n全角输入:“微软雅黑” ,以及 @[字体 \"微软雅黑\"] 与 @[大小 12pt] 与 @[图片 \"示例.png\"] 均为合法中文方言。\n\n混合方言:同一文档允许中文语法、英文语法、短命令、长命令并存(规范 §6.14)。\n\n## 转义演示\n\n@# 不是标题\n@**不是粗体@**\n@_不是斜体@_\n@~~不是删除线@~~\n@- 不是列表\n@> 不是引用\n@`不是代码`\n@1. 不是有序列表\n@@[image hero] 按字面显示\n@@[comment 这是正文中的示例] 按字面显示\n\n## 交叉引用\n\n参见章节 @[ref chapter-intro],图片 @[ref 架构图],以及二级标题 @[ref 二级示例]。\n"};
+// ═══ 数据通道:generate_preview.aine 将 {"pages":2,"lines":[{"id":14,"page":0,"y":0.0,"kind":"heading","level":1,"text":"一级标题 @[label]"},{"id":15,"page":0,"y":12.805841399999998,"kind":"para","level":0,"text":"这是第一章的正文。源码中的物理换行不会产生排版换行,这仍然是一个段落。"},{"id":16,"page":0,"y":19.208762099999998,"kind":"para","level":0,"text":"空行产生新段落。"},{"id":17,"page":0,"y":25.611682799999997,"kind":"heading","level":2,"text":"二级标题 @[标签]"},{"id":18,"page":0,"y":38.41752419999999,"kind":"heading","level":3,"text":"三级标题"},{"id":19,"page":0,"y":44.820444899999984,"kind":"heading","level":4,"text":"四级标题"},{"id":20,"page":0,"y":51.22336559999998,"kind":"heading","level":5,"text":"五级标题"},{"id":21,"page":0,"y":57.626286299999975,"kind":"heading","level":6,"text":"六级标题"},{"id":22,"page":0,"y":64.02920699999997,"kind":"heading","level":2,"text":"行内格式"},{"id":23,"page":0,"y":76.83504839999996,"kind":"para","level":0,"text":"**粗体** 与 _斜体_ 与 ~~删除线~~ 与 `行内代码` 与 下划线 与 长写下划线。"},{"id":24,"page":0,"y":83.23796909999996,"kind":"para","level":0,"text":"嵌套:**粗体中嵌 _斜体_**,以及 短命令粗体 和 长命令粗体。"},{"id":25,"page":0,"y":89.64088979999995,"kind":"para","level":0,"text":"行内数学 E = mc^2 出现在段落之中。脚注演示@[footnote]。"},{"id":26,"page":0,"y":96.04381049999995,"kind":"para","level":0,"text":"链接:@[link],以及裸 URL 自动识别 https://example.com/docs。"},{"id":27,"page":0,"y":102.44673119999995,"kind":"heading","level":2,"text":"块级对象"},{"id":32,"page":0,"y":195.25257259999995,"kind":"raw","level":0,"text":"\\int_0^\\infty e^{-x}\\,dx = 1"},{"id":33,"page":0,"y":201.65549329999996,"kind":"raw","level":0,"text":"a^2 + b^2 = c^2"},{"id":34,"page":0,"y":208.05841399999997,"kind":"raw","level":0,"text":"def hello():"},{"id":34,"page":0,"y":214.46133469999998,"kind":"raw","level":0,"text":"    print(\"Hello, Awen\")  # 代码内部的 @[b] 与 ] 均不参与 Awen 解析"},{"id":35,"page":0,"y":220.8642554,"kind":"raw","level":0,"text":"raw content: }{ ] @[ ** _ ~`"},{"id":36,"page":0,"y":227.2671761,"kind":"heading","level":2,"text":"引用与列表"},{"id":37,"page":0,"y":240.07301750000002,"kind":"quote","level":0,"text":"引用:一级引用"},{"id":38,"page":0,"y":246.47593820000003,"kind":"quote","level":0,"text":"引用:二级引用"},{"id":39,"page":1,"y":0.0,"kind":"quote","level":0,"text":"引用:三级引用"},{"id":40,"page":1,"y":6.402920699999999,"kind":"list","level":0,"text":"- 无序列表项一"},{"id":40,"page":1,"y":12.805841399999998,"kind":"list","level":0,"text":"- 无序列表项二"},{"id":41,"page":1,"y":19.208762099999998,"kind":"list","level":0,"text":"1. 有序列表项一"},{"id":41,"page":1,"y":25.611682799999997,"kind":"list","level":0,"text":"2. 有序列表项二"},{"id":42,"page":1,"y":32.01460349999999,"kind":"hr","level":0,"text":"――――――――――"},{"id":43,"page":1,"y":38.41752419999999,"kind":"heading","level":2,"text":"表格 @[label]"},{"id":44,"page":1,"y":51.22336559999998,"kind":"para","level":0,"text":"简单表格:"},{"id":45,"page":1,"y":57.626286299999975,"kind":"table","level":0,"text":"| 方法 | 速度 | 安全性 |"},{"id":45,"page":1,"y":64.02920699999997,"kind":"table","level":0,"text":"| A | 0.21 | 低 |"},{"id":45,"page":1,"y":70.43212769999997,"kind":"table","level":0,"text":"| B | 0.48 | 中 |"},{"id":46,"page":1,"y":76.83504839999996,"kind":"para","level":0,"text":"复杂单元格 @[label]:"},{"id":47,"page":1,"y":83.23796909999996,"kind":"table","level":0,"text":"| 姓名 | 备注 |"},{"id":47,"page":1,"y":89.64088979999995,"kind":"table","level":0,"text":"| \"Smith, John\" | 单元格含逗号无需转义 |"},{"id":47,"page":1,"y":96.04381049999995,"kind":"table","level":0,"text":"| A | 合并单元格 |"},{"id":47,"page":1,"y":102.44673119999995,"kind":"table","level":0,"text":"| 粗 | code 与 a+b |"},{"id":48,"page":1,"y":108.84965189999994,"kind":"para","level":0,"text":"表格引用:见 @[ref]。"},{"id":49,"page":1,"y":115.25257259999994,"kind":"heading","level":2,"text":"样式与全角输入"},{"id":50,"page":1,"y":128.05841399999994,"kind":"para","level":0,"text":"彩色文字。"},{"id":51,"page":1,"y":134.46133469999995,"kind":"para","level":0,"text":"局部字体 与 局部字号。"},{"id":52,"page":1,"y":140.86425539999996,"kind":"para","level":0,"text":"全角输入:“微软雅黑” ,以及 @[字体] 与 @[大小] 与 @[图片] 均为合法中文方言。"},{"id":53,"page":1,"y":147.26717609999997,"kind":"para","level":0,"text":"混合方言:同一文档允许中文语法、英文语法、短命令、长命令并存(规范 §6.14)。"},{"id":54,"page":1,"y":153.67009679999998,"kind":"heading","level":2,"text":"转义演示"},{"id":55,"page":1,"y":166.4759382,"kind":"para","level":0,"text":"# 不是标题**不是粗体**_不是斜体_~~不是删除线~~- 不是列表> 不是引用`不是代码`1. 不是有序"},{"id":55,"page":1,"y":172.8788589,"kind":"para","level":0,"text":"列表@[image hero] 按字面显示@[comment 这是正文中的示例] 按字面显示"},{"id":56,"page":1,"y":179.28177960000002,"kind":"heading","level":2,"text":"交叉引用"},{"id":57,"page":1,"y":192.08762100000004,"kind":"para","level":0,"text":"参见章节 @[ref],图片 @[ref],以及二级标题 @[ref]。"}],"anchors":[{"label":"chapter-intro","page":0},{"label":"二级示例","page":0},{"label":"hero.png","page":0},{"label":"架构图","page":0},{"label":"result-table-section","page":1}],"outline":[{"level":1,"text":"一级标题 @[label]","id":14},{"level":2,"text":"二级标题 @[标签]","id":17},{"level":3,"text":"三级标题","id":18},{"level":4,"text":"四级标题","id":19},{"level":5,"text":"五级标题","id":20},{"level":6,"text":"六级标题","id":21},{"level":2,"text":"行内格式","id":22},{"level":2,"text":"块级对象","id":27},{"level":2,"text":"引用与列表","id":36},{"level":2,"text":"表格 @[label]","id":43},{"level":2,"text":"样式与全角输入","id":49},{"level":2,"text":"转义演示","id":54},{"level":2,"text":"交叉引用","id":56}],"source":"@[page A4]\n@[margin 20mm]\n@[font \"Noto Sans CJK SC\"]\n@[size 11pt]\n@[line-spacing 1.65]\n@[first-line 2em]\n@[theme default]\n\n@[toc depth: 3]\n\n@[numbering figure \"图 %figure\"]\n@[numbering table \"表 %table\"]\n@[numbering equation \"(%equation)\"]\n@[numbering heading level: 1 \"第 %chapter 章\"]\n@[numbering heading level: 2 \"%chapter.%section\"]\n\n# 一级标题 @[label chapter-intro]\n这是第一章的正文。源码中的物理换行\n不会产生排版换行,这仍然是一个段落。\n\n空行产生新段落。\n\n## 二级标题 @[标签 二级示例]\n### 三级标题\n#### 四级标题\n##### 五级标题\n###### 六级标题\n\n## 行内格式\n\n**粗体** 与 _斜体_ 与 ~~删除线~~ 与 `行内代码` 与 @[u]下划线@[/u] 与 @[underline]长写下划线@[/underline]。\n\n嵌套:**粗体中嵌 _斜体_**,以及 @[b]短命令粗体@[/b] 和 @[bold]长命令粗体@[/bold]。\n\n行内数学 @[m]E = mc^2@[/m] 出现在段落之中。脚注演示@[footnote 这里是脚注内容。]。\n\n链接:@[link \"OpenAI\" url: \"https://openai.com\"],以及裸 URL 自动识别 https://example.com/docs。\n\n## 块级对象\n\n@[comment 本节演示块级对象;修改下方图片属性时,本行注释必须逐字保留。]\n\n@[image \"hero.png\" width 65% align center]\n\n@[figure 架构图 \"architecture.png\" width 50%]\n\n@[comment]\n这是块级源码注释:\n不进入渲染,但保留 Source Mapping(规范 §11.3)。\n@[/comment]\n\n@[m]\n\\int_0^\\infty e^{-x}\\,dx = 1\n@[/m]\n\n@[math]\na^2 + b^2 = c^2\n@[/math]\n\n@[c py]\ndef hello():\n    print(\"Hello, Awen\")  # 代码内部的 @[b] 与 ] 均不参与 Awen 解析\n@[/c]\n\n@[code python]\nraw content: }{ ] @[ ** _ ~`\n@[/code]\n\n## 引用与列表\n\n> 一级引用\n>> 二级引用\n>>> 三级引用\n\n- 无序列表项一\n- 无序列表项二\n\n1. 有序列表项一\n2. 有序列表项二\n\n---\n\n## 表格 @[label result-table-section]\n\n简单表格:\n\n@[table result-table]\n\n| 方法 | 速度 | 安全性 |\n| --- | ---: | :---: |\n| A | 0.21 | 低 |\n| B | 0.48 | 中 |\n\n@[/table]\n\n复杂单元格 @[label \"复杂 表格示例\"]:\n\n@[table]\n\n| 姓名 | 备注 |\n| --- | --- |\n| \"Smith, John\" | 单元格含逗号无需转义 |\n| A | @[cell background: \"#EEEEEE\" span: 2]合并单元格@[/cell] |\n| **粗** | @[cell border-bottom: 2pt double \"#000000\"]`code` 与 @[m]a+b@[/m]@[/cell] |\n\n@[/table]\n\n表格引用:见 @[ref result-table-section]。\n\n## 样式与全角输入\n\n@[color \"#3366CC\"]彩色文字@[/color]。\n\n@[font \"Noto Serif CJK SC\"]局部字体@[/font] 与 @[size 12pt]局部字号@[/size]。\n\n全角输入:“微软雅黑” ,以及 @[字体 \"微软雅黑\"] 与 @[大小 12pt] 与 @[图片 \"示例.png\"] 均为合法中文方言。\n\n混合方言:同一文档允许中文语法、英文语法、短命令、长命令并存(规范 §6.14)。\n\n## 转义演示\n\n@# 不是标题\n@**不是粗体@**\n@_不是斜体@_\n@~~不是删除线@~~\n@- 不是列表\n@> 不是引用\n@`不是代码`\n@1. 不是有序列表\n@@[image hero] 按字面显示\n@@[comment 这是正文中的示例] 按字面显示\n\n## 交叉引用\n\n参见章节 @[ref chapter-intro],图片 @[ref 架构图],以及二级标题 @[ref 二级示例]。\n","diags":[]} 替换为核心渲染 JSON ═══
+var DOC_DATA = {"pages":2,"lines":[{"id":14,"page":0,"y":0.0,"kind":"heading","level":1,"text":"一级标题 @[label]"},{"id":15,"page":0,"y":12.805841399999998,"kind":"para","level":0,"text":"这是第一章的正文。源码中的物理换行不会产生排版换行,这仍然是一个段落。"},{"id":16,"page":0,"y":19.208762099999998,"kind":"para","level":0,"text":"空行产生新段落。"},{"id":17,"page":0,"y":25.611682799999997,"kind":"heading","level":2,"text":"二级标题 @[标签]"},{"id":18,"page":0,"y":38.41752419999999,"kind":"heading","level":3,"text":"三级标题"},{"id":19,"page":0,"y":44.820444899999984,"kind":"heading","level":4,"text":"四级标题"},{"id":20,"page":0,"y":51.22336559999998,"kind":"heading","level":5,"text":"五级标题"},{"id":21,"page":0,"y":57.626286299999975,"kind":"heading","level":6,"text":"六级标题"},{"id":22,"page":0,"y":64.02920699999997,"kind":"heading","level":2,"text":"行内格式"},{"id":23,"page":0,"y":76.83504839999996,"kind":"para","level":0,"text":"**粗体** 与 _斜体_ 与 ~~删除线~~ 与 `行内代码` 与 下划线 与 长写下划线。"},{"id":24,"page":0,"y":83.23796909999996,"kind":"para","level":0,"text":"嵌套:**粗体中嵌 _斜体_**,以及 短命令粗体 和 长命令粗体。"},{"id":25,"page":0,"y":89.64088979999995,"kind":"para","level":0,"text":"行内数学 E = mc^2 出现在段落之中。脚注演示@[footnote]。"},{"id":26,"page":0,"y":96.04381049999995,"kind":"para","level":0,"text":"链接:@[link],以及裸 URL 自动识别 https://example.com/docs。"},{"id":27,"page":0,"y":102.44673119999995,"kind":"heading","level":2,"text":"块级对象"},{"id":32,"page":0,"y":195.25257259999995,"kind":"raw","level":0,"text":"\\int_0^\\infty e^{-x}\\,dx = 1"},{"id":33,"page":0,"y":201.65549329999996,"kind":"raw","level":0,"text":"a^2 + b^2 = c^2"},{"id":34,"page":0,"y":208.05841399999997,"kind":"raw","level":0,"text":"def hello():"},{"id":34,"page":0,"y":214.46133469999998,"kind":"raw","level":0,"text":"    print(\"Hello, Awen\")  # 代码内部的 @[b] 与 ] 均不参与 Awen 解析"},{"id":35,"page":0,"y":220.8642554,"kind":"raw","level":0,"text":"raw content: }{ ] @[ ** _ ~`"},{"id":36,"page":0,"y":227.2671761,"kind":"heading","level":2,"text":"引用与列表"},{"id":37,"page":0,"y":240.07301750000002,"kind":"quote","level":0,"text":"引用:一级引用"},{"id":38,"page":0,"y":246.47593820000003,"kind":"quote","level":0,"text":"引用:二级引用"},{"id":39,"page":1,"y":0.0,"kind":"quote","level":0,"text":"引用:三级引用"},{"id":40,"page":1,"y":6.402920699999999,"kind":"list","level":0,"text":"- 无序列表项一"},{"id":40,"page":1,"y":12.805841399999998,"kind":"list","level":0,"text":"- 无序列表项二"},{"id":41,"page":1,"y":19.208762099999998,"kind":"list","level":0,"text":"1. 有序列表项一"},{"id":41,"page":1,"y":25.611682799999997,"kind":"list","level":0,"text":"2. 有序列表项二"},{"id":42,"page":1,"y":32.01460349999999,"kind":"hr","level":0,"text":"――――――――――"},{"id":43,"page":1,"y":38.41752419999999,"kind":"heading","level":2,"text":"表格 @[label]"},{"id":44,"page":1,"y":51.22336559999998,"kind":"para","level":0,"text":"简单表格:"},{"id":45,"page":1,"y":57.626286299999975,"kind":"table","level":0,"text":"| 方法 | 速度 | 安全性 |"},{"id":45,"page":1,"y":64.02920699999997,"kind":"table","level":0,"text":"| A | 0.21 | 低 |"},{"id":45,"page":1,"y":70.43212769999997,"kind":"table","level":0,"text":"| B | 0.48 | 中 |"},{"id":46,"page":1,"y":76.83504839999996,"kind":"para","level":0,"text":"复杂单元格 @[label]:"},{"id":47,"page":1,"y":83.23796909999996,"kind":"table","level":0,"text":"| 姓名 | 备注 |"},{"id":47,"page":1,"y":89.64088979999995,"kind":"table","level":0,"text":"| \"Smith, John\" | 单元格含逗号无需转义 |"},{"id":47,"page":1,"y":96.04381049999995,"kind":"table","level":0,"text":"| A | 合并单元格 |"},{"id":47,"page":1,"y":102.44673119999995,"kind":"table","level":0,"text":"| 粗 | code 与 a+b |"},{"id":48,"page":1,"y":108.84965189999994,"kind":"para","level":0,"text":"表格引用:见 @[ref]。"},{"id":49,"page":1,"y":115.25257259999994,"kind":"heading","level":2,"text":"样式与全角输入"},{"id":50,"page":1,"y":128.05841399999994,"kind":"para","level":0,"text":"彩色文字。"},{"id":51,"page":1,"y":134.46133469999995,"kind":"para","level":0,"text":"局部字体 与 局部字号。"},{"id":52,"page":1,"y":140.86425539999996,"kind":"para","level":0,"text":"全角输入:“微软雅黑” ,以及 @[字体] 与 @[大小] 与 @[图片] 均为合法中文方言。"},{"id":53,"page":1,"y":147.26717609999997,"kind":"para","level":0,"text":"混合方言:同一文档允许中文语法、英文语法、短命令、长命令并存(规范 §6.14)。"},{"id":54,"page":1,"y":153.67009679999998,"kind":"heading","level":2,"text":"转义演示"},{"id":55,"page":1,"y":166.4759382,"kind":"para","level":0,"text":"# 不是标题**不是粗体**_不是斜体_~~不是删除线~~- 不是列表> 不是引用`不是代码`1. 不是有序"},{"id":55,"page":1,"y":172.8788589,"kind":"para","level":0,"text":"列表@[image hero] 按字面显示@[comment 这是正文中的示例] 按字面显示"},{"id":56,"page":1,"y":179.28177960000002,"kind":"heading","level":2,"text":"交叉引用"},{"id":57,"page":1,"y":192.08762100000004,"kind":"para","level":0,"text":"参见章节 @[ref],图片 @[ref],以及二级标题 @[ref]。"}],"anchors":[{"label":"chapter-intro","page":0},{"label":"二级示例","page":0},{"label":"hero.png","page":0},{"label":"架构图","page":0},{"label":"result-table-section","page":1}],"outline":[{"level":1,"text":"一级标题 @[label]","id":14},{"level":2,"text":"二级标题 @[标签]","id":17},{"level":3,"text":"三级标题","id":18},{"level":4,"text":"四级标题","id":19},{"level":5,"text":"五级标题","id":20},{"level":6,"text":"六级标题","id":21},{"level":2,"text":"行内格式","id":22},{"level":2,"text":"块级对象","id":27},{"level":2,"text":"引用与列表","id":36},{"level":2,"text":"表格 @[label]","id":43},{"level":2,"text":"样式与全角输入","id":49},{"level":2,"text":"转义演示","id":54},{"level":2,"text":"交叉引用","id":56}],"source":"@[page A4]\n@[margin 20mm]\n@[font \"Noto Sans CJK SC\"]\n@[size 11pt]\n@[line-spacing 1.65]\n@[first-line 2em]\n@[theme default]\n\n@[toc depth: 3]\n\n@[numbering figure \"图 %figure\"]\n@[numbering table \"表 %table\"]\n@[numbering equation \"(%equation)\"]\n@[numbering heading level: 1 \"第 %chapter 章\"]\n@[numbering heading level: 2 \"%chapter.%section\"]\n\n# 一级标题 @[label chapter-intro]\n这是第一章的正文。源码中的物理换行\n不会产生排版换行,这仍然是一个段落。\n\n空行产生新段落。\n\n## 二级标题 @[标签 二级示例]\n### 三级标题\n#### 四级标题\n##### 五级标题\n###### 六级标题\n\n## 行内格式\n\n**粗体** 与 _斜体_ 与 ~~删除线~~ 与 `行内代码` 与 @[u]下划线@[/u] 与 @[underline]长写下划线@[/underline]。\n\n嵌套:**粗体中嵌 _斜体_**,以及 @[b]短命令粗体@[/b] 和 @[bold]长命令粗体@[/bold]。\n\n行内数学 @[m]E = mc^2@[/m] 出现在段落之中。脚注演示@[footnote 这里是脚注内容。]。\n\n链接:@[link \"OpenAI\" url: \"https://openai.com\"],以及裸 URL 自动识别 https://example.com/docs。\n\n## 块级对象\n\n@[comment 本节演示块级对象;修改下方图片属性时,本行注释必须逐字保留。]\n\n@[image \"hero.png\" width 65% align center]\n\n@[figure 架构图 \"architecture.png\" width 50%]\n\n@[comment]\n这是块级源码注释:\n不进入渲染,但保留 Source Mapping(规范 §11.3)。\n@[/comment]\n\n@[m]\n\\int_0^\\infty e^{-x}\\,dx = 1\n@[/m]\n\n@[math]\na^2 + b^2 = c^2\n@[/math]\n\n@[c py]\ndef hello():\n    print(\"Hello, Awen\")  # 代码内部的 @[b] 与 ] 均不参与 Awen 解析\n@[/c]\n\n@[code python]\nraw content: }{ ] @[ ** _ ~`\n@[/code]\n\n## 引用与列表\n\n> 一级引用\n>> 二级引用\n>>> 三级引用\n\n- 无序列表项一\n- 无序列表项二\n\n1. 有序列表项一\n2. 有序列表项二\n\n---\n\n## 表格 @[label result-table-section]\n\n简单表格:\n\n@[table result-table]\n\n| 方法 | 速度 | 安全性 |\n| --- | ---: | :---: |\n| A | 0.21 | 低 |\n| B | 0.48 | 中 |\n\n@[/table]\n\n复杂单元格 @[label \"复杂 表格示例\"]:\n\n@[table]\n\n| 姓名 | 备注 |\n| --- | --- |\n| \"Smith, John\" | 单元格含逗号无需转义 |\n| A | @[cell background: \"#EEEEEE\" span: 2]合并单元格@[/cell] |\n| **粗** | @[cell border-bottom: 2pt double \"#000000\"]`code` 与 @[m]a+b@[/m]@[/cell] |\n\n@[/table]\n\n表格引用:见 @[ref result-table-section]。\n\n## 样式与全角输入\n\n@[color \"#3366CC\"]彩色文字@[/color]。\n\n@[font \"Noto Serif CJK SC\"]局部字体@[/font] 与 @[size 12pt]局部字号@[/size]。\n\n全角输入:“微软雅黑” ,以及 @[字体 \"微软雅黑\"] 与 @[大小 12pt] 与 @[图片 \"示例.png\"] 均为合法中文方言。\n\n混合方言:同一文档允许中文语法、英文语法、短命令、长命令并存(规范 §6.14)。\n\n## 转义演示\n\n@# 不是标题\n@**不是粗体@**\n@_不是斜体@_\n@~~不是删除线@~~\n@- 不是列表\n@> 不是引用\n@`不是代码`\n@1. 不是有序列表\n@@[image hero] 按字面显示\n@@[comment 这是正文中的示例] 按字面显示\n\n## 交叉引用\n\n参见章节 @[ref chapter-intro],图片 @[ref 架构图],以及二级标题 @[ref 二级示例]。\n","diags":[]};
 var DEFAULT_SRC = '# Awen 迷你编辑器\n\n直接在纸面上打字,回车分段,选中文字用工具栏加粗、变色。\n\n## 断行规则\n\n中西文混排加八分之一 em 间距,英文单词不拆断,行首行尾禁则自动调整,连续标点挤压半宽。\n\n---\n\n> 引用示例\n\n- 列表项一\n- 列表项二\n\n@[table demo]\n| 列1 | 列2 |\n| --- | --- |\n| 内容 | 内容 |\n@[/table]\n';
 
 // ═══ 页面模型(§30 A4)+ 断行度量(镜像 layout_width.aine)═══
@@ -336,6 +398,8 @@ function displayText(t){
     .replace(/\*\*((?:.|])*?)\*\*/g,'$1')
     .replace(/~~((?:.|])*?)~~/g,'$1')
     .replace(/`((?:.|])*?)`/g,'$1')
+    .replace(/@\[link\s+([^\]]+?)\s+url:\s*([^\]]+)\]/g,'$1')
+    .replace(/@\[footnote\s+(\d+)\s+([^\]]+)\]/g,'$2')
     .replace(/_((?:.|])*?)_/g,'$1');
 }
 function fmtH(t){
@@ -346,6 +410,8 @@ function fmtH(t){
   s=s.replace(/@\[mark\s+([^\]]+)\]((?:.|])*?)@\[\/mark\]/g,'<span style="background:$1">$2</span>');
   s=s.replace(/@\[color\s+([^\]]+)\]((?:.|])*?)@\[\/color\]/g,'<span style="color:$1">$2</span>');
   s=s.replace(/@\[size\s+([^\]]+)\]((?:.|])*?)@\[\/size\]/g,'<span style="font-size:$1pt">$2</span>');
+  s=s.replace(/@\[link\s+([^\]]+?)\s+url:\s*([^\]]+)\]/g,'<a href="$2" target="_blank" style="color:#2a4a66;text-decoration:underline">$1</a>');
+  s=s.replace(/@\[footnote\s+(\d+)\s+([^\]]+)\]/g,function(m,n,txt){return '<sup class="fn" title="'+txt.replace(/"/g,'')+'" style="color:#2a4a66;cursor:help">'+n+'</sup>'});
   s=s.replace(/@\[font\s+([^\]]+)\]((?:.|])*?)@\[\/font\]/g,function(m,f,inner){
     f=f.replace(/"/g,'');
     return'<span style="font-family:\''+f+'\',serif">'+inner+'</span>';
@@ -812,7 +878,18 @@ function fmtCmd(cmd){
   }
 }
 function fmtCmdInline(){
-  if(inDisplayMode()){ document.execCommand('insertHTML',false,'<code>'+window.getSelection().toString()+'</code>'); onPaperInput() }
+  if(inDisplayMode()){
+    var s=window.getSelection();
+    if(!s.rangeCount||s.isCollapsed)return;
+    var r=s.getRangeAt(0);
+    var b1=(r.startContainer.nodeType===1?r.startContainer:r.startContainer.parentElement).closest('[data-bid]');
+    var b2=(r.endContainer.nodeType===1?r.endContainer:r.endContainer.parentElement).closest('[data-bid]');
+    if(!b1||b1!==b2){ document.getElementById('findmsg').textContent='行内代码不能跨段落'; return }
+    var code=document.createElement('code');
+    code.appendChild(r.extractContents());
+    r.insertNode(code);
+    onPaperInput();
+  }
   else wrapSyntax('`','`');
 }
 function applyColor(v){
@@ -891,6 +968,7 @@ function insertBlock(kind){
   if(inDisplayMode()){
     // 在当前块后插入新块
     var bel=caretBlock();
+    var _caret=saveCaret();
     var insertAt=gSrc.split('\n').length;
     if(bel){
       var b=nodeByBid(bel.dataset.bid);
@@ -902,8 +980,168 @@ function insertBlock(kind){
     if(insertAt>0&&lines[insertAt-1].trim()!=='')insert=[''].concat(insert);
     lines.splice.apply(lines,[insertAt,0].concat(insert));
     setSrc(lines.join('\n'));
+    restoreCaret(_caret);
   }else insertSyntax('\n'+ins.join('\n')+'\n');
 }
+// ═══ 表格行列操作 ═══
+function inTable(){ var b=caretBlock(); return b&&b.closest?b.closest('table'):null }
+function selTr(){
+  var s=window.getSelection();
+  if(!s.rangeCount)return null;
+  var n=s.getRangeAt(0).startContainer;
+  var el=n.nodeType===1?n:n.parentElement;
+  return el?el.closest('tr'):null;
+}
+function selCell(){
+  var s=window.getSelection();
+  if(!s.rangeCount)return null;
+  var n=s.getRangeAt(0).startContainer;
+  var el=n.nodeType===1?n:n.parentElement;
+  return el?el.closest('th,td'):null;
+}
+function tblInsRow(){
+  var tbl=inTable(); if(!tbl)return;
+  var tr=selTr();
+  var nr=tr.cloneNode(true);
+  nr.querySelectorAll('th,td').forEach(function(c){c.textContent=''});
+  tr.parentNode.insertBefore(nr,tr.nextSibling);
+  onPaperInput();
+}
+function tblDelRow(){
+  var tbl=inTable(); if(!tbl)return;
+  var body=tbl.querySelector('tbody')||tbl;
+  if(body.querySelectorAll('tr').length<=1)return;
+  var tr=selTr();
+  if(tr)tr.parentNode.removeChild(tr);
+  onPaperInput();
+}
+function tblInsCol(){
+  var tbl=inTable(); if(!tbl)return;
+  var ref=selCell();
+  tbl.querySelectorAll('tr').forEach(function(tr){
+    var cell=document.createElement('td');
+    if(ref&&tr.contains(ref))cell=document.createElement(ref.tagName);
+    tr.insertBefore(cell,tr.lastElementChild.nextSibling);
+  });
+  onPaperInput();
+}
+function tblDelCol(){
+  var tbl=inTable(); if(!tbl)return;
+  var ref=selCell();
+  var idx=ref?Array.prototype.indexOf.call(ref.parentNode.children,ref):0;
+  var rows=tbl.querySelectorAll('tr');
+  var cols=rows[0].querySelectorAll('th,td').length;
+  if(cols<=1)return;
+  rows.forEach(function(tr){ var c=tr.children[idx]; if(c)tr.removeChild(c) });
+  onPaperInput();
+}
+
+// ═══ 浮动迷你工具栏 ═══
+var mbTimer=null;
+document.addEventListener('selectionchange',function(){
+  if(mbTimer)clearTimeout(mbTimer);
+  mbTimer=setTimeout(updateMinibar,140);
+});
+function updateMinibar(){
+  var mb=document.getElementById('minibar');
+  if(!mb)return;
+  var sel=window.getSelection();
+  var show=inDisplayMode()&&sel.rangeCount&&!sel.isCollapsed;
+  if(!show){mb.style.display='none';return}
+  var r=sel.getRangeAt(0);
+  var node=r.startContainer;
+  var inPaper=node.nodeType===1?(node.closest?node.closest('.paper'):null):(node.parentElement&&node.parentElement.closest('.paper'));
+  if(!inPaper){mb.style.display='none';return}
+  var rect=r.getBoundingClientRect();
+  if(!rect||(!rect.width&&!rect.height)){mb.style.display='none';return}
+  var tbl=(node.nodeType===1?node:node.parentElement).closest('table');
+  document.getElementById('mb-table').style.display=tbl?'flex':'none';
+  mb.style.display='flex';
+  var x=Math.max(8,Math.min(rect.left,window.innerWidth-280));
+  var y=rect.top-(tbl?96:44);
+  if(y<140)y=rect.bottom+8;
+  mb.style.left=x+'px';
+  mb.style.top=y+'px';
+}
+// 光标位置跟踪(状态栏)
+var posTimer=null;
+document.addEventListener('selectionchange',function(){
+  if(posTimer)clearTimeout(posTimer);
+  posTimer=setTimeout(updateCaretPos,150);
+});
+function updateCaretPos(){
+  var el=document.getElementById('st-pos');
+  if(!el)return;
+  var c=saveCaret();
+  if(!c){el.textContent='—';return}
+  var blk=document.querySelector('#display-pane [data-bid="'+c.bid+'"]');
+  var page=1;
+  if(blk){
+    var sheets=document.querySelectorAll('#display-pane .sheet');
+    for(var i=0;i<sheets.length;i++){
+      if(sheets[i].contains(blk)){page=i+1;break}
+    }
+  }
+  var line=c.bid, col=c.off+1;
+  for(var j=0;j<gNodes.length;j++){ if(gNodes[j].bid==c.bid){line=gNodes[j].srcStart+1;break} }
+  el.textContent='第 '+page+' 页 · 行 '+line+', 列 '+col;
+}
+
+// ═══ 诊断(核心 JSON 注入 + 独立运行迷你检查)═══
+var CORE_DIAGS=(typeof DOC_DATA!=='undefined'&&DOC_DATA&&DOC_DATA.diags)||[];
+function quickDiags(src){
+  var out=[],lines=src.split('\n');
+  var tOpen=0,cOpen=0;
+  for(var i=0;i<lines.length;i++){
+    var t=lines[i];
+    if(t.indexOf('@[table')===0)tOpen++;
+    if(t.indexOf('@[/table]')>=0)tOpen--;
+    if(t.indexOf('@[comment')===0&&t.indexOf('@[/comment]')<0)cOpen++;
+    if(t.indexOf('@[/comment]')>=0)cOpen--;
+    var m=t.match(/^@\[([a-z-]+)[\s\]]/i);
+    if(m){
+      var known='table,figure,image,comment,link,footnote,toc,first-line,page,margin,font,size,line-spacing,theme,toc,numbering,u,color,mark,sup,sub,label,ref,cell,b,bold,m,math,c,code'.split(',');
+      if(known.indexOf(m[1].toLowerCase())<0)out.push({sev:'warn',msg:'未识别的命令: @['+m[1],line:i+1});
+    }
+  }
+  if(tOpen>0)out.push({sev:'err',msg:'表格 @[table] 缺少 @[/table] 收尾',line:lines.length});
+  if(cOpen>0)out.push({sev:'err',msg:'批注 @[comment] 缺少 @[/comment] 收尾',line:lines.length});
+  return out;
+}
+function allDiags(){
+  if(CORE_DIAGS.length)return CORE_DIAGS;
+  return quickDiags(gSrc);
+}
+function updateDiagBar(){
+  var ds=allDiags();
+  var errs=ds.filter(function(d){return d.sev==='err'}).length;
+  var warns=ds.length-errs;
+  var el=document.getElementById('st-diag');
+  if(!el)return;
+  if(!ds.length){el.textContent='诊断 ✓';el.style.background='transparent'}
+  else{el.textContent='诊断 '+errs+' 错误 '+warns+' 警告';el.style.background=errs?'#a33d2f':'#8a6d1a'}
+  window._diagList=ds;
+}
+function toggleDiagPop(){
+  var pop=document.getElementById('diagpop');
+  if(!pop)return;
+  if(pop.style.display==='block'){pop.style.display='none';return}
+  var ds=window._diagList||[];
+  pop.innerHTML=ds.length?ds.map(function(d){
+    return '<div class="dline" onclick="gotoLine('+d.line+')"><span class="diag-'+d.sev+'">'+(d.sev==='err'?'错误':'警告')+'</span> 第 '+d.line+' 行 — '+(d.msg||'')+'</div>';
+  }).join(''):'<div style="color:#4a8a4a">没有诊断问题</div>';
+  pop.style.display='block';
+}
+function gotoLine(n){
+  var ta=document.getElementById('syntax-src');
+  if(!ta)return;
+  setMode('syntax');
+  var pos=0,lines=gSrc.split('\n');
+  for(var i=0;i<Math.min(n-1,lines.length);i++)pos+=lines[i].length+1;
+  ta.focus();
+  ta.setSelectionRange(pos,pos+(lines[n-1]?lines[n-1].length:0));
+}
+
 // ═══ Word 式色板:固定颜色 + 自选 ═══
 var curFore='#c0392b', curMark='#fff176';
 var PAL_MAIN=['#000000','#404040','#808080','#bfbfbf','#ffffff','#c00000','#ff0000','#ffc000','#ffff00','#92d050',
@@ -973,24 +1211,60 @@ function toggleFind(){
 function closeFind(){
   document.querySelector('[data-page="findbar"]').style.display='none';
 }
+function findIdxOf(src,q,from){
+  var cs=document.getElementById('cb-case')&&document.getElementById('cb-case').checked;
+  if(cs)return src.indexOf(q,from);
+  return src.toLowerCase().indexOf(q.toLowerCase(),from);
+}
+function cs0(){return document.getElementById('cb-case')&&document.getElementById('cb-case').checked}
 function findCount(){
   var q=document.getElementById('findbox').value;
   var msg=document.getElementById('findmsg');
+  highlightAll(q);
   if(!q){msg.textContent='';return}
   var n=0,i=0;
-  while((i=gSrc.indexOf(q,i))>=0){n++;i+=q.length}
+  while((i=findIdxOf(gSrc,q,i))>=0){n++;i+=q.length}
   msg.textContent=n?'找到 '+n+' 处':'未找到';
+}
+function highlightAll(q){
+  if(!(window.CSS&&CSS.highlights))return;
+  CSS.highlights.delete('findhit');
+  if(!q||!inDisplayMode())return;
+  var ranges=[];
+  document.querySelectorAll('#display-pane .paper').forEach(function(paper){
+    var walker=document.createTreeWalker(paper,NodeFilter.SHOW_TEXT),node;
+    var texts=[],nodes=[];
+    while((node=walker.nextNode())){nodes.push(node);texts.push(node.textContent)}
+    var hay=texts.join('');
+    var needle=cs0()?q:q.toLowerCase();
+    if(!cs0())hay=hay.toLowerCase();
+    var starts=[],pos=0;
+    while((pos=hay.indexOf(needle,pos))>=0){starts.push(pos);pos+=needle.length}
+    if(!starts.length)return;
+    var bounds=[],acc=0;
+    nodes.forEach(function(n){bounds.push([acc,acc+n.length]);acc+=n.length});
+    starts.forEach(function(st){
+      var en=st+q.length;
+      var r1=null,r2=null;
+      for(var i=0;i<nodes.length;i++){
+        if(st>=bounds[i][0]&&st<bounds[i][1])r1={n:nodes[i],o:st-bounds[i][0]};
+        if(en>bounds[i][0]&&en<=bounds[i][1])r2={n:nodes[i],o:en-bounds[i][0]};
+      }
+      if(r1&&r2){var rg=document.createRange();rg.setStart(r1.n,r1.o);rg.setEnd(r2.n,r2.o);ranges.push(rg)}
+    });
+  });
+  if(ranges.length){try{CSS.highlights.set('findhit',new Highlight(ranges))}catch(e){}}
 }
 function findNext(){
   var q=document.getElementById('findbox').value;
   if(!q)return;
   if(inDisplayMode()){
-    if(!window.find(q))document.getElementById('findmsg').textContent='已到结尾';
+    if(!window.find(q,cs0()))document.getElementById('findmsg').textContent='已到结尾';
   }else{
     var ta=document.getElementById('syntax-src');
     var from=ta.selectionEnd;
-    var i=gSrc.indexOf(q,from);
-    if(i<0)i=gSrc.indexOf(q,0);
+    var i=findIdxOf(gSrc,q,from);
+    if(i<0)i=findIdxOf(gSrc,q,0);
     if(i>=0){ta.focus();ta.setSelectionRange(i,i+q.length)}
   }
 }
@@ -1017,9 +1291,17 @@ function replaceAll(){
   var q=document.getElementById('findbox').value;
   var r=document.getElementById('replacebox').value;
   if(!q)return;
-  var n=0,i=0,src=gSrc;
-  while((i=src.indexOf(q,i))>=0){n++;src=src.substring(0,i)+r+src.substring(i+q.length);i+=r.length}
-  if(n)setSrc(src);
+  var cs=cs0();
+  var hay=cs?gSrc:gSrc.toLowerCase(),needle=cs?q:q.toLowerCase();
+  var n=0,i=0,out='';
+  while(i<hay.length){
+    var j=hay.indexOf(needle,i);
+    if(j<0){out+=gSrc.substring(i);break}
+    out+=gSrc.substring(i,j)+r;
+    i=j+q.length;n++;
+  }
+  if(n)setSrc(out);
+  highlightAll(q);
   document.getElementById('findmsg').textContent='已替换 '+n+' 处';
 }
 
@@ -1032,14 +1314,38 @@ function applyPaper(v){
   render(gSrc);
 }
 function applyMargin(v){
+  if(v==='custom'){
+    var inp=document.getElementById('margin-custom');
+    inp.style.display='block'; inp.focus();
+    return;
+  }
   MARGIN=parseFloat(v)||20;
   recalcPage();
   render(gSrc);
 }
+function applyMarginCustom(v){
+  var x=parseFloat(v);
+  if(x>=5&&x<=60){ MARGIN=x; recalcPage(); render(gSrc) }
+}
 function applyLineSpacing(v){
+  if(v==='custom'){
+    var inp=document.getElementById('linesp-custom');
+    inp.style.display='block'; inp.focus();
+    return;
+  }
   LINE_H=parseFloat(v)||1.9;
   recalcPage();
   render(gSrc);
+}
+function applyLineSpacingCustom(v){
+  var x=parseFloat(v);
+  if(x>=1&&x<=4){ LINE_H=x; recalcPage(); render(gSrc) }
+}
+function toggleOrientation(){
+  var t=PAGE_W; PAGE_W=PAGE_H; PAGE_H=t;
+  recalcPage();
+  render(gSrc);
+  document.getElementById('btn-orient').textContent=PAGE_W>PAGE_H?'横向':'纵向';
 }
 
 // ═══ 首行缩进开关(@[first-line 2em] 文档级)═══
@@ -1066,7 +1372,7 @@ function download(name,mime,content){
   a.click();
 }
 function exportFile(kind){
-  if(kind==='txt'){download('document.txt','text/plain;charset=utf-8',gSrc);return}
+  if(kind==='txt'){saveWithPicker(fname('txt'),'text/plain;charset=utf-8',gSrc);return}
   if(kind==='md'){
     var out=[],lines=gSrc.split('\n');
     for(var i=0;i<lines.length;i++){
@@ -1080,7 +1386,7 @@ function exportFile(kind){
       t=t.replace(/@\[u\]((?:.|])*?)@\[\/u\]/g,'<u>$1</u>');
       out.push(t);
     }
-    download('document.md','text/markdown;charset=utf-8',out.join('\n'));
+    saveWithPicker(fname('md'),'text/markdown;charset=utf-8',out.join('\n'));
     return;
   }
   if(kind==='html'||kind==='doc'){
@@ -1098,8 +1404,8 @@ function exportFile(kind){
       +'th,td{border:1px solid #d0d2d5;padding:4px 8px;text-align:left}th{background:#f5f5f6}'
       +'.docset{color:#c8cad0;font-size:8pt}.comment-src{background:#fffbe8;color:#b09a3e;font-size:9pt}'
       +'</style></head><body>'+body+'</body></html>';
-    if(kind==='html')download('document.html','text/html;charset=utf-8',html);
-    else download('document.doc','application/msword;charset=utf-8',html);
+    if(kind==='html')saveWithPicker(fname('html'),'text/html;charset=utf-8',html);
+    else saveWithPicker(fname('doc'),'application/msword;charset=utf-8',html);
   }
 }
 function doPrint(){window.print()}
@@ -1153,14 +1459,26 @@ function wrapSyntax(open,close){
 
 // ═══ 撤销/重做 ═══
 var hist=[],histIdx=-1,histTime=0;
+var docDirty=false;
 function recordHist(text,merge){
   var now=Date.now();
-  if(merge&&histIdx>=0&&now-histTime<500){ hist[histIdx]=text; histTime=now; return }
+  if(merge&&histIdx>=0&&now-histTime<500){ hist[histIdx]=text; histTime=now; markDirty(); return }
   hist=hist.slice(0,histIdx+1);
   hist.push(text);
   if(hist.length>300)hist.shift();
   histIdx=hist.length-1;
   histTime=now;
+  markDirty();
+}
+function markDirty(){
+  docDirty=true;
+  updateTitle();
+  updateUndoButtons();
+  updateDiagBar();
+}
+function updateUndoButtons(){
+  document.querySelectorAll('button[onclick="doUndo()"]').forEach(function(b){b.disabled=histIdx<=0});
+  document.querySelectorAll('button[onclick="doRedo()"]').forEach(function(b){b.disabled=histIdx>=hist.length-1});
 }
 function doUndo(){
   if(histIdx<=0)return;
@@ -1222,13 +1540,72 @@ window.addEventListener('resize',function(){ applyZoom(document.getElementById('
 document.getElementById('display-pane').addEventListener('input',onPaperInput);
 document.getElementById('display-pane').addEventListener('keydown',onPaperKey);
 
+function fname(ext){
+  var n=(document.getElementById('docname').value||'未命名文档').replace(/[\\/:*?"<>|]/g,'_').trim()||'未命名文档';
+  var e=document.getElementById('export-name');
+  if(ext!=='awen'&&e&&e.value.trim())n=e.value.trim().replace(/[\\/:*?"<>|]/g,'_');
+  return n+'.'+ext;
+}
+function saveWithPicker(name,mime,content){
+  if(window.showSaveFilePicker){
+    var ext=name.split('.').pop();
+    var acc={}; acc[mime]=['.'+ext];
+    window.showSaveFilePicker({suggestedName:name,types:[{description:ext.toUpperCase()+' 文件',accept:acc}]})
+      .then(function(h){ return h.createWritable().then(function(w){ return w.write(new Blob([content],{type:mime})) }).then(function(w){ return w.close() }) })
+      .then(function(){ markClean() })
+      .catch(function(e){ if(e&&e.name==='AbortError')return; download(name,mime,content); markClean() });
+  }else{
+    download(name,mime,content);
+    markClean();
+  }
+}
+function markClean(){ docDirty=false; updateTitle() }
+function updateTitle(){
+  var inp=document.getElementById('docname');
+  var n=inp.value||'未命名文档';
+  var dm=document.getElementById('dirty-mark');
+  if(dm)dm.style.display=docDirty?'inline':'none';
+  if(document.activeElement!==inp)inp.value=n;
+}
 function doSave(){
-  var blob=new Blob([gSrc],{type:'text/plain;charset=utf-8'});
-  var a=document.createElement('a');
-  a.href=URL.createObjectURL(blob);
-  a.download='document.awen.txt';
-  a.click();
-  document.getElementById('docname').textContent='未命名文档 · 已保存';
+  var header='# awen v0.4\n# ---\n';
+  saveWithPicker(fname('awen.txt'),'text/plain;charset=utf-8',header+gSrc);
+  markClean();
+}
+function newDoc(){
+  if(docDirty&&!window.confirm('当前文档未保存,确定新建?'))return;
+  document.getElementById('docname').value='未命名文档';
+  setSrc('# 未命名文档\n\n');
+  markClean();
+}
+var fileInput=null;
+function openFileClick(){
+  if(!fileInput){
+    fileInput=document.createElement('input');
+    fileInput.type='file';
+    fileInput.accept='.awen,.txt,.md,.markdown';
+    fileInput.style.display='none';
+    document.body.appendChild(fileInput);
+    fileInput.addEventListener('change',onOpenFile);
+  }
+  fileInput.click();
+}
+function onOpenFile(e){
+  var f=e.target.files[0];
+  if(!f)return;
+  var rd=new FileReader();
+  rd.onload=function(){
+    var text=String(rd.result);
+    if(text.indexOf('# awen v')===0){
+      var sep=text.indexOf('# ---');
+      if(sep>=0){ var nl=text.indexOf('\n',sep); text=text.substring(nl+1) }
+    }
+    document.getElementById('docname').value=f.name.replace(/\.(awen(\.txt)?|txt|md|markdown)$/i,'');
+    setSrc(text);
+    markClean();
+  };
+  rd.readAsText(f,'utf-8');
+  e.target.value='';
 }
 function caretBlock(){
   var s=window.getSelection();
@@ -1269,6 +1646,56 @@ function showRibbon(page){
   document.querySelectorAll('.ribbon-page').forEach(function(p){p.classList.toggle('active',p.dataset.page===page)});
 }
 
+// ═══ 全局快捷键(对照 Word)═══
+document.addEventListener('keydown',function(e){
+  var mod=e.ctrlKey||e.metaKey;
+  if(!mod)return;
+  var k=(e.key||'').toLowerCase();
+  if(k==='f'){e.preventDefault();toggleFind();return}
+  if(k==='h'){e.preventDefault();toggleFind();var rb=document.getElementById('replacebox');if(rb)rb.focus();return}
+  if(k==='p'){e.preventDefault();doPrint();return}
+  if(k==='s'){e.preventDefault();doSave();return}
+  if(k==='e'){e.preventDefault();if(inDisplayMode()){document.execCommand('justifyCenter');onPaperInput()}return}
+  if(k==='l'){e.preventDefault();if(inDisplayMode()){document.execCommand('justifyLeft');onPaperInput()}return}
+  if(k==='r'&&!e.shiftKey){e.preventDefault();if(inDisplayMode()){document.execCommand('justifyRight');onPaperInput()}return}
+  if(k==='j'){e.preventDefault();if(inDisplayMode()){document.execCommand('justifyFull');onPaperInput()}return}
+});
+
+// ═══ 大纲滚动高亮跟随 ═══
+var spyTimer=null;
+document.getElementById('display-pane').addEventListener('scroll',function(){
+  document.getElementById('minibar').style.display='none';
+  if(spyTimer)clearTimeout(spyTimer);
+  spyTimer=setTimeout(spyOutline,160);
+});
+function spyOutline(){
+  var heads=document.querySelectorAll('#display-pane [data-kind="heading"]');
+  var pane=document.getElementById('display-pane');
+  var top=pane.getBoundingClientRect().top;
+  var cur=null;
+  heads.forEach(function(h){
+    var r=h.getBoundingClientRect();
+    if(r.top-top<=120)cur=h;
+  });
+  document.querySelectorAll('.outline-item').forEach(function(o){o.classList.remove('active')});
+  if(cur){
+    var bid=cur.dataset.bid;
+    document.querySelectorAll('.outline-item').forEach(function(o){
+      if(o.dataset.bid==bid)o.classList.add('active');
+    });
+  }
+}
+// 大纲条目记录对应 bid(渲染时)
+var _oldRenderOutline=renderOutline;
+renderOutline=function(){
+  _oldRenderOutline();
+  document.querySelectorAll('.outline-item').forEach(function(o,i){
+    var heads=gNodes.filter(function(n){return n.kind==='heading'});
+    if(heads[i])o.dataset.bid=heads[i].bid;
+  });
+  spyOutline();
+};
+
 // ═══ 初始化 ═══
 (function init(){
   document.querySelectorAll('[data-icon]').forEach(function(el){
@@ -1283,6 +1710,10 @@ function showRibbon(page){
   if(norm!==src){ render(norm); recordHist(norm,false); }
   recordHist(gSrc,false);
   if(gSrc.indexOf('@[first-line')>=0){ var b=document.getElementById('btn-firstline'); if(b)b.classList.add('on') }
+  docDirty=false; updateTitle(); updateUndoButtons(); updateDiagBar();
+  document.getElementById('docname').addEventListener('input',updateTitle);
+  var en=document.getElementById('export-name');
+  if(en)en.addEventListener('input',function(){en.dataset.touched='1'});
 })();
 </script>
 </body>
