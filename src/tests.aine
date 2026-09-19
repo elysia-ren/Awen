@@ -27,6 +27,7 @@ module fmt;
 module export_md;
 module seed;
 module incremental_update;
+module json_export;
 module undo;
 module layout_width;
 module inline_edit;
