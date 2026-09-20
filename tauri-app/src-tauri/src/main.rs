@@ -28,6 +28,10 @@ const CREATE_NO_WINDOW: u32 = 0x0800_0000;
 
 struct AineLock(Arc<Mutex<()>>);
 
+/// 启动参数里的文件路径:setup 阶段前端尚未就绪无法 emit,先暂存,
+/// 前端初始化完成后经 core_take_pending_paths 主动拉取
+struct PendingPaths(Mutex<Vec<String>>);
+
 /// 定位 aine 运行时目录:环境变量覆盖 → 打包资源 aine-runtime/
 /// (tauri 以相对路径保留 resources/ 前缀:dev 在 target/<mode>/resources/,
 ///  安装后在 <install>/resources/;两处都探测)
@@ -245,6 +249,13 @@ fn forward_paths(app: &AppHandle, paths: &[String]) {
     }
 }
 
+/// 前端就绪后拉取启动参数中暂存的文件路径(取出即清空)
+#[tauri::command]
+fn core_take_pending_paths(state: State<'_, PendingPaths>) -> Vec<String> {
+    let mut g = state.0.lock().unwrap_or_else(|e| e.into_inner());
+    std::mem::take(&mut *g)
+}
+
 fn main() {
     tauri::Builder::default()
         .plugin(tauri_plugin_dialog::init())
@@ -253,20 +264,14 @@ fn main() {
             forward_paths(app, &paths);
         }))
         .manage(AineLock(Arc::new(Mutex::new(()))))
-        .setup(|app| {
-            // 本实例自身的命令行参数(双击文件/拖到 exe 上启动)
-            let args: Vec<String> = std::env::args().collect();
-            if args.len() > 1 {
-                forward_paths(app.handle(), &args[1..].to_vec());
-            }
-            Ok(())
-        })
+        .manage(PendingPaths(Mutex::new(std::env::args().skip(1).collect())))
         .invoke_handler(tauri::generate_handler![
             core_parse,
             core_open_dialog,
             core_save_dialog,
             core_read_file,
-            core_save_file
+            core_save_file,
+            core_take_pending_paths
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

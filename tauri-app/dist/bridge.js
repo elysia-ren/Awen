@@ -115,6 +115,20 @@ window.Bridge={
   listenOpenPath:function(cb){
     if(!tauri||!tauri.event||!tauri.event.listen)return;
     tauri.event.listen('awen-open-path',function(ev){ cb(String(ev.payload)); });
+  },
+
+  // 拉取本实例启动参数中暂存的文件路径(setup 阶段事件会丢,主动取一次)
+  takePendingPaths:function(){
+    if(!tauri)return Promise.resolve([]);
+    return tauri.core.invoke('core_take_pending_paths').catch(function(){return []});
+  },
+
+  // 按路径直接读取文件(桌面版最近文件)
+  openPath:function(path){
+    if(!tauri)return Promise.resolve(null);
+    return tauri.core.invoke('core_read_file',{path:path}).then(function(res){
+      return {name:res.name,src:res.src,path:res.path||null};
+    });
   }
 };
 

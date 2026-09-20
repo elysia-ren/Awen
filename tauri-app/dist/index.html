@@ -2237,10 +2237,12 @@ renderOutline=function(){
   });
   // 桌面版:初始化后立即用原生引擎刷新诊断并做权威初渲染
   if(Bridge.native){ refreshNativeDiags(); adoptNativeBlocks(); }
-  // 单实例/命令行转发的打开请求(桌面版)
-  Bridge.listenOpenPath(function(path){
-    Bridge.openPath(path).then(function(res){ if(res)openDocument(res) });
-  });
+  // 单实例/命令行转发的打开请求(桌面版):先拉启动参数暂存,再监听后续转发
+  function openByPath(path){ Bridge.openPath(path).then(function(res){ if(res)openDocument(res) }) }
+  if(Bridge.native){
+    Bridge.takePendingPaths().then(function(paths){ (paths||[]).forEach(openByPath) });
+    Bridge.listenOpenPath(openByPath);
+  }
 })();
 </script>
 </body>
