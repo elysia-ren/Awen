@@ -18,8 +18,9 @@
 (function(){
 'use strict';
 
-// ── 页面模型状态(§30 A4 默认;UI 经 setConfig 修改)──
-var cfg={PAGE_W:210,PAGE_H:297,MARGIN:20,LINE_H:1.9,FONT_PT:11,PT2MM:0.352778};
+// ── 页面模型状态(§30 A4 默认;文档级 @[...] 设置经 applyDocsets 覆盖)──
+var cfg={PAGE_W:210,PAGE_H:297,MARGIN:20,LINE_H:1.9,FONT_PT:11,PT2MM:0.352778,FONT:'',FIRSTLINE:''};
+var PAPER_SIZES={A4:[210,297],Letter:[215.9,279.4],B5:[176,250],A3:[297,420],A5:[148,210]};
 var CHAR_MM,CONTENT_W,CONTENT_H,MAX_EM,LINE_MM,LINES_PER_PAGE;
 function recalc(){
   CHAR_MM=cfg.FONT_PT*cfg.PT2MM;
@@ -29,6 +30,25 @@ function recalc(){
   LINES_PER_PAGE=Math.floor(CONTENT_H/LINE_MM);
 }
 recalc();
+
+// 文档级设置生效:遍历 docset 节点,按源码顺序覆盖配置(源码即权威)。
+// 每次先重置默认——源码里没有对应行时,设置回落默认值。
+function applyDocsets(nodes){
+  var m;
+  cfg.PAGE_W=210; cfg.PAGE_H=297; cfg.MARGIN=20; cfg.LINE_H=1.9;
+  cfg.FONT_PT=11; cfg.FONT=''; cfg.FIRSTLINE='';
+  for(var i=0;i<nodes.length;i++){
+    if(nodes[i].kind!=='docset')continue;
+    var t=nodes[i].text||'';
+    if(m=t.match(/^@\[page\s+(\w+)\s*\]/)){ var sz=PAPER_SIZES[m[1]]; if(sz){cfg.PAGE_W=sz[0];cfg.PAGE_H=sz[1]} }
+    else if(m=t.match(/^@\[margin\s+([\d.]+)\s*(?:mm)?\s*\]/)){ cfg.MARGIN=parseFloat(m[1]) }
+    else if(m=t.match(/^@\[line-spacing\s+([\d.]+)\s*\]/)){ cfg.LINE_H=parseFloat(m[1]) }
+    else if(m=t.match(/^@\[size\s+([\d.]+)\s*(?:pt)?\s*\]/)){ cfg.FONT_PT=parseFloat(m[1]) }
+    else if(m=t.match(/^@\[font\s+"([^"]+)"\s*\]/)){ cfg.FONT=m[1] }
+    else if(m=t.match(/^@\[first-line\s+([\d.]+em)\s*\]/)){ cfg.FIRSTLINE=m[1] }
+  }
+  recalc();
+}
 
 // ── 断行度量(镜像 layout_width.aine)──
 function isIdeo(c){return /[\u3400-\u4DBF\u4E00-\u9FFF]/.test(c)}
@@ -274,8 +294,14 @@ function miniParse(src){
       }
       // 未找到收尾行 → 视为 doc 级设置,落入 docset 分支
     }
+    if(/^@\[toc/.test(t)){
+      // 目录块:渲染期由标题节点生成(深度取 depth 参数),序列化原样回写
+      flush(i);
+      nodes.push({kind:'toc',text:t,srcStart:i,srcEnd:i+1});
+      continue;
+    }
     if(/^@\[image/.test(t)){ flush(i); nodes.push({kind:'obj',text:t,srcStart:i,srcEnd:i+1}); continue }
-    if(/^@\[(page|margin|font|size|line-spacing|first-line|theme|toc|numbering)\s/.test(t)){
+    if(/^@\[(page|margin|font|size|line-spacing|first-line|theme|numbering)\s/.test(t)){
       flush(i); nodes.push({kind:'docset',text:t,srcStart:i,srcEnd:i+1}); continue;
     }
     if(!para)para={kind:'para',text:'',srcStart:i};
@@ -325,9 +351,11 @@ function ingestNative(blocks,src){
       b.text=raw.filter(function(l){return l.trim()!=='@[m]'&&l.trim()!=='@[math]'&&l.trim()!=='@[/m]'&&l.trim()!=='@[/math]'}).join('\n');
     }else{
       // obj/comment/docset/label/ref/hr/scope:整段原文保真
-      // native 不区分 docset/label/ref(obj 大类),按内容前缀再分类
+      // native 不区分 docset/label/ref/toc(obj 大类),按内容前缀再分类
       var one=(nb.text||'').split('\n')[0].trim();
-      if(/^@\[(page|margin|font|size|line-spacing|first-line|theme|toc|numbering)\s/.test(one)){
+      if(/^@\[toc/.test(one)){
+        b.kind='toc'; b.text=one;
+      }else if(/^@\[(page|margin|font|size|line-spacing|first-line|theme|numbering)\s/.test(one)){
         b.kind='docset'; b.text=one;
       }else if(/^@\[label\s/.test(one)){
         b.kind='label'; b.text=one.replace(/^@\[label\s+/,'').replace(/\]$/,'');
@@ -578,6 +606,23 @@ function serializeBlockEl(el){
     // 多行对象(figure 等)整段保真
     el.dataset.raw.split('\n').forEach(function(l){lines.push(l)});
   }
+  else if(kind==='code'||kind==='math'){
+    // Raw 块:内容行从 dataset.raw 保真,定界符按类型重建(语言/数学)
+    var raw=(el.dataset.raw!==undefined?el.dataset.raw:el.textContent).split('\n');
+    if(kind==='math'){
+      lines.push('@[m]');
+      raw.forEach(function(l){lines.push(l)});
+      lines.push('@[/m]');
+    }else{
+      lines.push(el.dataset.lang?'@[c '+el.dataset.lang+']':'@[c]');
+      raw.forEach(function(l){lines.push(l)});
+      lines.push('@[/c]');
+    }
+  }
+  else if(kind==='toc'){
+    // 目录块原样回写
+    lines.push(el.dataset.raw||el.textContent.trim());
+  }
   else if(kind==='label'||kind==='ref'){
     // 块级 label/ref:渲染时把原始参数存入 data-raw,原样回写
     lines.push('@['+kind+' '+(el.dataset.raw||'')+']');
@@ -702,7 +747,9 @@ function quickDiags(src){
 window.AwenEngine={
   // 配置
   getConfig:function(){return cfg},
+  PAPER_SIZES:PAPER_SIZES,
   setPage:function(o){ if('PAGE_W'in o)cfg.PAGE_W=o.PAGE_W; if('PAGE_H'in o)cfg.PAGE_H=o.PAGE_H; if('MARGIN'in o)cfg.MARGIN=o.MARGIN; if('LINE_H'in o)cfg.LINE_H=o.LINE_H; recalc() },
+  applyDocsets:applyDocsets,
   // 解析
   parse:miniParse,
   ingestNative:ingestNative,

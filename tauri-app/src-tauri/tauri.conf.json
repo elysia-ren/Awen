@@ -34,6 +34,13 @@
     "resources": [
       "resources/aine-runtime"
     ],
+    "fileAssociations": [
+      {
+        "name": "Awen 文档",
+        "ext": ["awen"],
+        "description": "Awen 文档格式(v0.4)"
+      }
+    ],
     "copyright": "© 2026 Awen",
     "shortDescription": "Awen 文档编辑器",
     "longDescription": "Awen 文档格式编辑器——支持所见即所得编辑、语法视图、分屏对照、多文件管理、导出 Markdown/HTML/Word。"

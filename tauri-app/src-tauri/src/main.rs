@@ -4,6 +4,10 @@
 // src/tauri_cli.aine(读 build/cli_in.awen,写 build/cli_out.json)。
 // aine 运行时(aine.exe + aine.toml + src/)随应用打包为资源目录
 // aine-runtime/;开发期可用环境变量 AWEN_AINE_DIR 直接指向仓库根。
+// spawn 必须带 CREATE_NO_WINDOW,否则每次解析闪黑窗(aine.exe 是控制台程序)。
+//
+// 单实例 + 文件关联:二次启动/双击 .awen 时,文件路径经 awen-open-path 事件
+// 转发给已有窗口,由前端加标签(桥:Bridge.listenOpenPath)。
 //
 // aine_cli 路径约定见 src/tauri_cli.aine 头注释;并发由 AineLock 串行化。
 
@@ -14,8 +18,13 @@ use std::path::PathBuf;
 use std::process::Command;
 use std::sync::{Arc, Mutex};
 
-use tauri::{AppHandle, Manager, State};
+use tauri::{AppHandle, Emitter, Manager, State};
 use tauri_plugin_dialog::DialogExt;
+
+#[cfg(windows)]
+use std::os::windows::process::CommandExt;
+
+const CREATE_NO_WINDOW: u32 = 0x0800_0000;
 
 struct AineLock(Arc<Mutex<()>>);
 
@@ -50,9 +59,11 @@ fn run_core_parse(app: &AppHandle, lock: &Mutex<()>, src: &str) -> Result<String
     fs::write(build.join("cli_in.awen"), src).map_err(|e| format!("写入 cli_in.awen 失败:{e}"))?;
 
     let _g = lock.lock().map_err(|_| "内部锁中毒".to_string())?;
-    let out = Command::new(&exe)
-        .args(["run", "src/tauri_cli.aine"])
-        .current_dir(&dir)
+    let mut cmd = Command::new(&exe);
+    cmd.args(["run", "src/tauri_cli.aine"]).current_dir(&dir);
+    #[cfg(windows)]
+    cmd.creation_flags(CREATE_NO_WINDOW);
+    let out = cmd
         .output()
         .map_err(|e| format!("启动 aine.exe 失败:{e}"))?;
     if !out.status.success() {
@@ -66,11 +77,9 @@ fn run_core_parse(app: &AppHandle, lock: &Mutex<()>, src: &str) -> Result<String
 #[tauri::command]
 async fn core_parse(app: AppHandle, lock: State<'_, AineLock>, src: String) -> Result<String, String> {
     let lock = lock.0.clone();
-    tauri::async_runtime::spawn_blocking(move || {
-        run_core_parse(&app, &lock, &src)
-    })
-    .await
-    .map_err(|e| format!("任务调度失败:{e}"))?
+    tauri::async_runtime::spawn_blocking(move || run_core_parse(&app, &lock, &src))
+        .await
+        .map_err(|e| format!("任务调度失败:{e}"))?
 }
 
 /// .awen 容器(v0.4)解包:取 "# ---" 分隔行之后的明文源码
@@ -90,6 +99,21 @@ fn unwrap_container(content: String) -> String {
 struct OpenedDoc {
     name: String,
     src: String,
+    path: Option<String>,
+}
+
+fn read_doc_path(path: &str) -> Result<OpenedDoc, String> {
+    let pb = PathBuf::from(path);
+    let name = pb
+        .file_name()
+        .map(|n| n.to_string_lossy().to_string())
+        .unwrap_or_else(|| "未命名文档".into());
+    let content = fs::read_to_string(&pb).map_err(|e| format!("读取失败:{e}"))?;
+    Ok(OpenedDoc {
+        name,
+        src: unwrap_container(content),
+        path: Some(path.to_string()),
+    })
 }
 
 fn pick_and_read(app: &AppHandle) -> Result<Option<OpenedDoc>, String> {
@@ -111,7 +135,15 @@ fn pick_and_read(app: &AppHandle) -> Result<Option<OpenedDoc>, String> {
     Ok(Some(OpenedDoc {
         name,
         src: unwrap_container(content),
+        path: Some(path.to_string_lossy().to_string()),
     }))
+}
+
+#[derive(serde::Serialize)]
+struct OpenedDocPayload {
+    name: String,
+    src: String,
+    path: Option<String>,
 }
 
 #[tauri::command]
@@ -123,60 +155,118 @@ async fn core_open_dialog(app: AppHandle) -> Result<Option<OpenedDocPayload>, St
             opt.map(|d| OpenedDocPayload {
                 name: d.name,
                 src: d.src,
+                path: d.path,
             })
         })
 }
 
+/// 按已知路径直接读取(单实例/最近文件)
+#[tauri::command]
+async fn core_read_file(path: String) -> Result<OpenedDocPayload, String> {
+    tauri::async_runtime::spawn_blocking(move || {
+        read_doc_path(&path).map(|d| OpenedDocPayload {
+            name: d.name,
+            src: d.src,
+            path: d.path,
+        })
+    })
+    .await
+    .map_err(|e| format!("任务调度失败:{e}"))?
+}
+
 #[derive(serde::Serialize)]
-struct OpenedDocPayload {
-    name: String,
-    src: String,
+struct SaveResult {
+    saved: bool,
+    path: Option<String>,
+}
+
+/// 保存对话框(另存为/无名保存):返回是否保存与最终路径
+async fn save_dialog_impl(app: AppHandle, name: String, content: String) -> Result<SaveResult, String> {
+    tauri::async_runtime::spawn_blocking(move || {
+        let suggested = if PathBuf::from(&name).extension().is_some() {
+            name.clone()
+        } else {
+            format!("{name}.awen")
+        };
+        // save_file 为回调 API,用 channel 等待结果(此版本插件无 blocking 变体)
+        let (tx, rx) = std::sync::mpsc::channel();
+        app.dialog()
+            .file()
+            .add_filter("Awen 文档", &["awen", "txt", "md", "html", "doc"])
+            .set_file_name(&suggested)
+            .save_file(move |file| {
+                let _ = tx.send(file);
+            });
+        let file = rx.recv().map_err(|_| "对话框通道关闭".to_string())?;
+        let file = match file {
+            Some(f) => f,
+            None => return Ok(SaveResult { saved: false, path: None }),
+        };
+        let path = file.into_path().map_err(|e| e.to_string())?;
+        fs::write(&path, &content).map_err(|e| format!("写入失败:{e}"))?;
+        Ok(SaveResult {
+            saved: true,
+            path: Some(path.to_string_lossy().to_string()),
+        })
+    })
+    .await
+    .map_err(|e| format!("任务调度失败:{e}"))?
 }
 
 #[tauri::command]
-async fn core_save_dialog(
-    app: AppHandle,
-    name: String,
-    content: String,
-) -> Result<bool, String> {
-    tauri::async_runtime::spawn_blocking(move || pick_and_write(&app, &name, &content))
-        .await
-        .map_err(|e| format!("任务调度失败:{e}"))?
+async fn core_save_dialog(app: AppHandle, name: String, content: String) -> Result<SaveResult, String> {
+    save_dialog_impl(app, name, content).await
 }
 
-fn pick_and_write(app: &AppHandle, name: &str, content: &str) -> Result<bool, String> {
-    let suggested = if PathBuf::from(name).extension().is_some() {
-        name.to_string()
-    } else {
-        format!("{name}.awen")
-    };
-    // save_file 为回调 API,用 channel 等待结果(此版本插件无 blocking 变体)
-    let (tx, rx) = std::sync::mpsc::channel();
-    app.dialog()
-        .file()
-        .add_filter("Awen 文档", &["awen", "txt", "md", "html", "doc"])
-        .set_file_name(&suggested)
-        .save_file(move |file| {
-            let _ = tx.send(file);
-        });
-    let file = rx.recv().map_err(|_| "对话框通道关闭".to_string())?;
-    let file = match file {
-        Some(f) => f,
-        None => return Ok(false),
-    };
-    let path = file.into_path().map_err(|e| e.to_string())?;
-    fs::write(&path, content).map_err(|e| format!("写入失败:{e}"))?;
-    Ok(true)
+/// 已知路径直写(保存不再弹框)
+#[tauri::command]
+async fn core_save_file(app: AppHandle, path: String, content: String) -> Result<bool, String> {
+    tauri::async_runtime::spawn_blocking(move || {
+        let dir = PathBuf::from(&path);
+        if let Some(parent) = dir.parent() {
+            let _ = fs::create_dir_all(parent);
+        }
+        fs::write(&path, content).map_err(|e| format!("写入失败:{e}"))?;
+        Ok(true)
+    })
+    .await
+    .map_err(|e| format!("任务调度失败:{e}"))?
+}
+
+/// 把文件路径转发给前端(前端经 Bridge.listenOpenPath 接收并加标签)
+fn forward_paths(app: &AppHandle, paths: &[String]) {
+    if let Some(win) = app.get_webview_window("main") {
+        for p in paths {
+            let _ = win.emit("awen-open-path", p.clone());
+        }
+        let _ = win.show();
+        let _ = win.unminimize();
+        let _ = win.set_focus();
+    }
 }
 
 fn main() {
     tauri::Builder::default()
         .plugin(tauri_plugin_dialog::init())
+        .plugin(tauri_plugin_single_instance::init(|app, args, _cwd| {
+            let paths: Vec<String> = args.iter().skip(1).cloned().collect();
+            forward_paths(app, &paths);
+        }))
         .manage(AineLock(Arc::new(Mutex::new(()))))
+        .setup(|app| {
+            // 本实例自身的命令行参数(双击文件/拖到 exe 上启动)
+            let args: Vec<String> = std::env::args().collect();
+            if args.len() > 1 {
+                forward_paths(app.handle(), &args[1..].to_vec());
+            }
+            Ok(())
+        })
         .invoke_handler(tauri::generate_handler![
             core_parse,
             core_open_dialog,
-            core_save_dialog
+            core_save_dialog,
+            core_read_file,
+            core_save_file
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
