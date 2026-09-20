@@ -2,6 +2,10 @@
 
 基于 Awen 文档格式的轻量级中文编辑器。支持所见即所得编辑、语法视图、分屏对照、多文件管理、中文排版优化。
 
+## 📖 使用手册
+
+**[在线阅读使用手册](https://elysia-ren.github.io/Awen/manual/)** — 从创建第一篇文档到高级技巧、语法速查、故障排除的完整教程（也可直接打开 [`manual/Awen编辑器使用手册.html`](manual/Awen编辑器使用手册.html)）。
+
 ## 快速开始
 
 双击 `preview/editor.html` 在浏览器中打开即可使用。
