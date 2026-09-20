@@ -1918,6 +1918,7 @@ function onOpenFile(e){
     }
     document.getElementById('docname').value=f.name.replace(/\.(awen(\.txt)?|txt|md|markdown)$/i,'');
     setSrc(text);
+    addFileTab(f.name.replace(/\.(awen(\.txt)?|txt|md|markdown)$/i,''));
     updateTitle();
     markClean();
   };
