@@ -382,7 +382,7 @@ input.docname:focus{outline:none;border-color:var(--accent);background:#fff}
 <button class="sbtn" onclick="tblDelCol()">− 列</button>
 </div>
 </div>
-<div class="statusbar">
+<div class="statusbar" style="gap:10px">
 <span class="item" id="st-diag" style="cursor:pointer" onclick="toggleDiagPop()" title="点击查看诊断详情">诊断 ✓</span>
 <span class="item" id="st-words" style="cursor:pointer" onclick="showWordCount()" title="点击查看字数统计">—</span>
 <span class="item" id="st-labels" style="cursor:pointer" onclick="toggleLabelPop()" title="点击列出全部标签">Label —</span>
@@ -390,10 +390,10 @@ input.docname:focus{outline:none;border-color:var(--accent);background:#fff}
 <span class="item" id="st-pos">第 1 页 · 行 1, 列 1</span>
 <span class="spacer"></span>
 <div class="statuspop" id="diagpop"></div>
-<input type="range" id="zoom-slider" min="50" max="200" value="100" style="width:80px;accent-color:#4b6f8d" oninput="applyZoom(this.value+'%');document.getElementById('sel-zoom').value=String(Math.round(this.value/5)*5/100)||'1'" title="缩放">
 <select id="sel-zoom" style="background:rgba(255,255,255,.15);color:#fff;border:1px solid rgba(255,255,255,.3);border-radius:3px;height:20px;padding:0 4px" onchange="applyZoom(this.value)">
-<option value="0.7">70%</option><option value="0.85">85%</option><option value="1" selected>100%</option><option value="1.25">125%</option><option value="1.5">150%</option>
+<option value="0.7">70%</option><option value="0.85">85%</option><option value="1" selected>100%</option><option value="1.25">125%</option><option value="1.5">150%</option><option value="2">200%</option><option value="custom">自定义…</option>
 </select>
+<input type="number" id="zoom-custom" min="30" max="300" step="5" style="display:none;width:64px;height:20px;border:1px solid #c9cbce;border-radius:3px;font-size:12px" title="缩放百分比 30-300" onchange="applyZoomCustom(this.value)">
 <span class="item" id="st-page">共 — 页</span>
 </div>
 </div>
@@ -404,9 +404,9 @@ var Engine=window.AwenEngine;
 var Bridge=window.Bridge;
 var CFG=Engine.getConfig();
 
-// ═══ 数据通道:generate_preview.aine 将 /*__JSON__*/{} 替换为核心渲染 JSON ═══
+// ═══ 启动即空白新文档:内容来自打开的文件,不内置示例 ═══
 var DOC_DATA = /*__JSON__*/{};
-var DEFAULT_SRC = '# Awen 迷你编辑器\n\n直接在纸面上打字,回车分段,选中文字用工具栏加粗、变色。\n\n## 断行规则\n\n中西文混排加八分之一 em 间距,英文单词不拆断,行首行尾禁则自动调整,连续标点挤压半宽。\n\n---\n\n> 引用示例\n\n- 列表项一\n- 列表项二\n\n@[table demo]\n| 列1 | 列2 |\n| --- | --- |\n| 内容 | 内容 |\n@[/table]\n';
+var DEFAULT_SRC = '# 未命名文档\n\n';
 
 // ═══ 渲染:每张 A4 纸一个整体可编辑区(原生 Enter/Delete)═══
 var gSrc='', gPages=[], gNodes=[];
@@ -1550,9 +1550,31 @@ function fitZoom(base){
   return v;
 }
 function applyZoom(v){
+  if(v==='custom'){
+    var inp=document.getElementById('zoom-custom');
+    inp.style.display='inline-block'; inp.focus();
+    return;
+  }
+  var inp=document.getElementById('zoom-custom');
+  if(inp)inp.style.display='none';
   var z=fitZoom(v);
   document.getElementById('display-pane').style.zoom=z;
   document.getElementById('syntax-pane').style.zoom=z;
+}
+// 自定义缩放百分比:30-300,动态补入下拉档位(避免 select 显示空白)
+function applyZoomCustom(v){
+  var x=parseFloat(v);
+  if(!(x>=30&&x<=300))return;
+  var sel=document.getElementById('sel-zoom');
+  var val=String(Math.round(x)/100);
+  var has=[].some.call(sel.options,function(o){return o.value===val});
+  if(!has){
+    var o=document.createElement('option');
+    o.value=val; o.textContent=Math.round(x)+'%';
+    sel.insertBefore(o,sel.querySelector('option[value="custom"]'));
+  }
+  sel.value=val;
+  applyZoom(val);
 }
 window.addEventListener('resize',function(){ applyZoom(document.getElementById('sel-zoom').value) });
 
@@ -1596,23 +1618,44 @@ function doSave(){
 }
 function newDoc(){
   if(docDirty&&!window.confirm('当前文档未保存,确定新建?'))return;
+  // 多文件模型:新建=新标签;当前已是干净空白文档则复用
+  var cur=openFiles[activeFile];
+  if(cur&&cur.name==='未命名文档'&&!docDirty){
+    document.getElementById('docname').value='未命名文档';
+    setSrc('# 未命名文档\n\n');
+    markClean();
+    return;
+  }
+  if(activeFile>=0){
+    applySyncNow();
+    openFiles[activeFile].src=gSrc;
+    openFiles[activeFile].dirty=docDirty;
+  }
   document.getElementById('docname').value='未命名文档';
   setSrc('# 未命名文档\n\n');
+  addFileTab('未命名文档');
   markClean();
 }
 function openFileClick(){
   Bridge.openDialog().then(function(res){
     if(!res)return;
     var name=res.name.replace(/\.(awen(\.txt)?|txt|md|markdown)$/i,'');
-    // 已有打开的文件:先把当前文件的最新状态写回其标签(否则被覆盖丢失)
+    // 打开前保存当前文件状态;当前是干净空白文档则直接替换该标签(启动→直接开文件的路径)
+    var reuse=false;
     if(activeFile>=0){
       applySyncNow();
-      openFiles[activeFile].src=gSrc;
-      openFiles[activeFile].dirty=docDirty;
+      var cur=openFiles[activeFile];
+      reuse=(cur.name==='未命名文档'&&!docDirty);
+      if(!reuse){ cur.src=gSrc; cur.dirty=docDirty }
     }
     document.getElementById('docname').value=name;
     setSrc(res.src);
-    addFileTab(name);
+    if(reuse){
+      openFiles[activeFile]={name:name,src:gSrc,dirty:false};
+      renderFileTabs();
+    }else{
+      addFileTab(name);
+    }
     updateTitle();
     markClean();
     adoptNativeBlocks();
@@ -1917,8 +1960,10 @@ renderOutline=function(){
   if(DOC_DATA&&DOC_DATA.source)src=DOC_DATA.source;
   buildSyntaxPane();
   setSrc(src);
+  // 多文件模型:启动即有一个空白(或注入)文档标签
+  addFileTab('未命名文档');
   if(gSrc.indexOf('@[first-line')>=0){ var b=document.getElementById('btn-firstline'); if(b)b.classList.add('on') }
-  docDirty=false; updateTitle(); updateUndoButtons(); updateDiagBar(); updateCaretPos();
+  markClean(); updateUndoButtons(); updateDiagBar(); updateCaretPos();
   document.getElementById('docname').addEventListener('input',function(){updateTitle('docname')});
   var en=document.getElementById('export-name');
   if(en)en.addEventListener('input',function(){
