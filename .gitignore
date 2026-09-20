@@ -7,3 +7,5 @@ _*.py
 _*.js
 _doc_b64.txt
 _inject_expr.js
+build/
+tauri-app/src-tauri/resources/

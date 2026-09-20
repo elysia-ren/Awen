@@ -1,0 +1,128 @@
+// core_blocks.aine —— 权威块级解析 JSON(桌面版 Tauri Bridge 数据源)
+//
+// 把 Document State + Source Span(mapping.compute_spans)转成
+// preview/engine.js 的 ingestNative 可直接消费的 blocks JSON。
+//
+// 行区间语义与 engine.js miniParse 对齐:
+//   - srcStart 0 基;srcEnd 半开 [start,end)
+//   - 含块定界行(@[table]…@[/table]、@[c]…@[/c] 等)
+//   - mapping 的 end_line 是闭区间,这里统一 +1 转半开
+//   - list 组按引擎模型展开为逐项记录(引擎每项一个节点)
+//
+// 无 span 的节点跳过(compute_spans 找不到起点时);UI 侧以原生/预览块数
+// 交叉比对暴露分歧。obj 记录保持单行原文,docset/label/ref 的细分由
+// 引擎 ingest 按内容前缀完成(native 不重复实现该分类)。
+
+fn block_rec(kind: String, level: i32, s: i32, e: i32, text: String, lang: String) -> String {
+    var r = "{\"kind\":\"" + kind + "\""
+    r = r + ",\"level\":" + f"{level}"
+    r = r + ",\"srcStart\":" + f"{s}"
+    r = r + ",\"srcEnd\":" + f"{e}"
+    r = r + ",\"text\":\"" + json_escape(text) + "\""
+    r = r + ",\"lang\":\"" + json_escape(lang) + "\"}"
+    return r
+}
+
+// 源码行 [s, e) 以 \n 连接(保真原文,含定界行)
+fn join_span_lines(lines: Vec<String>, s: i32, e: i32) -> String {
+    var out = ""
+    var i = s
+    while i < e {
+        if i > s { out = out + "\n" }
+        out = out + lines[i]
+        i += 1
+    }
+    return out
+}
+
+fn blocks_to_json(state: DocState, src: String) -> String {
+    let spans = compute_spans(state, src)
+    let lines = src.split("\n")
+    var recs: Vec<String> = []
+
+    for node in state.nodes {
+        for sp in spans {
+            if sp.node_id != node.id { continue }
+            let s = sp.start_line
+            let e = sp.end_line + 1
+            let kind = node.kind
+            if kind == "list" {
+                // 列表组 → 逐项记录
+                var i = s
+                while i < e {
+                    let t = lines[i].trim()
+                    if starts_with_at(t, 0, "- ") {
+                        recs = recs.push(block_rec("ul", 0, i, i + 1, lines[i], ""))
+                    } else if is_ordered_item(t) {
+                        recs = recs.push(block_rec("ol", 0, i, i + 1, lines[i], ""))
+                    }
+                    i += 1
+                }
+            } else if kind == "heading" {
+                recs = recs.push(block_rec("heading", node.level, s, e, lines[s], ""))
+            } else if kind == "para" {
+                recs = recs.push(block_rec("para", 0, s, e, join_span_lines(lines, s, e), ""))
+            } else if kind == "quote" {
+                recs = recs.push(block_rec("quote", 0, s, e, join_span_lines(lines, s, e), ""))
+            } else if kind == "hr" {
+                recs = recs.push(block_rec("hr", 0, s, e, lines[s], ""))
+            } else if kind == "table" {
+                recs = recs.push(block_rec("table", 0, s, e, join_span_lines(lines, s, e), ""))
+            } else if kind == "comment" {
+                recs = recs.push(block_rec("comment", 0, s, e, join_span_lines(lines, s, e), ""))
+            } else if kind == "raw" {
+                var lang = ""
+                match node.raw_lang {
+                    Some(l) { lang = l }
+                    None { }
+                }
+                var bkind = "code"
+                if lang == "" {
+                    let f = lines[s].trim()
+                    if starts_with_at(f, 0, "@[m]") || starts_with_at(f, 0, "@[math]") {
+                        bkind = "math"
+                    }
+                }
+                recs = recs.push(block_rec(bkind, 0, s, e, join_span_lines(lines, s, e), lang))
+            } else {
+                // obj 及未知:单行原文
+                recs = recs.push(block_rec("obj", 0, s, e, join_span_lines(lines, s, e), ""))
+            }
+        }
+    }
+
+    var out = "{\"blocks\":["
+    var first = true
+    for r in recs {
+        if !first { out = out + "," }
+        first = false
+        out = out + r
+    }
+    out = out + "]"
+
+    // 诊断(行号转 1 基,UI 直接展示)
+    out = out + ",\"diags\":["
+    var fd = true
+    for d in state.diags {
+        if !fd { out = out + "," }
+        fd = false
+        let sev = if d.severity == SevError { "err" } else { "warn" }
+        out = out + "{\"sev\":\"" + sev + "\""
+        out = out + ",\"msg\":\"" + json_escape(d.message) + "\""
+        out = out + ",\"line\":" + f"{d.line + 1}" + "}"
+    }
+    out = out + "]"
+
+    // 大纲(标题;文本保留行内标记)
+    out = out + ",\"outline\":["
+    var fo = true
+    for node in state.nodes {
+        if node.kind != "heading" { continue }
+        if !fo { out = out + "," }
+        fo = false
+        out = out + "{\"level\":" + f"{node.level}"
+        out = out + ",\"text\":\"" + json_escape(inline_marked_text(node.inline)) + "\"}"
+    }
+    out = out + "]}"
+    return out
+}

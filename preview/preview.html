@@ -4,6 +4,8 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>Awen</title>
+<script src="engine.js"></script>
+<script src="bridge.js"></script>
 <style>
 :root{--serif:Georgia,"Times New Roman","Noto Serif SC","Source Han Serif SC","Microsoft YaHei",serif;--sans:"Segoe UI","Microsoft YaHei",system-ui,sans-serif;--mono:"Cascadia Code","Consolas",monospace;--bg:#e8e9eb;--bg2:#fafafa;--bg3:#f7f7f8;--border:#dedfe2;--border2:#d9dade;--fg2:#6b6d72;--accent:#4b6f8d}
 *{box-sizing:border-box;margin:0;padding:0}
@@ -18,6 +20,14 @@ input.findbox{border:1px solid #c9cbce;border-radius:4px;padding:4px 6px;font-si
 .brand{font-weight:700;font-size:15px;color:#1a1c1f}
 .docname{font-size:13px;color:var(--fg2)}
 /* ── Word/WPS 功能区:标签栏 + 紧凑图标网格 + 分组名 ── */
+.filetabs{display:flex;align-items:center;gap:2px;flex:none;overflow-x:auto;height:28px}
+.ftab{display:flex;align-items:center;gap:6px;height:26px;padding:0 8px 0 12px;border-radius:5px;font-size:12px;color:#5a5c60;cursor:pointer;flex:none;border:1px solid transparent}
+.ftab:hover{background:#e9eaec}
+.ftab.active{background:#fff;color:#1a1c1f;font-weight:600;border-color:var(--border)}
+.ftab .fdirty{width:7px;height:7px;border-radius:50%;background:#c0392b;display:none}
+.ftab.dirty .fdirty{display:inline-block}
+.ftab .fclose{width:16px;height:16px;display:flex;align-items:center;justify-content:center;border-radius:3px;color:#8a8c90;font-size:11px}
+.ftab .fclose:hover{background:#dcdde0;color:#303238}
 .tabbar{height:32px;background:var(--bg2);border-bottom:1px solid var(--border);display:flex;align-items:center;padding:0 10px;gap:2px;flex:none;user-select:none}
 .tab{font-size:13px;color:#5a5c60;padding:5px 16px;border-radius:5px;cursor:pointer}
 .tab:hover{background:#e9eaec}
@@ -124,7 +134,8 @@ input.docname:focus{outline:none;border-color:var(--accent);background:#fff}
 .sheet{width:210mm;min-height:297mm;background:#fff;box-shadow:0 1px 4px rgba(0,0,0,.14),0 0 1px rgba(0,0,0,.08);padding:20mm;position:relative;flex:none}
 .sheet .folio{position:absolute;bottom:8mm;left:0;right:0;text-align:center;font-size:9pt;color:#b5b7bb;font-family:var(--sans)}
 .paper{font-family:var(--serif);font-size:11pt;line-height:1.9;color:#303238;line-break:strict;outline:none}
-.paper [data-bid]{position:relative}
+.paper [data-bid]:empty::after{content:'¶';color:#ccc;font-size:10pt}
+.paper [data-bid]{position:relative;min-height:1em}
 .paper [data-bid]:focus-within{background:rgba(75,111,141,.04)}
 .paper .gap{height:0.55em}
 .paper h1{font-size:22pt;line-height:1.4;font-weight:700;color:#1a1c1f}
@@ -149,28 +160,57 @@ input.docname:focus{outline:none;border-color:var(--accent);background:#fff}
 .paper img{max-width:100%;display:block}
 .paper .docset{font-family:var(--mono);font-size:8pt;color:#c8cad0;user-select:none}
 .paper .comment-src{background:#fffbe8;color:#b09a3e;font-family:var(--mono);font-size:9pt;border-radius:3px;padding:0 4px}
+.paper .inline-label{background:#eef4f8;color:#2a4a66;font-size:.85em;border-radius:3px;padding:0 4px}
+.paper .inline-ref{color:#2a4a66}
+.paper table{table-layout:fixed}
+.paper table td{overflow-wrap:break-word}
+.paper [data-kind="scope"]{border-left:2px solid #b9c8d6;padding-left:8px}
 .statusbar{height:26px;background:var(--bg3);border-top:1px solid var(--border2);color:#5a5c60;display:flex;align-items:center;padding:0 14px;font-size:12px;gap:16px;flex:none}
 .statusbar .item{white-space:nowrap}
 .statusbar #st-diag{cursor:pointer}
 .statusbar .spacer{flex:1}
+.src-wrap{display:flex;height:100%;overflow:hidden;flex:1}
+.gutter{width:46px;flex:none;overflow:hidden;text-align:right;padding:0 6px 0 2px;color:#9aa0a6;font-size:10.5pt;line-height:1.8;background:var(--bg2);border-right:1px solid #e3e4e6;user-select:none;white-space:pre}
+.gutter .ln.cur{color:#2a4a66;font-weight:700;background:#e8eef4}
+.splitter{width:7px;flex:none;cursor:col-resize;background:var(--bg2);border-left:1px solid var(--border2);border-right:1px solid var(--border2)}
+.splitter:hover{background:#d7e2ec}
+.findbar-pop{display:none;position:fixed;top:120px;right:24px;z-index:150;width:340px;background:#fff;border:1px solid #c9cbce;border-radius:8px;box-shadow:0 8px 28px rgba(0,0,0,.2);overflow:hidden}
+.findbar-pop .fb-head{height:34px;background:var(--bg3);border-bottom:1px solid var(--border2);display:flex;align-items:center;padding:0 10px;font-size:12px;font-weight:600;color:#3d3f43}
+.findbar-pop .fb-head .x{margin-left:auto;cursor:pointer;color:#8a8c90;padding:0 4px}
+.findbar-pop .fb-body{padding:10px 12px}
+.findbar-pop .fb-row{display:flex;gap:6px;margin-bottom:8px;align-items:center}
+.findbar-pop input[type=text]{flex:1;border:1px solid #c9cbce;border-radius:4px;padding:5px 8px;font-size:12px;outline:none}
+.findbar-pop label{font-size:12px;color:#5d6066;display:flex;align-items:center;gap:3px;flex:none}
+
+.paper .codeblock{background:#f5f6f7;border:1px solid #e0e1e4;border-radius:4px;padding:8px 12px;position:relative}
+.paper .code-lang{font-size:9pt;color:#8a8c90;font-family:var(--sans);position:absolute;top:2px;right:8px}
+.paper .codeblock pre{margin:0;font-family:var(--mono);font-size:10pt;line-height:1.6;color:#303238;white-space:pre-wrap;word-break:break-all}
+.paper .mathblock{border:1px solid #d7e2ec;border-radius:4px;padding:8px 12px;background:#f8fafc;position:relative}
+.paper .math-label{font-size:9pt;color:#8a8c90;font-family:var(--sans);position:absolute;top:2px;right:8px}
+.paper .math-content{font-family:Georgia,serif;font-style:italic;font-size:12pt;color:#2a4a66}
+.paper .lblref-block{background:#eef4f8;color:#2a4a66;font-size:9pt;font-family:var(--sans);border-radius:3px;padding:2px 8px;display:inline-block}
+.paper .ref-block{background:#f0f4f0;color:#3a6a3a;font-size:9pt;font-family:var(--sans);border-radius:3px;padding:2px 8px;display:inline-block}
 </style>
 </head>
 <body>
 <div class="app">
 <div class="titlebar">
 <div class="brand">Awen</div>
-<input class="docname" id="docname" value="未命名文档" title="点击修改文档名">
+<input class="docname" id="docname" value="未命名文档" title="点击修改文档名"><span id="dirty-mark" style="font-size:11px;color:#c0392b;display:none">未保存</span>
 <div style="margin-left:auto"><button class="rbtn" style="width:auto;padding:0 8px;gap:4px;font-size:12px" onclick="doSave()" title="保存 (Ctrl+S)"><span data-icon="save"></span>保存</button></div>
 </div>
+<div class="filetabs" id="filetabs"></div>
 <div class="tabbar">
 <div class="tab active" data-page="home" onclick="showRibbon('home')">开始</div>
 <div class="tab" data-page="insert" onclick="showRibbon('insert')">插入</div>
 <div class="tab" data-page="page" onclick="showRibbon('page')">页面</div>
 <div class="tab" data-page="file" onclick="showRibbon('file')">文件</div>
+<button class="rbtn" style="width:28px;height:26px;margin-left:auto;margin-right:8px" onclick="toggleRibbonCollapse()" id="btn-collapse" title="折叠/展开功能区 (Ctrl+F1)"><span style="font-size:12px">▲</span></button>
 <div class="view-tabs">
 <button class="active" data-mode="display">显示</button>
 <button data-mode="syntax">语法</button>
 <button data-mode="split">分屏</button>
+<button data-mode="swapsplit" title="左右交换" style="padding:4px 8px" onclick="swapSplit()">⇄</button>
 </div>
 </div>
 <div class="ribbon">
@@ -199,11 +239,11 @@ input.docname:focus{outline:none;border-color:var(--accent);background:#fff}
 <button class="rbtn s" onclick="fmtCmd('strikeThrough')" title="删除线"><span style="text-decoration:line-through">S</span></button>
 <button class="rbtn supb" onclick="fmtCmd('superscript')" title="上标"><span>x²</span></button>
 <button class="rbtn subb" onclick="fmtCmd('subscript')" title="下标"><span>x₂</span></button>
-<div class="colordrop splitbtn">
-<button class="rbtn" onclick="applyColor(curFore)" title="字体颜色:点击应用,箭头选更多颜色"><span data-icon="fontcolor"></span></button>
+<div class="colordrop splitbtn" onclick="togglePal(event,'fore')">
+<button class="rbtn"><span data-icon="fontcolor"></span></button>
 <button class="half-caret" onclick="togglePal(event,'fore')">▾</button>
 </div>
-<div class="colordrop splitbtn">
+<div class="colordrop splitbtn" onclick="togglePal(event,'mark')">
 <button class="rbtn" onclick="applyMark(curMark)" title="底纹高亮:点击应用,箭头选更多颜色"><span data-icon="mark"></span></button>
 <button class="half-caret" onclick="togglePal(event,'mark')">▾</button>
 </div>
@@ -227,15 +267,24 @@ input.docname:focus{outline:none;border-color:var(--accent);background:#fff}
 <button class="rbtn" onclick="toggleFind()" title="查找和替换 (Ctrl+F)"><span data-icon="search"></span></button>
 </div><div class="rg-label">编辑</div></div>
 </div>
-<div class="ribbon-page" data-page="findbar" style="min-height:0;height:auto;display:none;align-items:center;gap:8px;padding:6px 14px">
-<input class="findbox" id="findbox" placeholder="查找内容" oninput="findCount()" onkeydown="findKey(event)">
-<input class="replacebox" id="replacebox" placeholder="替换为">
-<label style="display:flex;align-items:center;gap:3px;font-size:12px;color:#5d6066;flex:none"><input type="checkbox" id="cb-case">区分大小写</label>
-<button class="sbtn" onclick="findNext()">查找下一处</button>
+<div class="findbar-pop" id="findbar">
+<div class="fb-head"><span>查找和替换</span><span class="x" onclick="closeFind()">✕</span></div>
+<div class="fb-body">
+<div class="fb-row"><input type="text" id="findbox" placeholder="查找内容" oninput="findCount()" onkeydown="findKey(event)"></div>
+<div class="fb-row"><input type="text" id="replacebox" placeholder="替换为"></div>
+<div class="fb-row" style="justify-content:space-between">
+<label style="display:flex;align-items:center;gap:3px"><input type="checkbox" id="cb-case">区分大小写</label>
+<label style="display:flex;align-items:center;gap:3px"><input type="checkbox" id="cb-down" checked>向下</label>
+<label style="display:flex;align-items:center;gap:3px"><input type="checkbox" id="cb-up">向上</label>
+</div>
+<div class="fb-row"><span id="findmsg" style="font-size:12px;color:#6b6d72"></span></div>
+<div class="fb-row" style="justify-content:space-between">
+<button class="sbtn" onclick="findNext()">下一个</button>
+<button class="sbtn" onclick="findPrev()">上一个</button>
 <button class="sbtn" onclick="replaceOne()">替换</button>
 <button class="sbtn" onclick="replaceAll()">全部替换</button>
-<button class="sbtn" onclick="closeFind()">关闭</button>
-<span class="item" id="findmsg" style="font-size:12px;color:#6b6d72"></span>
+</div>
+</div>
 </div>
 <div class="ribbon-page" data-page="insert">
 <div class="rgroup"><div class="rg-body">
@@ -303,7 +352,7 @@ input.docname:focus{outline:none;border-color:var(--accent);background:#fff}
 <section class="pane" id="syntax-pane" style="display:none;flex:0 0 50%;border-left:1px solid #d7d9dc;background:#f0f1f2"></section>
 </div>
 <div id="tblpop"><span class="lbl">行</span><input id="tbl-rows" type="number" min="1" max="20" value="3"><span class="lbl">列</span><input id="tbl-cols" type="number" min="1" max="8" value="3"><button class="sbtn" onclick="insertTableGrid()">插入</button></div>
-<div id="float-pal" class="cpalette" style="position:fixed;display:none;z-index:200"></div>
+<div id="float-pal" class="cpalette" style="position:fixed;z-index:200"></div>
 <div id="minibar">
 <div class="mb-row">
 <button class="rbtn b" onclick="fmtCmd('bold')" title="加粗">B</button>
@@ -311,9 +360,9 @@ input.docname:focus{outline:none;border-color:var(--accent);background:#fff}
 <button class="rbtn u" onclick="fmtCmd('underline')" title="下划线"><span style="text-decoration:underline">U</span></button>
 <button class="rbtn s" onclick="fmtCmd('strikeThrough')" title="删除线"><span style="text-decoration:line-through">S</span></button>
 <div class="sep"></div>
-<button class="rbtn" onclick="applyColor(curFore)" title="字体颜色:点击应用,箭头选更多颜色"><span data-icon="fontcolor"></span></button>
+<button class="rbtn" onclick="togglePal(event,'fore')" title="字体颜色:点击选色"><span data-icon="fontcolor"></span></button>
 <button class="rbtn" style="width:14px;font-size:9px" onclick="togglePal(event,'fore')" title="更多字体颜色">▾</button>
-<button class="rbtn" onclick="applyMark(curMark)" title="底纹:点击应用,箭头选更多颜色"><span data-icon="mark"></span></button>
+<button class="rbtn" onclick="togglePal(event,'mark')" title="底纹:点击选色"><span data-icon="mark"></span></button>
 <button class="rbtn" style="width:14px;font-size:9px" onclick="togglePal(event,'mark')" title="更多底纹颜色">▾</button>
 <div class="sep"></div>
 <button class="rbtn supb" onclick="fmtCmd('superscript')" title="上标"><span>x²</span></button>
@@ -336,278 +385,46 @@ input.docname:focus{outline:none;border-color:var(--accent);background:#fff}
 <span class="item" id="st-pos">第 1 页 · 行 1, 列 1</span>
 <span class="spacer"></span>
 <div class="statuspop" id="diagpop"></div>
-<select id="sel-zoom" style="background:#fff;color:#303238;border:none;border-radius:3px;height:20px;padding:0 4px" onchange="applyZoom(this.value)">
+<input type="range" id="zoom-slider" min="50" max="200" value="100" style="width:80px;accent-color:#4b6f8d" oninput="applyZoom(this.value+'%');document.getElementById('sel-zoom').value=String(Math.round(this.value/5)*5/100)||'1'" title="缩放">
+<select id="sel-zoom" style="background:rgba(255,255,255,.15);color:#fff;border:1px solid rgba(255,255,255,.3);border-radius:3px;height:20px;padding:0 4px" onchange="applyZoom(this.value)">
 <option value="0.7">70%</option><option value="0.85">85%</option><option value="1" selected>100%</option><option value="1.25">125%</option><option value="1.5">150%</option>
 </select>
 <span class="item" id="st-page">共 — 页</span>
 </div>
 </div>
 <script>
+// ═══ UI 层:工具栏 / 纸面 DOM / 光标 / 撤销 / 查找 / 文件管理 ═══
+// 解析·渲染·序列化在 engine.js(AwenEngine),原生引擎桥在 bridge.js(Bridge)。
+var Engine=window.AwenEngine;
+var Bridge=window.Bridge;
+var CFG=Engine.getConfig();
+
 // ═══ 数据通道:generate_preview.aine 将 {"pages":2,"lines":[{"id":14,"page":0,"y":0.0,"kind":"heading","level":1,"text":"一级标题 @[label]"},{"id":15,"page":0,"y":12.805841399999998,"kind":"para","level":0,"text":"这是第一章的正文。源码中的物理换行不会产生排版换行,这仍然是一个段落。"},{"id":16,"page":0,"y":19.208762099999998,"kind":"para","level":0,"text":"空行产生新段落。"},{"id":17,"page":0,"y":25.611682799999997,"kind":"heading","level":2,"text":"二级标题 @[标签]"},{"id":18,"page":0,"y":38.41752419999999,"kind":"heading","level":3,"text":"三级标题"},{"id":19,"page":0,"y":44.820444899999984,"kind":"heading","level":4,"text":"四级标题"},{"id":20,"page":0,"y":51.22336559999998,"kind":"heading","level":5,"text":"五级标题"},{"id":21,"page":0,"y":57.626286299999975,"kind":"heading","level":6,"text":"六级标题"},{"id":22,"page":0,"y":64.02920699999997,"kind":"heading","level":2,"text":"行内格式"},{"id":23,"page":0,"y":76.83504839999996,"kind":"para","level":0,"text":"**粗体** 与 _斜体_ 与 ~~删除线~~ 与 `行内代码` 与 下划线 与 长写下划线。"},{"id":24,"page":0,"y":83.23796909999996,"kind":"para","level":0,"text":"嵌套:**粗体中嵌 _斜体_**,以及 短命令粗体 和 长命令粗体。"},{"id":25,"page":0,"y":89.64088979999995,"kind":"para","level":0,"text":"行内数学 E = mc^2 出现在段落之中。脚注演示@[footnote]。"},{"id":26,"page":0,"y":96.04381049999995,"kind":"para","level":0,"text":"链接:@[link],以及裸 URL 自动识别 https://example.com/docs。"},{"id":27,"page":0,"y":102.44673119999995,"kind":"heading","level":2,"text":"块级对象"},{"id":32,"page":0,"y":195.25257259999995,"kind":"raw","level":0,"text":"\\int_0^\\infty e^{-x}\\,dx = 1"},{"id":33,"page":0,"y":201.65549329999996,"kind":"raw","level":0,"text":"a^2 + b^2 = c^2"},{"id":34,"page":0,"y":208.05841399999997,"kind":"raw","level":0,"text":"def hello():"},{"id":34,"page":0,"y":214.46133469999998,"kind":"raw","level":0,"text":"    print(\"Hello, Awen\")  # 代码内部的 @[b] 与 ] 均不参与 Awen 解析"},{"id":35,"page":0,"y":220.8642554,"kind":"raw","level":0,"text":"raw content: }{ ] @[ ** _ ~`"},{"id":36,"page":0,"y":227.2671761,"kind":"heading","level":2,"text":"引用与列表"},{"id":37,"page":0,"y":240.07301750000002,"kind":"quote","level":0,"text":"引用:一级引用"},{"id":38,"page":0,"y":246.47593820000003,"kind":"quote","level":0,"text":"引用:二级引用"},{"id":39,"page":1,"y":0.0,"kind":"quote","level":0,"text":"引用:三级引用"},{"id":40,"page":1,"y":6.402920699999999,"kind":"list","level":0,"text":"- 无序列表项一"},{"id":40,"page":1,"y":12.805841399999998,"kind":"list","level":0,"text":"- 无序列表项二"},{"id":41,"page":1,"y":19.208762099999998,"kind":"list","level":0,"text":"1. 有序列表项一"},{"id":41,"page":1,"y":25.611682799999997,"kind":"list","level":0,"text":"2. 有序列表项二"},{"id":42,"page":1,"y":32.01460349999999,"kind":"hr","level":0,"text":"――――――――――"},{"id":43,"page":1,"y":38.41752419999999,"kind":"heading","level":2,"text":"表格 @[label]"},{"id":44,"page":1,"y":51.22336559999998,"kind":"para","level":0,"text":"简单表格:"},{"id":45,"page":1,"y":57.626286299999975,"kind":"table","level":0,"text":"| 方法 | 速度 | 安全性 |"},{"id":45,"page":1,"y":64.02920699999997,"kind":"table","level":0,"text":"| A | 0.21 | 低 |"},{"id":45,"page":1,"y":70.43212769999997,"kind":"table","level":0,"text":"| B | 0.48 | 中 |"},{"id":46,"page":1,"y":76.83504839999996,"kind":"para","level":0,"text":"复杂单元格 @[label]:"},{"id":47,"page":1,"y":83.23796909999996,"kind":"table","level":0,"text":"| 姓名 | 备注 |"},{"id":47,"page":1,"y":89.64088979999995,"kind":"table","level":0,"text":"| \"Smith, John\" | 单元格含逗号无需转义 |"},{"id":47,"page":1,"y":96.04381049999995,"kind":"table","level":0,"text":"| A | 合并单元格 |"},{"id":47,"page":1,"y":102.44673119999995,"kind":"table","level":0,"text":"| 粗 | code 与 a+b |"},{"id":48,"page":1,"y":108.84965189999994,"kind":"para","level":0,"text":"表格引用:见 @[ref]。"},{"id":49,"page":1,"y":115.25257259999994,"kind":"heading","level":2,"text":"样式与全角输入"},{"id":50,"page":1,"y":128.05841399999994,"kind":"para","level":0,"text":"彩色文字。"},{"id":51,"page":1,"y":134.46133469999995,"kind":"para","level":0,"text":"局部字体 与 局部字号。"},{"id":52,"page":1,"y":140.86425539999996,"kind":"para","level":0,"text":"全角输入:“微软雅黑” ,以及 @[字体] 与 @[大小] 与 @[图片] 均为合法中文方言。"},{"id":53,"page":1,"y":147.26717609999997,"kind":"para","level":0,"text":"混合方言:同一文档允许中文语法、英文语法、短命令、长命令并存(规范 §6.14)。"},{"id":54,"page":1,"y":153.67009679999998,"kind":"heading","level":2,"text":"转义演示"},{"id":55,"page":1,"y":166.4759382,"kind":"para","level":0,"text":"# 不是标题**不是粗体**_不是斜体_~~不是删除线~~- 不是列表> 不是引用`不是代码`1. 不是有序"},{"id":55,"page":1,"y":172.8788589,"kind":"para","level":0,"text":"列表@[image hero] 按字面显示@[comment 这是正文中的示例] 按字面显示"},{"id":56,"page":1,"y":179.28177960000002,"kind":"heading","level":2,"text":"交叉引用"},{"id":57,"page":1,"y":192.08762100000004,"kind":"para","level":0,"text":"参见章节 @[ref],图片 @[ref],以及二级标题 @[ref]。"}],"anchors":[{"label":"chapter-intro","page":0},{"label":"二级示例","page":0},{"label":"hero.png","page":0},{"label":"架构图","page":0},{"label":"result-table-section","page":1}],"outline":[{"level":1,"text":"一级标题 @[label]","id":14},{"level":2,"text":"二级标题 @[标签]","id":17},{"level":3,"text":"三级标题","id":18},{"level":4,"text":"四级标题","id":19},{"level":5,"text":"五级标题","id":20},{"level":6,"text":"六级标题","id":21},{"level":2,"text":"行内格式","id":22},{"level":2,"text":"块级对象","id":27},{"level":2,"text":"引用与列表","id":36},{"level":2,"text":"表格 @[label]","id":43},{"level":2,"text":"样式与全角输入","id":49},{"level":2,"text":"转义演示","id":54},{"level":2,"text":"交叉引用","id":56}],"source":"@[page A4]\n@[margin 20mm]\n@[font \"Noto Sans CJK SC\"]\n@[size 11pt]\n@[line-spacing 1.65]\n@[first-line 2em]\n@[theme default]\n\n@[toc depth: 3]\n\n@[numbering figure \"图 %figure\"]\n@[numbering table \"表 %table\"]\n@[numbering equation \"(%equation)\"]\n@[numbering heading level: 1 \"第 %chapter 章\"]\n@[numbering heading level: 2 \"%chapter.%section\"]\n\n# 一级标题 @[label chapter-intro]\n这是第一章的正文。源码中的物理换行\n不会产生排版换行,这仍然是一个段落。\n\n空行产生新段落。\n\n## 二级标题 @[标签 二级示例]\n### 三级标题\n#### 四级标题\n##### 五级标题\n###### 六级标题\n\n## 行内格式\n\n**粗体** 与 _斜体_ 与 ~~删除线~~ 与 `行内代码` 与 @[u]下划线@[/u] 与 @[underline]长写下划线@[/underline]。\n\n嵌套:**粗体中嵌 _斜体_**,以及 @[b]短命令粗体@[/b] 和 @[bold]长命令粗体@[/bold]。\n\n行内数学 @[m]E = mc^2@[/m] 出现在段落之中。脚注演示@[footnote 这里是脚注内容。]。\n\n链接:@[link \"OpenAI\" url: \"https://openai.com\"],以及裸 URL 自动识别 https://example.com/docs。\n\n## 块级对象\n\n@[comment 本节演示块级对象;修改下方图片属性时,本行注释必须逐字保留。]\n\n@[image \"hero.png\" width 65% align center]\n\n@[figure 架构图 \"architecture.png\" width 50%]\n\n@[comment]\n这是块级源码注释:\n不进入渲染,但保留 Source Mapping(规范 §11.3)。\n@[/comment]\n\n@[m]\n\\int_0^\\infty e^{-x}\\,dx = 1\n@[/m]\n\n@[math]\na^2 + b^2 = c^2\n@[/math]\n\n@[c py]\ndef hello():\n    print(\"Hello, Awen\")  # 代码内部的 @[b] 与 ] 均不参与 Awen 解析\n@[/c]\n\n@[code python]\nraw content: }{ ] @[ ** _ ~`\n@[/code]\n\n## 引用与列表\n\n> 一级引用\n>> 二级引用\n>>> 三级引用\n\n- 无序列表项一\n- 无序列表项二\n\n1. 有序列表项一\n2. 有序列表项二\n\n---\n\n## 表格 @[label result-table-section]\n\n简单表格:\n\n@[table result-table]\n\n| 方法 | 速度 | 安全性 |\n| --- | ---: | :---: |\n| A | 0.21 | 低 |\n| B | 0.48 | 中 |\n\n@[/table]\n\n复杂单元格 @[label \"复杂 表格示例\"]:\n\n@[table]\n\n| 姓名 | 备注 |\n| --- | --- |\n| \"Smith, John\" | 单元格含逗号无需转义 |\n| A | @[cell background: \"#EEEEEE\" span: 2]合并单元格@[/cell] |\n| **粗** | @[cell border-bottom: 2pt double \"#000000\"]`code` 与 @[m]a+b@[/m]@[/cell] |\n\n@[/table]\n\n表格引用:见 @[ref result-table-section]。\n\n## 样式与全角输入\n\n@[color \"#3366CC\"]彩色文字@[/color]。\n\n@[font \"Noto Serif CJK SC\"]局部字体@[/font] 与 @[size 12pt]局部字号@[/size]。\n\n全角输入:“微软雅黑” ,以及 @[字体 \"微软雅黑\"] 与 @[大小 12pt] 与 @[图片 \"示例.png\"] 均为合法中文方言。\n\n混合方言:同一文档允许中文语法、英文语法、短命令、长命令并存(规范 §6.14)。\n\n## 转义演示\n\n@# 不是标题\n@**不是粗体@**\n@_不是斜体@_\n@~~不是删除线@~~\n@- 不是列表\n@> 不是引用\n@`不是代码`\n@1. 不是有序列表\n@@[image hero] 按字面显示\n@@[comment 这是正文中的示例] 按字面显示\n\n## 交叉引用\n\n参见章节 @[ref chapter-intro],图片 @[ref 架构图],以及二级标题 @[ref 二级示例]。\n","diags":[]} 替换为核心渲染 JSON ═══
 var DOC_DATA = {"pages":2,"lines":[{"id":14,"page":0,"y":0.0,"kind":"heading","level":1,"text":"一级标题 @[label]"},{"id":15,"page":0,"y":12.805841399999998,"kind":"para","level":0,"text":"这是第一章的正文。源码中的物理换行不会产生排版换行,这仍然是一个段落。"},{"id":16,"page":0,"y":19.208762099999998,"kind":"para","level":0,"text":"空行产生新段落。"},{"id":17,"page":0,"y":25.611682799999997,"kind":"heading","level":2,"text":"二级标题 @[标签]"},{"id":18,"page":0,"y":38.41752419999999,"kind":"heading","level":3,"text":"三级标题"},{"id":19,"page":0,"y":44.820444899999984,"kind":"heading","level":4,"text":"四级标题"},{"id":20,"page":0,"y":51.22336559999998,"kind":"heading","level":5,"text":"五级标题"},{"id":21,"page":0,"y":57.626286299999975,"kind":"heading","level":6,"text":"六级标题"},{"id":22,"page":0,"y":64.02920699999997,"kind":"heading","level":2,"text":"行内格式"},{"id":23,"page":0,"y":76.83504839999996,"kind":"para","level":0,"text":"**粗体** 与 _斜体_ 与 ~~删除线~~ 与 `行内代码` 与 下划线 与 长写下划线。"},{"id":24,"page":0,"y":83.23796909999996,"kind":"para","level":0,"text":"嵌套:**粗体中嵌 _斜体_**,以及 短命令粗体 和 长命令粗体。"},{"id":25,"page":0,"y":89.64088979999995,"kind":"para","level":0,"text":"行内数学 E = mc^2 出现在段落之中。脚注演示@[footnote]。"},{"id":26,"page":0,"y":96.04381049999995,"kind":"para","level":0,"text":"链接:@[link],以及裸 URL 自动识别 https://example.com/docs。"},{"id":27,"page":0,"y":102.44673119999995,"kind":"heading","level":2,"text":"块级对象"},{"id":32,"page":0,"y":195.25257259999995,"kind":"raw","level":0,"text":"\\int_0^\\infty e^{-x}\\,dx = 1"},{"id":33,"page":0,"y":201.65549329999996,"kind":"raw","level":0,"text":"a^2 + b^2 = c^2"},{"id":34,"page":0,"y":208.05841399999997,"kind":"raw","level":0,"text":"def hello():"},{"id":34,"page":0,"y":214.46133469999998,"kind":"raw","level":0,"text":"    print(\"Hello, Awen\")  # 代码内部的 @[b] 与 ] 均不参与 Awen 解析"},{"id":35,"page":0,"y":220.8642554,"kind":"raw","level":0,"text":"raw content: }{ ] @[ ** _ ~`"},{"id":36,"page":0,"y":227.2671761,"kind":"heading","level":2,"text":"引用与列表"},{"id":37,"page":0,"y":240.07301750000002,"kind":"quote","level":0,"text":"引用:一级引用"},{"id":38,"page":0,"y":246.47593820000003,"kind":"quote","level":0,"text":"引用:二级引用"},{"id":39,"page":1,"y":0.0,"kind":"quote","level":0,"text":"引用:三级引用"},{"id":40,"page":1,"y":6.402920699999999,"kind":"list","level":0,"text":"- 无序列表项一"},{"id":40,"page":1,"y":12.805841399999998,"kind":"list","level":0,"text":"- 无序列表项二"},{"id":41,"page":1,"y":19.208762099999998,"kind":"list","level":0,"text":"1. 有序列表项一"},{"id":41,"page":1,"y":25.611682799999997,"kind":"list","level":0,"text":"2. 有序列表项二"},{"id":42,"page":1,"y":32.01460349999999,"kind":"hr","level":0,"text":"――――――――――"},{"id":43,"page":1,"y":38.41752419999999,"kind":"heading","level":2,"text":"表格 @[label]"},{"id":44,"page":1,"y":51.22336559999998,"kind":"para","level":0,"text":"简单表格:"},{"id":45,"page":1,"y":57.626286299999975,"kind":"table","level":0,"text":"| 方法 | 速度 | 安全性 |"},{"id":45,"page":1,"y":64.02920699999997,"kind":"table","level":0,"text":"| A | 0.21 | 低 |"},{"id":45,"page":1,"y":70.43212769999997,"kind":"table","level":0,"text":"| B | 0.48 | 中 |"},{"id":46,"page":1,"y":76.83504839999996,"kind":"para","level":0,"text":"复杂单元格 @[label]:"},{"id":47,"page":1,"y":83.23796909999996,"kind":"table","level":0,"text":"| 姓名 | 备注 |"},{"id":47,"page":1,"y":89.64088979999995,"kind":"table","level":0,"text":"| \"Smith, John\" | 单元格含逗号无需转义 |"},{"id":47,"page":1,"y":96.04381049999995,"kind":"table","level":0,"text":"| A | 合并单元格 |"},{"id":47,"page":1,"y":102.44673119999995,"kind":"table","level":0,"text":"| 粗 | code 与 a+b |"},{"id":48,"page":1,"y":108.84965189999994,"kind":"para","level":0,"text":"表格引用:见 @[ref]。"},{"id":49,"page":1,"y":115.25257259999994,"kind":"heading","level":2,"text":"样式与全角输入"},{"id":50,"page":1,"y":128.05841399999994,"kind":"para","level":0,"text":"彩色文字。"},{"id":51,"page":1,"y":134.46133469999995,"kind":"para","level":0,"text":"局部字体 与 局部字号。"},{"id":52,"page":1,"y":140.86425539999996,"kind":"para","level":0,"text":"全角输入:“微软雅黑” ,以及 @[字体] 与 @[大小] 与 @[图片] 均为合法中文方言。"},{"id":53,"page":1,"y":147.26717609999997,"kind":"para","level":0,"text":"混合方言:同一文档允许中文语法、英文语法、短命令、长命令并存(规范 §6.14)。"},{"id":54,"page":1,"y":153.67009679999998,"kind":"heading","level":2,"text":"转义演示"},{"id":55,"page":1,"y":166.4759382,"kind":"para","level":0,"text":"# 不是标题**不是粗体**_不是斜体_~~不是删除线~~- 不是列表> 不是引用`不是代码`1. 不是有序"},{"id":55,"page":1,"y":172.8788589,"kind":"para","level":0,"text":"列表@[image hero] 按字面显示@[comment 这是正文中的示例] 按字面显示"},{"id":56,"page":1,"y":179.28177960000002,"kind":"heading","level":2,"text":"交叉引用"},{"id":57,"page":1,"y":192.08762100000004,"kind":"para","level":0,"text":"参见章节 @[ref],图片 @[ref],以及二级标题 @[ref]。"}],"anchors":[{"label":"chapter-intro","page":0},{"label":"二级示例","page":0},{"label":"hero.png","page":0},{"label":"架构图","page":0},{"label":"result-table-section","page":1}],"outline":[{"level":1,"text":"一级标题 @[label]","id":14},{"level":2,"text":"二级标题 @[标签]","id":17},{"level":3,"text":"三级标题","id":18},{"level":4,"text":"四级标题","id":19},{"level":5,"text":"五级标题","id":20},{"level":6,"text":"六级标题","id":21},{"level":2,"text":"行内格式","id":22},{"level":2,"text":"块级对象","id":27},{"level":2,"text":"引用与列表","id":36},{"level":2,"text":"表格 @[label]","id":43},{"level":2,"text":"样式与全角输入","id":49},{"level":2,"text":"转义演示","id":54},{"level":2,"text":"交叉引用","id":56}],"source":"@[page A4]\n@[margin 20mm]\n@[font \"Noto Sans CJK SC\"]\n@[size 11pt]\n@[line-spacing 1.65]\n@[first-line 2em]\n@[theme default]\n\n@[toc depth: 3]\n\n@[numbering figure \"图 %figure\"]\n@[numbering table \"表 %table\"]\n@[numbering equation \"(%equation)\"]\n@[numbering heading level: 1 \"第 %chapter 章\"]\n@[numbering heading level: 2 \"%chapter.%section\"]\n\n# 一级标题 @[label chapter-intro]\n这是第一章的正文。源码中的物理换行\n不会产生排版换行,这仍然是一个段落。\n\n空行产生新段落。\n\n## 二级标题 @[标签 二级示例]\n### 三级标题\n#### 四级标题\n##### 五级标题\n###### 六级标题\n\n## 行内格式\n\n**粗体** 与 _斜体_ 与 ~~删除线~~ 与 `行内代码` 与 @[u]下划线@[/u] 与 @[underline]长写下划线@[/underline]。\n\n嵌套:**粗体中嵌 _斜体_**,以及 @[b]短命令粗体@[/b] 和 @[bold]长命令粗体@[/bold]。\n\n行内数学 @[m]E = mc^2@[/m] 出现在段落之中。脚注演示@[footnote 这里是脚注内容。]。\n\n链接:@[link \"OpenAI\" url: \"https://openai.com\"],以及裸 URL 自动识别 https://example.com/docs。\n\n## 块级对象\n\n@[comment 本节演示块级对象;修改下方图片属性时,本行注释必须逐字保留。]\n\n@[image \"hero.png\" width 65% align center]\n\n@[figure 架构图 \"architecture.png\" width 50%]\n\n@[comment]\n这是块级源码注释:\n不进入渲染,但保留 Source Mapping(规范 §11.3)。\n@[/comment]\n\n@[m]\n\\int_0^\\infty e^{-x}\\,dx = 1\n@[/m]\n\n@[math]\na^2 + b^2 = c^2\n@[/math]\n\n@[c py]\ndef hello():\n    print(\"Hello, Awen\")  # 代码内部的 @[b] 与 ] 均不参与 Awen 解析\n@[/c]\n\n@[code python]\nraw content: }{ ] @[ ** _ ~`\n@[/code]\n\n## 引用与列表\n\n> 一级引用\n>> 二级引用\n>>> 三级引用\n\n- 无序列表项一\n- 无序列表项二\n\n1. 有序列表项一\n2. 有序列表项二\n\n---\n\n## 表格 @[label result-table-section]\n\n简单表格:\n\n@[table result-table]\n\n| 方法 | 速度 | 安全性 |\n| --- | ---: | :---: |\n| A | 0.21 | 低 |\n| B | 0.48 | 中 |\n\n@[/table]\n\n复杂单元格 @[label \"复杂 表格示例\"]:\n\n@[table]\n\n| 姓名 | 备注 |\n| --- | --- |\n| \"Smith, John\" | 单元格含逗号无需转义 |\n| A | @[cell background: \"#EEEEEE\" span: 2]合并单元格@[/cell] |\n| **粗** | @[cell border-bottom: 2pt double \"#000000\"]`code` 与 @[m]a+b@[/m]@[/cell] |\n\n@[/table]\n\n表格引用:见 @[ref result-table-section]。\n\n## 样式与全角输入\n\n@[color \"#3366CC\"]彩色文字@[/color]。\n\n@[font \"Noto Serif CJK SC\"]局部字体@[/font] 与 @[size 12pt]局部字号@[/size]。\n\n全角输入:“微软雅黑” ,以及 @[字体 \"微软雅黑\"] 与 @[大小 12pt] 与 @[图片 \"示例.png\"] 均为合法中文方言。\n\n混合方言:同一文档允许中文语法、英文语法、短命令、长命令并存(规范 §6.14)。\n\n## 转义演示\n\n@# 不是标题\n@**不是粗体@**\n@_不是斜体@_\n@~~不是删除线@~~\n@- 不是列表\n@> 不是引用\n@`不是代码`\n@1. 不是有序列表\n@@[image hero] 按字面显示\n@@[comment 这是正文中的示例] 按字面显示\n\n## 交叉引用\n\n参见章节 @[ref chapter-intro],图片 @[ref 架构图],以及二级标题 @[ref 二级示例]。\n","diags":[]};
 var DEFAULT_SRC = '# Awen 迷你编辑器\n\n直接在纸面上打字,回车分段,选中文字用工具栏加粗、变色。\n\n## 断行规则\n\n中西文混排加八分之一 em 间距,英文单词不拆断,行首行尾禁则自动调整,连续标点挤压半宽。\n\n---\n\n> 引用示例\n\n- 列表项一\n- 列表项二\n\n@[table demo]\n| 列1 | 列2 |\n| --- | --- |\n| 内容 | 内容 |\n@[/table]\n';
-
-// ═══ 页面模型(§30 A4)+ 断行度量(镜像 layout_width.aine)═══
-var PAGE_W=210, PAGE_H=297, MARGIN=20, LINE_H=1.9;
-var FONT_PT=11, PT2MM=0.352778;
-var CHAR_MM, CONTENT_W, CONTENT_H, MAX_EM, LINE_MM, LINES_PER_PAGE;
-function recalcPage(){
-  CHAR_MM=FONT_PT*PT2MM;
-  CONTENT_W=PAGE_W-MARGIN*2; CONTENT_H=PAGE_H-MARGIN*2;
-  MAX_EM=CONTENT_W/CHAR_MM;
-  LINE_MM=FONT_PT*PT2MM*LINE_H;
-  LINES_PER_PAGE=Math.floor(CONTENT_H/LINE_MM);
-}
-recalcPage();
-
-function isIdeo(c){return /[\u3400-\u4DBF\u4E00-\u9FFF]/.test(c)}
-function isLatn(c){return /[A-Za-z0-9]/.test(c)}
-function isCloseP(c){return /[。，、；？！」』）】》〉〕］｝]/.test(c)}
-function isOpenP(c){return /[「『（《【〈〔［｛]/.test(c)}
-
-function measureEm(text){
-  var w=0, prev='';
-  for(var i=0;i<text.length;i++){
-    var c=text[i], cw;
-    if(isIdeo(c))cw=1;
-    else if(isCloseP(c))cw=(prev&&isCloseP(prev))?0.5:1;
-    else if(isOpenP(c))cw=1;
-    else if(isLatn(c))cw=0.5;
-    else if(c===' ')cw=0.3;
-    else cw=0.5;
-    if(i>0&&((isIdeo(prev)||isCloseP(prev))&&isLatn(c)||(isLatn(prev)&&(isIdeo(c)||isCloseP(c)))))w+=0.125;
-    w+=cw; prev=c;
-  }
-  return w;
-}
-function tokenize(text){
-  var toks=[], cur='';
-  for(var i=0;i<text.length;i++){
-    var c=text[i];
-    if(isLatn(c)){ cur+=c; continue }
-    if(cur){ toks.push(cur); cur='' }
-    toks.push(c);
-  }
-  if(cur)toks.push(cur);
-  return toks;
-}
-// 贪心断行 + 禁则修正(镜像 layout_line_break;D-3 词边界)
-function breakLines(text){
-  var toks=tokenize(text), lines=[], cur='', curW=0;
-  for(var i=0;i<toks.length;i++){
-    var t=toks[i], tw=measureEm(t);
-    var isClose=t.length===1&&isCloseP(t);
-    var isOpen=t.length===1&&isOpenP(t);
-    if(curW+tw<=MAX_EM||cur===''){ cur+=t; curW+=tw }
-    else if(isClose){ cur+=t; lines.push(cur); cur=''; curW=0 }
-    else if(isOpen&&cur.length>1){
-      var last=cur.charAt(cur.length-1);
-      lines.push(cur.slice(0,-1));
-      cur=last+t; curW=measureEm(cur);
-    }else{ lines.push(cur); cur=t; curW=tw }
-  }
-  if(cur)lines.push(cur);
-  return lines.length?lines:[''];
-}
-
-// ═══ 行内工具 ═══
-function escHtml(s){return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;')}
-function displayText(t){
-  return t
-    .replace(/@\[(u|color|size|font|mark|sup|sub)\s*[^\]]*\]((?:.|])*?)@\[\/\1\]/g,'$2')
-    .replace(/\*\*((?:.|])*?)\*\*/g,'$1')
-    .replace(/~~((?:.|])*?)~~/g,'$1')
-    .replace(/`((?:.|])*?)`/g,'$1')
-    .replace(/@\[link\s+([^\]]+?)\s+url:\s*([^\]]+)\]/g,'$1')
-    .replace(/@\[footnote\s+(\d+)\s+([^\]]+)\]/g,'$2')
-    .replace(/_((?:.|])*?)_/g,'$1');
-}
-function fmtH(t){
-  var s=escHtml(t);
-  s=s.replace(/@\[u\]((?:.|])*?)@\[\/u\]/g,'<u>$1</u>');
-  s=s.replace(/@\[sup\]((?:.|])*?)@\[\/sup\]/g,'<sup>$1</sup>');
-  s=s.replace(/@\[sub\]((?:.|])*?)@\[\/sub\]/g,'<sub>$1</sub>');
-  s=s.replace(/@\[mark\s+([^\]]+)\]((?:.|])*?)@\[\/mark\]/g,'<span data-cmd="@[mark $1]" data-close="@[/mark]" style="background:$1">$2</span>');
-  s=s.replace(/@\[color\s+([^\]]+)\]((?:.|])*?)@\[\/color\]/g,'<span data-cmd="@[color $1]" data-close="@[/color]" style="color:$1">$2</span>');
-  s=s.replace(/@\[size\s+([^\]]+)\]((?:.|])*?)@\[\/size\]/g,'<span data-cmd="@[size $1]" data-close="@[/size]" style="font-size:$1pt">$2</span>');
-  s=s.replace(/@\[link\s+([^\]]+?)\s+url:\s*([^\]]+)\]/g,'<a href="$2" target="_blank" style="color:#2a4a66;text-decoration:underline">$1</a>');
-  s=s.replace(/@\[footnote\s+(\d+)\s+([^\]]+)\]/g,function(m,n,txt){return '<sup class="fn" title="'+txt.replace(/"/g,'')+'" style="color:#2a4a66;cursor:help">'+n+'</sup>'});
-  s=s.replace(/@\[font\s+([^\]]+)\]((?:.|])*?)@\[\/font\]/g,function(m,f,inner){
-    f=f.replace(/"/g,'');
-    return'<span data-cmd=\'@[font "' + f + '"]\' data-close="@[/font]" style="font-family:\'' + f + '\',serif">' + inner + '</span>';
-  });
-  s=s.replace(/\*\*((?:.|])*?)\*\*/g,'<strong>$1</strong>');
-  s=s.replace(/~~((?:.|])*?)~~/g,'<del>$1</del>');
-  s=s.replace(/`((?:.|])*?)`/g,'<code>$1</code>');
-  s=s.replace(/_((?:.|])*?)_/g,'<em>$1</em>');
-  return s;
-}
-
-// ═══ 块级解析(带源码行区间)═══
-function miniParse(src){
-  var lines=src.split('\n'), nodes=[], para=null;
-  function flush(ei){ if(para){ para.srcEnd=ei; nodes.push(para); para=null } }
-  for(var i=0;i<lines.length;i++){
-    var t=lines[i].trim();
-    if(t===''){ flush(i); continue }
-    if(/^#{1,6}\s/.test(t)){
-      flush(i);
-      nodes.push({kind:'heading',level:t.match(/^#+/)[0].length,text:t.replace(/^#+\s*/,''),srcStart:i,srcEnd:i+1});
-      continue;
-    }
-    if(t==='---'){ flush(i); nodes.push({kind:'hr',text:'',srcStart:i,srcEnd:i+1}); continue }
-    if(/^[-*] /.test(t)){ flush(i); nodes.push({kind:'ul',text:t.replace(/^[-*] /,''),srcStart:i,srcEnd:i+1}); continue }
-    if(/^\d+\. /.test(t)){ flush(i); nodes.push({kind:'ol',text:t.replace(/^\d+\. /,''),srcStart:i,srcEnd:i+1}); continue }
-    if(/^> /.test(t)){ flush(i); nodes.push({kind:'quote',text:t.replace(/^>\s*/,''),srcStart:i,srcEnd:i+1}); continue }
-    if(t.charAt(0)==='|'&&t.charAt(t.length-1)==='|'){
-      flush(i);
-      var j=i, rows=[];
-      while(j<lines.length&&lines[j].trim().charAt(0)==='|'){ rows.push(lines[j].trim()); j++ }
-      nodes.push({kind:'table',rows:rows,srcStart:i,srcEnd:j});
-      i=j-1; continue;
-    }
-    if(/^@\[comment/.test(t)){
-      flush(i);
-      var ci=i+1;
-      if(t.indexOf('@[/comment]')<0){
-        while(ci<lines.length&&lines[ci].indexOf('@[/comment]')<0)ci++;
-        ci=Math.min(ci+1,lines.length);
-      }
-      nodes.push({kind:'comment',text:lines.slice(i,ci).join('\n'),srcStart:i,srcEnd:ci});
-      i=ci-1; continue;
-    }
-    if(/^@\[(table|figure)\s/.test(t)||t==='@[table]'){
-      flush(i);
-      var fi=i+1;
-      var closeTag='@[/'+t.match(/^@\[(\w+)/)[1]+']';
-      if(t.indexOf(closeTag)<0){
-        while(fi<lines.length&&lines[fi].indexOf(closeTag)<0)fi++;
-        fi=Math.min(fi+1,lines.length);
-      }
-      if(/^@\[table/.test(t)){
-        var trows=[];
-        for(var ri=i+1;ri<fi-1;ri++){ if(lines[ri].trim().charAt(0)==='|')trows.push(lines[ri].trim()) }
-        nodes.push({kind:'table',rows:trows,srcStart:i,srcEnd:fi});
-      }else{
-        nodes.push({kind:'obj',text:lines.slice(i,fi).join('\n'),srcStart:i,srcEnd:fi});
-      }
-      i=fi-1; continue;
-    }
-    if(/^@\[image/.test(t)){ flush(i); nodes.push({kind:'obj',text:t,srcStart:i,srcEnd:i+1}); continue }
-    if(/^@\[(page|margin|font|size|line-spacing|first-line|theme|toc|numbering)\s/.test(t)){
-      flush(i); nodes.push({kind:'docset',text:t,srcStart:i,srcEnd:i+1}); continue;
-    }
-    if(!para)para={kind:'para',text:'',srcStart:i};
-    para.text=para.text?(para.text+' '+t):t;
-  }
-  flush(lines.length);
-  return nodes;
-}
-function tableHtml(rows){
-  function cells(r){return r.replace(/^\||\|$/g,'').split('|').map(function(c){return c.trim()})}
-  var h='<table>';
-  for(var i=0;i<rows.length;i++){
-    var cs=cells(rows[i]);
-    if(cs.every(function(c){return /^:?-{2,}:?$/.test(c)}))continue;
-    h+='<tr>'+cs.map(function(c){return(i===0?'<th>':'<td>')+fmtH(c)+(i===0?'</th>':'</td>')}).join('')+'</tr>';
-  }
-  return h+'</table>';
-}
-
-// ═══ 排版分页(核心镜像)═══
-function blockWeight(b){
-  var n;
-  if(b.kind==='hr')n=2;
-  else if(b.kind==='docset')n=0.2;
-  else if(b.kind==='comment')n=1;
-  else if(b.kind==='heading')n=breakLines(displayText(b.text)).length+(b.level<=2?2:1.5);
-  else if(b.kind==='table')n=b.rows.length+2;
-  else if(b.kind==='obj')n=8;
-  else if(b.kind==='ul'||b.kind==='ol')n=breakLines(displayText(b.text)).length+0.4;
-  else if(b.kind==='quote')n=breakLines(displayText(b.text)).length+0.6;
-  else n=breakLines(displayText(b.text)).length+0.3;
-  return Math.max(n,0.5);
-}
-// 像素级实测分页:隐藏容器量每块真实高度,按像素预算分配页面
-var _pxPerMm=null;
-function pxPerMm(){
-  if(_pxPerMm)return _pxPerMm;
-  var d=document.createElement('div');
-  d.style.cssText='position:absolute;visibility:hidden;height:100mm';
-  document.body.appendChild(d);
-  _pxPerMm=d.getBoundingClientRect().height/100;
-  document.body.removeChild(d);
-  return _pxPerMm;
-}
-function layoutPages(blocks){
-  var mm=pxPerMm();
-  var gapPx=0.55*FONT_PT*(96/72);
-  var capacity=(PAGE_H-2*MARGIN-8)*mm;
-  var m=document.createElement('div');
-  m.style.cssText='position:absolute;visibility:hidden;left:-9999px;top:0;width:'+(PAGE_W-2*MARGIN)+'mm;font-family:var(--serif);font-size:'+FONT_PT+'pt;line-height:'+LINE_H+';color:#303238';
-  document.body.appendChild(m);
-  var items=[];
-  for(var i=0;i<blocks.length;i++){
-    var b=blocks[i]; b.bid=i;
-    var el;
-    if(b.kind==='para'){
-      el=document.createElement('p');
-      el.innerHTML=fmtH(b.text);
-    }else{
-      var wrap=document.createElement('div');
-      wrap.innerHTML=blockHtml(b);
-      el=wrap.firstElementChild;
-    }
-    m.appendChild(el);
-    var h=el.getBoundingClientRect().height;
-    var pl=(b.kind==='para'||b.kind==='ul'||b.kind==='ol'||b.kind==='quote')?breakLines(displayText(b.text)):null;
-    items.push({b:b,h:h,lines:pl,lineH:h/Math.max(pl?pl.length:1,1)});
-    m.removeChild(el);
-  }
-  document.body.removeChild(m);
-  var pages=[],cur=[],used=0;
-  var gapPxEach=0.55*FONT_PT*(96/72);
-  for(var k=0;k<items.length;k++){
-    var it=items[k];
-    if(it.h>capacity&&it.b.kind==='para'){
-      if(cur.length){pages.push(cur);cur=[]}
-      var linesCount=Math.max(1,Math.round(it.h/it.lineH));
-      var perPage=Math.max(1,Math.floor(capacity/it.lineH));
-      var pos=0;
-      while(pos<linesCount){
-        var take=Math.min(perPage,linesCount-pos);
-        cur.push({b:it.b,l0:pos,l1:pos+take,partLines:it.lines,h:take*it.lineH});
-        pos+=take;
-        if(pos<linesCount){pages.push(cur);cur=[]}
-      }
-      continue;
-    }
-    if(used>0&&used+it.h>capacity){pages.push(cur);cur=[];used=0}
-    cur.push({b:it.b,whole:true,h:it.h});
-    used+=it.h+gapPxEach;
-  }
-  if(cur.length)pages.push(cur);
-  return pages;
-}
 
 // ═══ 渲染:每张 A4 纸一个整体可编辑区(原生 Enter/Delete)═══
 var gSrc='', gPages=[], gNodes=[];
 function render(src){
   gSrc=src;
-  gNodes=miniParse(src);
-  gPages=layoutPages(gNodes);
+  gNodes=Engine.parse(src);
+  gPages=Engine.layoutPages(gNodes);
+  renderNodes();
+}
+// 用现有 gNodes/gPages 重建纸面 DOM(本地解析与原生权威解析共用出口)
+function renderNodes(){
   var pane=document.getElementById('display-pane');
   pane.innerHTML='';
   for(var p=0;p<gPages.length;p++){
     var sheet=document.createElement('div');
     sheet.className='sheet';
-    sheet.style.width=PAGE_W+'mm';
-    sheet.style.minHeight=PAGE_H+'mm';
-    sheet.style.padding=MARGIN+'mm';
+    sheet.style.width=CFG.PAGE_W+'mm';
+    sheet.style.minHeight=CFG.PAGE_H+'mm';
+    sheet.style.padding=CFG.MARGIN+'mm';
     var paper=document.createElement('div');
     paper.className='paper';
     paper.contentEditable='true';
-    paper.style.lineHeight=LINE_H;
+    paper.style.lineHeight=CFG.LINE_H;
     paper.dataset.page=p;
     for(var k=0;k<gPages[p].length;k++){
       var item=gPages[p][k], b=item.b;
@@ -622,6 +439,37 @@ function render(src){
         paper.appendChild(cm);
         paper.appendChild(gapEl()); continue;
       }
+      if(b.kind==='code'){
+        var pre=document.createElement('div');
+        pre.className='codeblock';
+        pre.contentEditable='false';
+        pre.dataset.bid=b.bid; pre.dataset.kind='code';
+        pre.innerHTML='<div class="code-lang">'+Engine.escHtml(b.lang)+'</div><pre><code>'+Engine.escHtml(b.text)+'</code></pre>';
+        paper.appendChild(pre);
+        paper.appendChild(gapEl()); continue;
+      }
+      if(b.kind==='math'){
+        var mm=document.createElement('div');
+        mm.className='mathblock'; mm.contentEditable='false';
+        mm.dataset.bid=b.bid; mm.dataset.kind='math';
+        mm.innerHTML='<div class="math-label">数学</div><div class="math-content">'+Engine.escHtml(b.text)+'</div>';
+        paper.appendChild(mm);
+        paper.appendChild(gapEl()); continue;
+      }
+      if(b.kind==='label'){
+        var lb=document.createElement('div'); lb.className='lblref-block';
+        lb.contentEditable='false'; lb.dataset.bid=b.bid; lb.dataset.kind='label';
+        lb.textContent='📌 标签: '+b.text;
+        paper.appendChild(lb);
+        paper.appendChild(gapEl()); continue;
+      }
+      if(b.kind==='ref'){
+        var rf=document.createElement('div'); rf.className='ref-block';
+        rf.contentEditable='false'; rf.dataset.bid=b.bid; rf.dataset.kind='ref';
+        rf.textContent='↦ 引用: '+b.text;
+        paper.appendChild(rf);
+        paper.appendChild(gapEl()); continue;
+      }
       paper.appendChild(makeBlock(b,item));
       paper.appendChild(gapEl());
     }
@@ -632,14 +480,15 @@ function render(src){
   }
   renderOutline();
   renderStatus();
+  updateGutter();
   var ta=document.getElementById('syntax-src');
-  if(ta&&ta.value!==src)ta.value=src;
+  if(ta&&ta.value!==gSrc)ta.value=gSrc;
 }
 function gapEl(){ var g=document.createElement('div'); g.className='gap'; g.contentEditable='false'; return g }
 function makeBlock(b,item){
   var html;
   if(item.whole||item.l0===undefined){
-    html=blockHtml(b);
+    html=Engine.blockHtml(b);
     var wrap=document.createElement('div');
     wrap.innerHTML=html;
     var inner=wrap.firstElementChild;
@@ -653,25 +502,8 @@ function makeBlock(b,item){
   el.dataset.bid=b.bid;
   el.dataset.kind='para';
   el.dataset.l0=item.l0; el.dataset.l1=item.l1;
-  if(item.l0>0)el.style.textIndent='0';  el.innerHTML=fmtH(text);
+  if(item.l0>0)el.style.textIndent='0';  el.innerHTML=Engine.fmtH(text);
   return el;
-}
-function objHtml(b){
-  var m=b.text.match(/^@\[image\s+([^\]]+)\]/m);
-  if(m&&/^(data:|https?:)/.test(m[1]))return'<img src="'+m[1]+'" alt="图片">';
-  return'<div class="img-ph" contentEditable="false">'+escHtml(b.text.split('\n')[0])+'</div>';
-}
-function blockHtml(b){
-  switch(b.kind){
-    case 'heading':return'<h'+b.level+'>'+fmtH(b.text)+'</h'+b.level+'>';
-    case 'hr':return'<hr>';
-    case 'ul':return'<ul><li>'+fmtH(b.text)+'</li></ul>';
-    case 'ol':return'<ol><li>'+fmtH(b.text)+'</li></ol>';
-    case 'quote':return'<blockquote><p>'+fmtH(b.text)+'</p></blockquote>';
-    case 'table':return tableHtml(b.rows);
-    case 'obj':return objHtml(b);
-    default:return'<p>'+fmtH(b.text)+'</p>';
-  }
 }
 function renderOutline(){
   var ol=document.getElementById('outline');
@@ -682,7 +514,7 @@ function renderOutline(){
     (function(n){
       var d=document.createElement('div');
       d.className='outline-item lv'+n.level;
-      d.textContent=displayText(n.text);
+      d.textContent=Engine.displayText(n.text);
       d.onclick=function(){
         var t=document.querySelector('#display-pane [data-bid="'+n.bid+'"]');
         if(t)t.scrollIntoView({behavior:'smooth',block:'start'});
@@ -695,7 +527,7 @@ function renderStatus(){
   var chars=0, labels=0;
   for(var i=0;i<gNodes.length;i++){
     if(gNodes[i].kind==='obj')continue;
-    if(gNodes[i].text)chars+=displayText(gNodes[i].text).replace(/\s/g,'').length;
+    if(gNodes[i].text)chars+=Engine.displayText(gNodes[i].text).replace(/\s/g,'').length;
     if(gNodes[i].text&&gNodes[i].text.indexOf('label')>=0)labels++;
   }
   document.getElementById('st-words').textContent=chars+' 字';
@@ -703,132 +535,45 @@ function renderStatus(){
   document.getElementById('st-page').textContent='共 '+gPages.length+' 页';
 }
 
-// ═══ DOM → 源码序列化(§85:纸面原生编辑,DOM 是输入,源码是权威)═══
-function inlineSource(el){
-  var out='';
-  el.childNodes.forEach(function(n){
-    if(n.nodeType===3){ out+=n.textContent; return }
-    if(n.nodeType!==1)return;
-    var tag=n.tagName, inner=inlineSource(n);
-    if(tag==='STRONG'||tag==='B')out+='**'+inner+'**';
-    else if(tag==='EM'||tag==='I')out+='_'+inner+'_';
-    else if(tag==='DEL'||tag==='S'||tag==='STRIKE')out+='~~'+inner+'~~';
-    else if(tag==='U')out+='@[u]'+inner+'@[/u]';
-    else if(tag==='SUP')out+='@[sup]'+inner+'@[/sup]';
-    else if(tag==='SUB')out+='@[sub]'+inner+'@[/sub]';
-    else if(tag==='A')out+='@[link '+inner+' url: '+n.getAttribute('href')+']';
-    else if(tag==='CODE')out+='`'+inner+'`';
-    else if(tag==='SUP')out+='@[sup]'+inner+'@[/sup]';
-    else if(tag==='SUB')out+='@[sub]'+inner+'@[/sub]';
-    else if(tag==='FONT'){
-      if(n.getAttribute('color'))out+='@[color '+n.getAttribute('color')+']'+inner+'@[/color]';
-      else if(n.getAttribute('face'))out+='@[font "'+n.getAttribute('face')+'"]'+inner+'@[/font]';
-      else if(n.getAttribute('size'))out+='@[size '+n.getAttribute('size')+']'+inner+'@[/size]';
-      else out+=inner;
-    }
-    else if(tag==='SPAN'){
-      if(n.dataset.cmd)out+=n.dataset.cmd+inner+(n.dataset.close||'');
-      else out+=inner;
-    }
-    else if(tag==='BR')out+='\n';
-    else out+=inner;
-  });
-  return out;
-}
-function blockPrefix(kind,level){
-  if(kind==='heading')return'#'.repeat(level||1)+' ';
-  if(kind==='ul')return'- ';
-  if(kind==='ol')return'1. ';
-  if(kind==='quote')return'> ';
-  return'';
-}
-// 单个块元素 → 源码行数组(块内可能被浏览器塞进多个子块)
-function serializeBlockEl(el){
-  var kind=el.dataset.kind, lines=[];
-  var kids=el.children;
-  if(kind==='heading'&&/^H[1-6]$/.test(el.tagName)){
-    lines.push('#'.repeat(+el.tagName.charAt(1))+' '+inlineSource(el).trim());
-  }
-  else if(kind==='hr'){
-    lines.push('---');
-  }
-  else if(kind==='obj'&&el.dataset.raw){
-    // 多行对象(figure 等)整段保真
-    el.dataset.raw.split('\n').forEach(function(l){lines.push(l)});
-  }
-  else if(kind==='para'&&el.tagName==='P'){
-    var t=inlineSource(el).replace(/\n+$/,'');
-    lines.push(t);
-  }
-  else if(kind==='ul'||kind==='ol'){
-    var items=el.querySelectorAll('li');
-    if(items.length===0)items=[el];
-    items.forEach(function(li){ lines.push(blockPrefix(kind)+inlineSource(li).trim()) });
-  }
-  else if(kind==='quote'){
-    var qs=el.querySelectorAll('p,div');
-    if(qs.length===0)qs=[el];
-    qs.forEach(function(q){ lines.push('> '+inlineSource(q).trim()) });
-  }
-  else if(kind==='table'){
-    var rows=[];
-    el.querySelectorAll('tr').forEach(function(tr,idx){
-      var cells=[];
-      tr.querySelectorAll('th,td').forEach(function(c){cells.push(inlineSource(c).trim())});
-      rows.push('| '+cells.join(' | ')+' |');
-      if(idx===0)rows.push('| '+' --- |'.repeat(Math.max(cells.length,1)).trim());
-    });
-    lines.push('@[table demo]');
-    rows.forEach(function(r){lines.push(r)});
-    lines.push('@[/table]');
-  }
-  else{
-    var t2=inlineSource(el).replace(/\n+$/,'');
-    lines.push(t2);
-  }
-  return lines;
-}
-// 全文序列化:遍历每页纸的顶层块
-function serializeAll(){
-  var out=[];
-  var papers=document.querySelectorAll('#display-pane .paper');
-  papers.forEach(function(paper){
-    var prevKind='';
-    paper.childNodes.forEach(function(el){
-      if(el.nodeType!==1)return;
-      if(el.classList.contains('gap'))return;
-      if(el.classList.contains('docset')){ if(out.length&&out[out.length-1].trim()!==''&&prevKind!=='docset')out.push(''); out.push(el.textContent); prevKind='docset'; return }
-      if(el.classList.contains('comment-src')){ if(out.length&&out[out.length-1].trim()!==''&&prevKind!=='comment')out.push(''); out.push(el.dataset.raw||el.textContent); prevKind='comment'; return }
-      // 原生 Enter 拆出的新块没有 data-bid,按通用规则识别类型
-      var kind=el.dataset.kind||(/^H[1-6]$/.test(el.tagName)?'heading':el.tagName==='UL'?'ul':el.tagName==='OL'?'ol':el.tagName==='BLOCKQUOTE'?'quote':el.tagName==='TABLE'?'table':el.tagName==='HR'?'hr':'para');
-      el.dataset.kind=kind;
-      if(!el.dataset.bid){
-        var maxBid=0;
-        document.querySelectorAll('#display-pane [data-bid]').forEach(function(x){maxBid=Math.max(maxBid,+x.dataset.bid)});
-        el.dataset.bid=maxBid+1;
-      }
-      var lines=serializeBlockEl(el);
-      // 空行保真:除连续列表项外,顶层块之间保持空行(P-02)
-      var isList=(kind==='ul'||kind==='ol');
-      var prevIsList=(prevKind==='ul'||prevKind==='ol');
-      if(out.length>0&&out[out.length-1].trim()!==''&&!(isList&&prevIsList))out.push('');
-      lines.forEach(function(l){out.push(l)});
-      prevKind=kind;
-    });
-  });
-  // 还原表格之外的文本(表格行已直接以 @[table] 包装)
-  return out.join('\n');
-}
-
 // ═══ 编辑同步:输入 → 序列化 → 必要时重排 ═══
-var repagTimer=null;
+var repagTimer=null,lastEditSource=null;
 function onPaperInput(){
   if(repagTimer)clearTimeout(repagTimer);
   repagTimer=setTimeout(applySyncNow,300);
 }
+function swapSplit(){
+  var ws=document.querySelector('.workspace');
+  var dp=document.getElementById('display-pane');
+  var sp=document.getElementById('syntax-pane');
+  if(!dp||!sp)return;
+  if(dp.nextElementSibling===sp){ ws.insertBefore(sp,dp); }
+  else{ ws.insertBefore(dp,sp); }
+}
+function updateGutter(){
+  var g=document.getElementById('gutter');
+  var ta=document.getElementById('syntax-src');
+  if(!g||!ta)return;
+  var n=ta.value.split('\n').length;
+  var out='';
+  for(var i=1;i<=n;i++)out+=i+'\n';
+  if(g.textContent!==out)g.textContent=out;
+  g.scrollTop=ta.scrollTop;
+}
 function applySyncNow(){
   if(repagTimer){clearTimeout(repagTimer);repagTimer=null}
-  var newSrc=serializeAll();
+  if(lastEditSource==='syntax'||currentMode==='syntax'){
+    // 语法视图/语法侧编辑:输入框即源码权威(§85),不再从纸面 DOM 反写
+    var ta=document.getElementById('syntax-src');
+    var taVal=ta?ta.value:'';
+    if(taVal===gSrc)return;
+    gSrc=taVal;
+    if(currentMode==='split')render(gSrc);
+    updateDiagBar();
+    scheduleNativeDiags();
+    return;
+  }
+  // 纸面编辑:DOM 序列化回写(含跨页片段合并)
+  var newSrc=Engine.serializeAll();
   if(newSrc===gSrc)return;
   gSrc=newSrc;
   var ta=document.getElementById('syntax-src');
@@ -836,10 +581,10 @@ function applySyncNow(){
   recordHist(gSrc,true);
   var caret=saveCaret();
   var before=gPages.length+'|'+gPages.map(function(p){return p.length?p[0].b.bid:-1}).join(',');
-  gNodes=miniParse(gSrc);
-  gPages=layoutPages(gNodes);
+  gNodes=Engine.parse(gSrc);
+  gPages=Engine.layoutPages(gNodes);
   var after=gPages.length+'|'+gPages.map(function(p){return p.length?p[0].b.bid:-1}).join(',');
-  if(before!==after){ render(gSrc); restoreCaret(caret) }
+  if(before!==after){ renderNodes(); restoreCaret(caret) }
   else { renderOutline(); renderStatus() }
 }
 function saveCaret(){
@@ -918,16 +663,63 @@ function mergeBlocks(keepBid,goneBid){
   if(!keep||!gone)return;
   var keepEl=document.querySelector('#display-pane [data-bid="'+keepBid+'"]');
   var goneEl=document.querySelector('#display-pane [data-bid="'+goneBid+'"]');
-  var keepText=keepEl?inlineSource(keepEl).trim():displayText(keep.text);
-  var goneText=goneEl?inlineSource(goneEl).trim():displayText(gone.text);
+  var keepText=keepEl?Engine.inlineSource(keepEl).trim():Engine.displayText(keep.text);
+  var goneText=goneEl?Engine.inlineSource(goneEl).trim():Engine.displayText(gone.text);
   var junction=keepText.length;
   var lines=gSrc.split('\n');
-  var mergedLine=blockPrefix(keep.kind,keep.level)+(keepText+' '+goneText).replace(/\s+/g,' ').trim();
+  var mergedLine=Engine.blockPrefix(keep.kind,keep.level)+(keepText+' '+goneText).replace(/\s+/g,' ').trim();
   lines.splice(keep.srcStart,gone.srcEnd-keep.srcStart,mergedLine);
   var caret={bid:keepBid,off:junction+1};
   render(lines.join('\n'));
   restoreCaret(caret);
   recordHist(gSrc,false);
+}
+
+// ═══ 原生引擎(桌面版):诊断刷新 + 打开时权威初渲染 ═══
+var nativeDiags=null, nativeTimer=null;
+function allDiags(){
+  if(nativeDiags&&nativeDiags.src===gSrc)return nativeDiags.ds;
+  if(CORE_DIAGS.length)return CORE_DIAGS;
+  return Engine.quickDiags(gSrc);
+}
+function scheduleNativeDiags(){
+  if(!Bridge.native)return;
+  if(nativeTimer)clearTimeout(nativeTimer);
+  nativeTimer=setTimeout(refreshNativeDiags,800);
+}
+function refreshNativeDiags(){
+  if(!Bridge.native)return;
+  var atReq=gSrc;
+  Bridge.parse(atReq).then(function(res){
+    if(!res.native)return;
+    if(gSrc!==atReq)return;
+    adoptNativeResult(res);
+  });
+}
+// 原生结果落地:诊断 + 块结构交叉比对 + (可选)权威重渲染
+function adoptNativeResult(res){
+  var ds=(res.diags&&res.diags.length)?res.diags:Engine.quickDiags(gSrc);
+  var localCount=Engine.parse(gSrc).length;
+  if(res.blocks&&res.blocks.length&&res.blocks.length!==localCount){
+    ds=ds.concat([{sev:'warn',msg:'引擎分歧:原生 '+res.blocks.length+' 块 / 预览 '+localCount+' 块',line:1}]);
+  }
+  nativeDiags={src:gSrc,ds:ds};
+  updateDiagBar();
+}
+// 打开/初始化后:以原生解析结果重建文档结构(桌面版权威路径)
+function adoptNativeBlocks(){
+  if(!Bridge.native)return;
+  var atReq=gSrc;
+  Bridge.parse(atReq).then(function(res){
+    if(!res.native||!res.blocks||!res.blocks.length)return;
+    if(gSrc!==atReq)return;
+    adoptNativeResult(res);
+    var caret=saveCaret();
+    gNodes=Engine.ingestNative(res.blocks,gSrc);
+    gPages=Engine.layoutPages(gNodes);
+    renderNodes();
+    restoreCaret(caret);
+  });
 }
 
 // ═══ 工具栏命令 ═══
@@ -1022,7 +814,7 @@ function applyStyle(lv){
   var b=nodeByBid(bid);
   if(!b)return;
   var el=document.querySelector('#display-pane [data-bid="'+bid+'"]');
-  var body=el?inlineSource(el).replace(/^#+\s*/,'').trim():displayText(b.text);
+  var body=el?Engine.inlineSource(el).replace(/^#+\s*/,'').trim():Engine.displayText(b.text);
   var lines=gSrc.split('\n');
   lines.splice(b.srcStart,b.srcEnd-b.srcStart,'#'.repeat(+lv)+' '+body);
   setSrc(lines.join('\n'));
@@ -1169,31 +961,8 @@ function updateCaretPos(){
   el.textContent='第 '+page+' 页 · 行 '+line+', 列 '+col;
 }
 
-// ═══ 诊断(核心 JSON 注入 + 独立运行迷你检查)═══
+// ═══ 诊断(原生优先 → 核心 JSON 注入 → 本地快速检查)═══
 var CORE_DIAGS=(typeof DOC_DATA!=='undefined'&&DOC_DATA&&DOC_DATA.diags)||[];
-function quickDiags(src){
-  var out=[],lines=src.split('\n');
-  var tOpen=0,cOpen=0;
-  for(var i=0;i<lines.length;i++){
-    var t=lines[i];
-    if(t.indexOf('@[table')===0)tOpen++;
-    if(t.indexOf('@[/table]')>=0)tOpen--;
-    if(t.indexOf('@[comment')===0&&t.indexOf('@[/comment]')<0)cOpen++;
-    if(t.indexOf('@[/comment]')>=0)cOpen--;
-    var m=t.match(/^@\[([a-z-]+)[\s\]]/i);
-    if(m){
-      var known='table,figure,image,comment,link,footnote,toc,first-line,page,margin,font,size,line-spacing,theme,toc,numbering,u,color,mark,sup,sub,label,ref,cell,b,bold,m,math,c,code'.split(',');
-      if(known.indexOf(m[1].toLowerCase())<0)out.push({sev:'warn',msg:'未识别的命令: @['+m[1],line:i+1});
-    }
-  }
-  if(tOpen>0)out.push({sev:'err',msg:'表格 @[table] 缺少 @[/table] 收尾',line:lines.length});
-  if(cOpen>0)out.push({sev:'err',msg:'批注 @[comment] 缺少 @[/comment] 收尾',line:lines.length});
-  return out;
-}
-function allDiags(){
-  if(CORE_DIAGS.length)return CORE_DIAGS;
-  return quickDiags(gSrc);
-}
 function updateDiagBar(){
   var ds=allDiags();
   var errs=ds.filter(function(d){return d.sev==='err'}).length;
@@ -1274,13 +1043,14 @@ function togglePal(e,kind){
   var r=anchor.getBoundingClientRect();
   pal.style.left=Math.max(8,Math.min(r.left,window.innerWidth-260))+'px';
   pal.style.top=(r.bottom+8)+'px';
+  pal.style.display='flex';
   pal.classList.add('open');
   _palOpenKind=kind;
 }
 function closePal(){
   _palOpenKind=null;
   var fp=document.getElementById('float-pal');
-  if(fp)fp.classList.remove('open');
+  if(fp){fp.classList.remove('open');fp.style.display='none'}
 }
 document.addEventListener('click',function(e){
   if(_palOpenKind&&!e.target.closest('#float-pal')&&!e.target.closest('.half-caret')&&!e.target.closest('.splitbtn .rbtn')){
@@ -1290,13 +1060,13 @@ document.addEventListener('click',function(e){
 
 // ═══ 查找替换 ═══
 function toggleFind(){
-  var bar=document.querySelector('[data-page="findbar"]');
+  var bar=document.getElementById('findbar');
   var open=bar.style.display==='none'||!bar.style.display;
-  bar.style.display=open?'flex':'none';
+  bar.style.display=open?'block':'none';
   if(open){document.getElementById('findbox').focus();findCount()}
 }
 function closeFind(){
-  document.querySelector('[data-page="findbar"]').style.display='none';
+  document.getElementById('findbar').style.display='none';
 }
 function findIdxOf(src,q,from){
   var cs=document.getElementById('cb-case')&&document.getElementById('cb-case').checked;
@@ -1355,6 +1125,18 @@ function findNext(){
     if(i>=0){ta.focus();ta.setSelectionRange(i,i+q.length)}
   }
 }
+function findPrev(){
+  var q=document.getElementById('findbox').value;
+  if(!q)return;
+  if(inDisplayMode()){
+    if(!window.find(q,cs0(),true))document.getElementById('findmsg').textContent='已到开头';
+  }else{
+    var ta=document.getElementById('syntax-src');
+    var before=gSrc.substring(0,ta.selectionStart||0).lastIndexOf(q);
+    if(before>=0){ta.focus();ta.setSelectionRange(before,before+q.length)}
+    else document.getElementById('findmsg').textContent='已到开头';
+  }
+}
 function replaceOne(){
   var q=document.getElementById('findbox').value;
   var r=document.getElementById('replacebox').value;
@@ -1392,12 +1174,11 @@ function replaceAll(){
   document.getElementById('findmsg').textContent='已替换 '+n+' 处';
 }
 
-// ═══ 页面设置 ═══
+// ═══ 页面设置(几何参数在引擎,UI 只收集输入)═══
 var PAPER_SIZES={A4:[210,297],Letter:[215.9,279.4],B5:[176,250],A3:[297,420],A5:[148,210]};
 function applyPaper(v){
   var sz=PAPER_SIZES[v]||PAPER_SIZES.A4;
-  PAGE_W=sz[0]; PAGE_H=sz[1];
-  recalcPage();
+  Engine.setPage({PAGE_W:sz[0],PAGE_H:sz[1]});
   render(gSrc);
 }
 function applyMargin(v){
@@ -1406,13 +1187,12 @@ function applyMargin(v){
     inp.style.display='block'; inp.focus();
     return;
   }
-  MARGIN=parseFloat(v)||20;
-  recalcPage();
+  Engine.setPage({MARGIN:parseFloat(v)||20});
   render(gSrc);
 }
 function applyMarginCustom(v){
   var x=parseFloat(v);
-  if(x>=5&&x<=60){ MARGIN=x; recalcPage(); render(gSrc) }
+  if(x>=5&&x<=60){ Engine.setPage({MARGIN:x}); render(gSrc) }
 }
 function applyLineSpacing(v){
   if(v==='custom'){
@@ -1420,19 +1200,17 @@ function applyLineSpacing(v){
     inp.style.display='block'; inp.focus();
     return;
   }
-  LINE_H=parseFloat(v)||1.9;
-  recalcPage();
+  Engine.setPage({LINE_H:parseFloat(v)||1.9});
   render(gSrc);
 }
 function applyLineSpacingCustom(v){
   var x=parseFloat(v);
-  if(x>=1&&x<=4){ LINE_H=x; recalcPage(); render(gSrc) }
+  if(x>=1&&x<=4){ Engine.setPage({LINE_H:x}); render(gSrc) }
 }
 function toggleOrientation(){
-  var t=PAGE_W; PAGE_W=PAGE_H; PAGE_H=t;
-  recalcPage();
+  Engine.setPage({PAGE_W:CFG.PAGE_H,PAGE_H:CFG.PAGE_W});
   render(gSrc);
-  document.getElementById('btn-orient').textContent=PAGE_W>PAGE_H?'横向':'纵向';
+  document.getElementById('btn-orient').textContent=CFG.PAGE_W>CFG.PAGE_H?'横向':'纵向';
 }
 
 // ═══ 首行缩进开关(@[first-line 2em] 文档级)═══
@@ -1451,15 +1229,8 @@ function toggleFirstLine(){
 }
 
 // ═══ 导出与打印 ═══
-function download(name,mime,content){
-  var blob=new Blob([content],{type:mime});
-  var a=document.createElement('a');
-  a.href=URL.createObjectURL(blob);
-  a.download=name;
-  a.click();
-}
 function exportFile(kind){
-  if(kind==='txt'){saveWithPicker(fname('txt'),'text/plain;charset=utf-8',gSrc);return}
+  if(kind==='txt'){saveWithPicker(fname('txt'),gSrc);return}
   if(kind==='md'){
     var out=[],lines=gSrc.split('\n');
     for(var i=0;i<lines.length;i++){
@@ -1473,7 +1244,7 @@ function exportFile(kind){
       t=t.replace(/@\[u\]((?:.|])*?)@\[\/u\]/g,'<u>$1</u>');
       out.push(t);
     }
-    saveWithPicker(fname('md'),'text/markdown;charset=utf-8',out.join('\n'));
+    saveWithPicker(fname('md'),out.join('\n'));
     return;
   }
   if(kind==='html'||kind==='doc'){
@@ -1482,7 +1253,7 @@ function exportFile(kind){
     papers.forEach(function(pp){body+=pp.innerHTML});
     var html='<!DOCTYPE html><html><head><meta charset="utf-8"><title>Awen 文档</title><style>'
       +'body{margin:0;background:#e8e9eb}'
-      +'.sheet{width:'+PAGE_W+'mm;min-height:'+PAGE_H+'mm;background:#fff;margin:16px auto;padding:'+MARGIN+'mm;box-sizing:border-box;font-family:Georgia,"Times New Roman","Noto Serif SC","Microsoft YaHei",serif;font-size:11pt;line-height:'+LINE_H+';color:#303238}'
+      +'.sheet{width:'+CFG.PAGE_W+'mm;min-height:'+CFG.PAGE_H+'mm;background:#fff;margin:16px auto;padding:'+CFG.MARGIN+'mm;box-sizing:border-box;font-family:Georgia,"Times New Roman","Noto Serif SC","Microsoft YaHei",serif;font-size:11pt;line-height:'+CFG.LINE_H+';color:#303238}'
       +'h1{font-size:22pt}h2{font-size:15pt}h3{font-size:13pt}h4{font-size:12pt}h5{font-size:11pt}h6{font-size:10.5pt}'
       +'p{text-indent:2em;margin:0}strong,b{font-weight:700}em,i{font-style:italic}del,s{text-decoration:line-through}u{text-decoration:underline}'
       +'code{font-family:Consolas,monospace;font-size:.87em;background:#f0f1f2;padding:1px 4px;border-radius:3px}'
@@ -1491,8 +1262,7 @@ function exportFile(kind){
       +'th,td{border:1px solid #d0d2d5;padding:4px 8px;text-align:left}th{background:#f5f5f6}'
       +'.docset{color:#c8cad0;font-size:8pt}.comment-src{background:#fffbe8;color:#b09a3e;font-size:9pt}'
       +'</style></head><body>'+body+'</body></html>';
-    if(kind==='html')saveWithPicker(fname('html'),'text/html;charset=utf-8',html);
-    else saveWithPicker(fname('doc'),'application/msword;charset=utf-8',html);
+    saveWithPicker(fname(kind==='html'?'html':'doc'),html);
   }
 }
 function doPrint(){window.print()}
@@ -1510,17 +1280,42 @@ function buildSyntaxPane(){
   var sheet=document.createElement('div');
   sheet.className='sheet';
   var src=document.createElement('div');
-  src.className='src-paper';
+  src.className='src-wrap';
+  var gutter=document.createElement('div');
+  gutter.id='gutter'; gutter.className='gutter';
   var ta=document.createElement('textarea');
   ta.id='syntax-src'; ta.spellcheck=false;
-  ta.style.cssText='width:100%;height:'+(PAGE_H-2*MARGIN-2)+'mm;border:0;outline:0;resize:none;background:transparent;font:inherit;color:inherit;white-space:pre;overflow:auto';
+  ta.style.cssText='flex:1;height:'+(CFG.PAGE_H-2*CFG.MARGIN-2)+'mm;border:0;outline:0;resize:none;background:transparent;font:inherit;color:inherit;white-space:pre;overflow:auto';
+  src.appendChild(gutter);
   src.appendChild(ta);
   sheet.appendChild(src);
   pane.appendChild(sheet);
+  ta.addEventListener('scroll',function(){
+    gutter.scrollTop=ta.scrollTop;
+    if(!window.scrollSyncLock&&currentMode==='split'){
+      window.scrollSyncLock='ta';
+      var pane=document.getElementById('display-pane');
+      var ratio=ta.scrollTop/Math.max(1,ta.scrollHeight-ta.clientHeight);
+      pane.scrollTop=ratio*Math.max(1,pane.scrollHeight-pane.clientHeight);
+      setTimeout(function(){window.scrollSyncLock=null},50);
+    }
+  });
+  document.getElementById('display-pane').addEventListener('scroll',function(){
+    if(currentMode!=='split'||window.scrollSyncLock)return;
+    window.scrollSyncLock='dp';
+    var ta2=document.getElementById('syntax-src');
+    if(!ta2)return;
+    var pane2=document.getElementById('display-pane');
+    var ratio=pane2.scrollTop/Math.max(1,pane2.scrollHeight-pane2.clientHeight);
+    ta2.scrollTop=ratio*Math.max(1,ta2.scrollHeight-ta2.clientHeight);
+    gutter.scrollTop=ta2.scrollTop;
+    setTimeout(function(){window.scrollSyncLock=null},50);
+  });
   ta.addEventListener('input',function(){
+    lastEditSource='syntax';
     recordHist(ta.value,true);
     if(repagTimer)clearTimeout(repagTimer);
-    repagTimer=setTimeout(function(){ setSrc(ta.value) },250);
+    repagTimer=setTimeout(applySyncNow,300);
   });
 }
 function insertSyntax(text){
@@ -1562,6 +1357,7 @@ function markDirty(){
   updateTitle();
   updateUndoButtons();
   updateDiagBar();
+  scheduleNativeDiags();
 }
 function updateUndoButtons(){
   document.querySelectorAll('button[onclick="doUndo()"]').forEach(function(b){b.disabled=histIdx<=0});
@@ -1581,18 +1377,23 @@ function doRedo(){
 }
 function applyHistory(text){
   var caret=saveCaret();
+  var ta=document.getElementById('syntax-src');
+  if(ta)ta.value=text;
   render(text);
   restoreCaret(caret);
-  document.getElementById('st-diag').textContent='诊断 ✓ · 历史 '+histIdx+'/'+(hist.length-1);
+  updateDiagBar();
+  updateUndoButtons();
+  document.getElementById('st-diag').title='历史 '+histIdx+'/'+(hist.length-1);
 }
 function setSrc(s){
   var ta=document.getElementById('syntax-src');
   if(ta)ta.value=s;
   recordHist(s,false);
   render(s);
-  var norm=serializeAll();
+  var norm=Engine.serializeAll();
   if(norm!==s){ render(norm); }
   updateDiagBar();
+  scheduleNativeDiags();
 }
 
 // ═══ 视图切换 ═══
@@ -1612,6 +1413,8 @@ function setMode(mode){
   else{ dp.style.display='flex'; dp.style.flex='1 1 auto'; sp.style.display='none' }
   var ta=document.getElementById('syntax-src');
   if(ta)ta.value=gSrc;
+  // 从语法切回显示/分屏时,按最新源码刷新显示窗格
+  if(mode!=='syntax')render(gSrc);
   applyZoom(document.getElementById('sel-zoom').value);
 }
 function fitZoom(base){
@@ -1629,40 +1432,38 @@ function applyZoom(v){
 }
 window.addEventListener('resize',function(){ applyZoom(document.getElementById('sel-zoom').value) });
 
-document.getElementById('display-pane').addEventListener('input',onPaperInput);
+document.getElementById('display-pane').addEventListener('input',function(e){
+  lastEditSource='paper';
+  onPaperInput(e);
+});
 document.getElementById('display-pane').addEventListener('keydown',onPaperKey);
 
 function fname(ext){
-  var n=(document.getElementById('docname').value||'未命名文档').replace(/[\\/:*?"<>|]/g,'_').trim()||'未命名文档';
   var e=document.getElementById('export-name');
-  if(ext!=='awen'&&e&&e.value.trim())n=e.value.trim().replace(/[\\/:*?"<>|]/g,'_');
+  var d=document.getElementById('docname');
+  var n=(e&&e.value.trim())?e.value.trim():(d.value||'未命名文档');
+  n=n.replace(/[\\/:*?"<>|]/g,'_').replace(/\.(awen|txt|md|html?|docx?)$/i,'');
   return n+'.'+ext;
 }
-function saveWithPicker(name,mime,content){
-  if(window.showSaveFilePicker){
-    var ext=name.split('.').pop();
-    var acc={}; acc[mime]=['.'+ext];
-    window.showSaveFilePicker({suggestedName:name,types:[{description:ext.toUpperCase()+' 文件',accept:acc}]})
-      .then(function(h){ return h.createWritable().then(function(w){ return w.write(new Blob([content],{type:mime})) }).then(function(w){ return w.close() }) })
-      .then(function(){ markClean() })
-      .catch(function(e){ if(e&&e.name==='AbortError')return; download(name,mime,content); markClean() });
-  }else{
-    download(name,mime,content);
-    markClean();
-  }
+// 导出统一走 Bridge(桌面版原生对话框+写盘;浏览器 picker/download)
+function saveWithPicker(name,content){
+  Bridge.saveDialog(name,content).then(function(ok){ if(ok)markClean() });
 }
 function markClean(){ docDirty=false; updateTitle() }
-function updateTitle(){
+function updateTitle(src){
   var inp=document.getElementById('docname');
+  var en=document.getElementById('export-name');
   var n=inp.value||'未命名文档';
   var dm=document.getElementById('dirty-mark');
   if(dm)dm.style.display=docDirty?'inline':'none';
-  if(document.activeElement!==inp)inp.value=n;
+  if(src!=='docname'&&document.activeElement!==inp)inp.value=n;
+  if(src!=='export'&&en&&document.activeElement!==en){
+    en.value=n.replace(/\.[a-z0-9]+$/i,'');
+  }
 }
 function doSave(){
   var header='# awen v0.4\n# ---\n';
-  saveWithPicker(fname('awen.txt'),'text/plain;charset=utf-8',header+gSrc);
-  markClean();
+  Bridge.saveDialog(fname('awen'),header+gSrc).then(function(ok){ if(ok)markClean() });
 }
 function newDoc(){
   if(docDirty&&!window.confirm('当前文档未保存,确定新建?'))return;
@@ -1670,34 +1471,17 @@ function newDoc(){
   setSrc('# 未命名文档\n\n');
   markClean();
 }
-var fileInput=null;
 function openFileClick(){
-  if(!fileInput){
-    fileInput=document.createElement('input');
-    fileInput.type='file';
-    fileInput.accept='.awen,.txt,.md,.markdown';
-    fileInput.style.display='none';
-    document.body.appendChild(fileInput);
-    fileInput.addEventListener('change',onOpenFile);
-  }
-  fileInput.click();
-}
-function onOpenFile(e){
-  var f=e.target.files[0];
-  if(!f)return;
-  var rd=new FileReader();
-  rd.onload=function(){
-    var text=String(rd.result);
-    if(text.indexOf('# awen v')===0){
-      var sep=text.indexOf('# ---');
-      if(sep>=0){ var nl=text.indexOf('\n',sep); text=text.substring(nl+1) }
-    }
-    document.getElementById('docname').value=f.name.replace(/\.(awen(\.txt)?|txt|md|markdown)$/i,'');
-    setSrc(text);
+  Bridge.openDialog().then(function(res){
+    if(!res)return;
+    var name=res.name.replace(/\.(awen(\.txt)?|txt|md|markdown)$/i,'');
+    document.getElementById('docname').value=name;
+    setSrc(res.src);
+    addFileTab(name);
+    updateTitle();
     markClean();
-  };
-  rd.readAsText(f,'utf-8');
-  e.target.value='';
+    adoptNativeBlocks();
+  });
 }
 function caretBlock(){
   var s=window.getSelection();
@@ -1731,7 +1515,9 @@ var ICONS={
   comment:'<svg viewBox="0 0 16 16"><path d="M2.5 3.5h11v7h-6L4 13.5v-3H2.5z" '+SW+'/></svg>',
   print:'<svg viewBox="0 0 16 16"><path d="M4.5 6V2.5h7V6M4.5 11.5H2.5v-5h11v5h-2" '+SW+'/><rect x="4.5" y="9.5" width="7" height="4" '+SW+'/></svg>',
   pick:'<svg viewBox="0 0 16 16"><circle cx="8" cy="8" r="5" '+SW+'/><path d="M8 3a5 5 0 0 1 0 10" fill="currentColor"/></svg>',
-  toc:'<svg viewBox="0 0 16 16"><path d="M2.5 3.5h4M2.5 8h3M2.5 12.5h4" '+SW+'/><path d="M8.5 3.5h5M9.5 8h4M8.5 12.5h5" '+SW+'/></svg>'
+  toc:'<svg viewBox="0 0 16 16"><path d="M2.5 3.5h4M2.5 8h3M2.5 12.5h4" '+SW+'/><path d="M8.5 3.5h5M9.5 8h4M8.5 12.5h5" '+SW+'/></svg>',
+  newdoc:'<svg viewBox="0 0 16 16"><path d="M4 2.5h5.5L12.5 5.5V13.5H4z" '+SW+'/><path d="M9.5 2.5V5.5H12.5" '+SW+'/><path d="M6.5 9h4M8.5 7v4" '+SW+'/></svg>',
+  open:'<svg viewBox="0 0 16 16"><path d="M2.5 12.5V4a1 1 0 0 1 1-1H6l1.5 1.5h6a1 1 0 0 1 1 1v7z" '+SW+'/></svg>'
 };
 function showRibbon(page){
   document.querySelectorAll('.tab').forEach(function(t){t.classList.toggle('active',t.dataset.page===page)});
@@ -1823,6 +1609,83 @@ document.querySelectorAll('.ribbon,.tabbar,#minibar,#float-pal').forEach(functio
   });
 });
 
+// ═══ 多文件管理 ═══
+var openFiles=[];
+var activeFile=-1;
+function renderFileTabs(){
+  var bar=document.getElementById('filetabs');
+  bar.innerHTML='';
+  openFiles.forEach(function(f,i){
+    var t=document.createElement('div');
+    t.className='ftab'+(i===activeFile?' active':'')+(f.dirty?' dirty':'');
+    t.innerHTML='<span class="fdirty"></span><span>'+f.name.replace(/</g,'&lt;')+'</span><span class="fclose" data-i="'+i+'">✕</span>';
+    t.onclick=function(ev){
+      if(ev.target.classList.contains('fclose')){closeFile(i);return}
+      switchFile(i);
+    };
+    bar.appendChild(t);
+  });
+}
+function switchFile(i){
+  if(i===activeFile)return;
+  applySyncNow();
+  openFiles[activeFile].src=gSrc;
+  openFiles[activeFile].dirty=docDirty;
+  activeFile=i;
+  var f=openFiles[i];
+  document.getElementById('docname').value=f.name;
+  setSrc(f.src);
+  docDirty=f.dirty;
+  updateTitle();
+  renderFileTabs();
+}
+function closeFile(i){
+  if(openFiles[i].dirty&&!window.confirm('「'+openFiles[i].name+'」未保存,确定关闭?'))return;
+  openFiles.splice(i,1);
+  if(activeFile>=i)activeFile--;
+  if(activeFile>=openFiles.length)activeFile=openFiles.length-1;
+  if(!openFiles.length){ newDoc(); return }
+  var f=openFiles[activeFile];
+  document.getElementById('docname').value=f.name;
+  setSrc(f.src);
+  docDirty=f.dirty;
+  updateTitle();
+  renderFileTabs();
+}
+function addFileTab(name){
+  openFiles.push({name:name,src:gSrc,dirty:docDirty});
+  activeFile=openFiles.length-1;
+}
+
+// ═══ 功能区折叠 ═══
+var ribbonCollapsed=false;
+function toggleRibbonCollapse(){
+  ribbonCollapsed=!ribbonCollapsed;
+  var r=document.querySelector('.ribbon');
+  r.style.display=ribbonCollapsed?'none':'block';
+  document.getElementById('btn-collapse').style.transform=ribbonCollapsed?'rotate(180deg)':'';
+}
+
+// ═══ 字数统计对话框 ═══
+function showWordCount(){
+  var chars=0, charsSp=0, paras=0, words=0;
+  var paper=document.querySelector('#display-pane .paper');
+  if(paper){
+    var txt=paper.textContent;
+    charsSp=txt.replace(/\s{2,}/g,' ').trim().length;
+    chars=txt.replace(/\s/g,'').length;
+    paras=gNodes.filter(function(n){return n.kind==='para'||n.kind==='heading'}).length;
+  }
+  var pop=document.getElementById('diagpop');
+  pop.innerHTML='<div style="font-weight:600;margin-bottom:6px">字数统计</div>'
+    +'<div>字数(不计空格): <b>'+chars+'</b></div>'
+    +'<div>字符数(计空格): <b>'+charsSp+'</b></div>'
+    +'<div>段落数: <b>'+paras+'</b></div>'
+    +'<div>页数: <b>'+gPages.length+'</b></div>';
+  pop.style.display='block';
+  setTimeout(function(){pop.style.display='none'},4000);
+}
+
 // ═══ 全局快捷键(对照 Word)═══
 document.addEventListener('keydown',function(e){
   var mod=e.ctrlKey||e.metaKey;
@@ -1883,15 +1746,17 @@ renderOutline=function(){
   if(DOC_DATA&&DOC_DATA.source)src=DOC_DATA.source;
   buildSyntaxPane();
   setSrc(src);
-  // 序列化规范化一次(尾随换行等),消除首编辑差异
-  var norm=serializeAll();
-  if(norm!==src){ render(norm); recordHist(norm,false); }
-  recordHist(gSrc,false);
   if(gSrc.indexOf('@[first-line')>=0){ var b=document.getElementById('btn-firstline'); if(b)b.classList.add('on') }
   docDirty=false; updateTitle(); updateUndoButtons(); updateDiagBar(); updateCaretPos();
-  document.getElementById('docname').addEventListener('input',updateTitle);
+  document.getElementById('docname').addEventListener('input',function(){updateTitle('docname')});
   var en=document.getElementById('export-name');
-  if(en)en.addEventListener('input',function(){en.dataset.touched='1'});
+  if(en)en.addEventListener('input',function(){
+    updateTitle('export');
+    var dn=document.getElementById('docname');
+    if(document.activeElement===en&&en.value.trim())dn.value=en.value.trim();
+  });
+  // 桌面版:初始化后立即用原生引擎刷新诊断并做权威初渲染
+  if(Bridge.native){ refreshNativeDiags(); adoptNativeBlocks(); }
 })();
 </script>
 </body>

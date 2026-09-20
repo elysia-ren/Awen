@@ -34,6 +34,7 @@ module layout_width;
 module inline_edit;
 module inline_span;
 module page_flow;
+module core_blocks;
 
 module tests_common;
 module tests_property;
@@ -55,6 +56,7 @@ module tests_pipeline;
 module tests_cjk;
 module tests_numbering;
 module tests_export;
+module tests_core_blocks;
 
 // 本文件原为 7965 行上帝文件,M4 代码审计时按主题拆分为上述测试模块。
 // 运行入口不变:aine test src/tests.aine

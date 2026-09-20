@@ -1,0 +1,56 @@
+// tauri_cli.aine —— Tauri IPC 后端的权威解析入口(被子进程调用)
+//
+// 约定(tauri-app/src-tauri/src/main.rs 依赖,勿随意改路径):
+//   读 build/cli_in.awen → 管线解析 → blocks JSON → 写 build/cli_out.json
+// 由 Rust 侧以 `aine.exe run src/tauri_cli.aine` 调起,
+// cwd = 资源目录 aine-runtime/(含 aine.toml、src/、build/)。
+// 并发由 Rust 侧 Mutex 串行化,这里无锁。
+
+module diag;
+module registry;
+module fullwidth;
+module escape;
+module explicit;
+module lightweight;
+module lexer;
+module parser;
+module document;
+module mapping;
+module refs;
+module theme;
+module render;
+module incremental;
+module pipeline;
+module cjk;
+module layout;
+module layout_width;
+module page_flow;
+module json_export;
+module validate;
+module toc;
+module diff;
+module inspect;
+module export_html;
+module heading_tree;
+module numbering;
+module container;
+module fmt;
+module export_md;
+module seed;
+module incremental_update;
+module core_blocks;
+
+fn main() {
+    var src = read_file("build/cli_in.awen")
+    if src.contains("[read_file error") { src = "" }
+    var json = ""
+    if src == "" {
+        json = "{\"blocks\":[],\"diags\":[],\"outline\":[]}"
+    } else {
+        let out = lex(src)
+        let pr = parse(out)
+        let state = build_document(pr, src)
+        json = blocks_to_json(state, src)
+    }
+    write_file("build/cli_out.json", json)
+}
