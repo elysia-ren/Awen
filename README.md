@@ -1,6 +1,79 @@
-# Awen 原型(Aine 版)
+# Awen 编辑器
 
-Awen 文档格式的词法器 + 解析器 + Document State + Source Mapping + 双视图闭环,用 **Aine** 语言实现。
+基于 Awen 文档格式的轻量级中文编辑器。支持所见即所得编辑、语法视图、分屏对照、多文件管理、中文排版优化。
+
+## 快速开始
+
+双击 `preview/editor.html` 在浏览器中打开即可使用。
+
+推荐浏览器：Chrome / Edge / Firefox 最新版。
+
+## 功能
+
+- **三种视图模式**：显示（WYSIWYG 纸面编辑）、语法（源码 + 行号 + 诊断）、分屏（对照）
+- **纸面直接编辑**：打字 / 回车分段 / 选区格式化 / 浮动工具栏 / 迷你工具栏
+- **中文排版优化**：中英混排间距（⅛em）、行首行尾禁则、标点挤压、词边界断行
+- **像素级分页**：按纸张实际尺寸和行高自动分页（A4/Letter/B5/A3/A5、纵向/横向）
+- **插入**：表格（选行列）/ 图片（data URI 嵌入）/ 链接 / 脚注 / 目录 / 批注 / 分隔线 / 引用
+- **格式化**：粗体 / 倾斜 / 下划线 / 删除线 / 上标 / 下标 / 行内代码 / 颜色 / 底纹 / 清除
+- **对齐**：左 / 居中 / 右 / 两端
+- **查找替换**：区分大小写 / 方向 / 全部替换 / 浮动对话框
+- **撤销重做**：300 步历史，init 去重
+- **多文件**：标签页切换 / 未保存标记 / 关闭确认
+- **导出**：Markdown / HTML / Word(.doc) / TXT / 打印 PDF
+- **语法视图**：行号栏 / 当前行高亮 / 诊断面板 / 跳转定位
+- **页面设置**：纸张 / 边距（含自定义）/ 行间距 / 方向
+
+## Awen 语法速查
+
+```
+# 一级标题       ## 二级标题     ### 三级标题
+**粗体**         *斜体*          ~~删除线~~
+`行内代码`       > 引用          - 列表项
+1. 编号列表      --- 分隔线
+
+@[image 图片.png]
+@[link 文字 url: https://example.com]
+@[color #FF0000]红字@[/color]
+@[table 表名]
+| 列1 | 列2 |
+| --- | --- |
+| 内容 | 内容 |
+@[/table]
+
+@[page A4]       @[margin 20mm]
+@[font "宋体"]   @[size 11pt]
+@[toc depth: 2]  @[comment 批注]
+```
+
+完整语法参考见 `manual/Awen编辑器使用手册.html`。
+
+## 项目结构
+
+```
+├── preview/
+│   ├── template.html    ← 编辑器源码（模板）
+│   └── editor.html      ← 构建产物（可直接打开）
+├── manual/              ← 使用手册 + 截图
+├── src/                 ← Aine 语言核心
+├── corpus/              ← 测试文档
+├── tauri-app/           ← Tauri v2 桌面应用
+├── dist/                ← 打包产物
+└── docs/                ← 设计文档
+```
+
+## 技术栈
+
+- 前端：原生 HTML/CSS/JavaScript，无框架依赖
+- 排版引擎：CJK 排版（镜像 `layout_width` Aine 模块）
+- 核心：Aine 语言（编译为原生代码）
+- 桌面：Tauri v2（Rust）
+
+## 运行测试
+
+```bash
+E:\个人项目\Flow\flowc\target\release\aine.exe test src/tests.aine
+```
 
 ## 架构
 
@@ -10,56 +83,6 @@ User Syntax ──→ lexer(词法) ──→ parser(树) ──→ document(状
                 refs(Label/Ref) ←── theme(级联) ←── render(渲染) ←── pipeline(管线) ──┘
 ```
 
-## 模块
+## License
 
-| 模块 | 规范 | 职责 |
-|---|---|---|
-| diag | — | 诊断输出 |
-| registry | §11 | 命令白名单 + 中文别名 |
-| fullwidth | §6.9 | 全角归一化(上下文敏感) |
-| escape | §6.8 | 转义(@@[ / @# / @** 等) |
-| explicit | §6.1/§11 | 命令头解析(参数/属性/原文) |
-| lightweight | §6.2-6.7 | 轻量层分类+行内扫描 |
-| lexer | §6/§9 | 词法编排(Raw/表格状态机) |
-| parser | — | 语法树构建(列表组/表格/Raw) |
-| document | §1/§五 | Document State + NodeId |
-| mapping | §3/§85 | Source Span + 编辑闭环 |
-| refs | §2 | Label 解析 + 引用验证 |
-| theme | §18 | 样式级联(direct > role > theme) |
-| render | — | 渲染管线(样式应用) |
-| incremental | §1.3 | 增量解析(变更检测+复用) |
-| pipeline | §85 | 完整管线(lex→parse→render) |
-| cjk | §10 | CJK 排版验证(禁则/间距/挤压) |
-| toc | §11.6 | 目录生成(编号+缩进) |
-| diff | §8.6 | 行级差异(Git 集成) |
-| inspect | §75 | awen inspect 输出 |
-| seed | §2.2/§3.3/§4 | Buffer/Patch/Span/Label |
-
-## 运行
-
-```bash
-cd E:\个人项目\Awen文档\awen-proto-aine
-
-# 测试(80 个)
-E:\个人项目\Flow\flowc\dist\aine-0.1.0-single\aine.exe test src/tests.aine
-
-# 演示
-E:\个人项目\Flow\flowc\dist\aine-0.1.0-single\aine.exe run src/main.aine
-
-# 检查
-E:\个人项目\Flow\flowc\aine.exe check src/main.aine
-```
-
-## 里程碑
-
-| 里程碑 | 状态 |
-|---|---|
-| M0 骨架 | ✅ |
-| M1 文本缓冲区 | ✅ |
-| M2a 词法器 | ✅ |
-| M2b 语法树 | ✅ |
-| M3 Document State | ✅ |
-| M4 Source Mapping + 闭环 | ✅ |
-| M5 增量解析(基础) | ✅ |
-
-详见 `docs/PORT_NOTES.md`。
+MIT
