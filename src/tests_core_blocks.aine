@@ -1,0 +1,84 @@
+// 测试模块:tests_core_blocks(权威块级 JSON;行区间约定对齐 preview/engine.js)
+
+@test
+fn core_blocks_basic_structure() -> Result<i32, String> {
+    let src = "# 标题一\n\n第一段 **粗体**。\n\n- 项一\n- 项二\n\n尾段。\n"
+    let state = build_document(parse(lex(src)), src)
+    let json = blocks_to_json(state, src)
+    assert(json.contains("\"blocks\":["), "应有 blocks")
+    assert(json.contains("\"kind\":\"heading\""), "应有 heading")
+    assert(json.contains("\"kind\":\"para\""), "应有 para")
+    // 列表组展开为逐项 ul
+    assert(json.contains("\"kind\":\"ul\""), "应有 ul")
+    assert(json.contains("\"text\":\"- 项一\""), "ul 记录保留原文含前缀")
+    assert(json.contains("\"diags\":"), "应有 diags")
+    assert(json.contains("\"outline\":"), "应有 outline")
+    Ok(0)
+}
+
+@test
+fn core_blocks_span_convention() -> Result<i32, String> {
+    // 引擎约定:srcStart 0 基;srcEnd 半开 [start,end)
+    let src = "# 标题\n\n段一\n\n段二\n"
+    let state = build_document(parse(lex(src)), src)
+    let json = blocks_to_json(state, src)
+    // 标题在行 0,srcEnd=1
+    assert(json.contains("\"srcStart\":0,\"srcEnd\":1"), "标题区间应为 [0,1)")
+    // 段一在行 2,空行在区间外
+    assert(json.contains("\"srcStart\":2,\"srcEnd\":3"), "段一区间应为 [2,3)")
+    // 段二在行 4
+    assert(json.contains("\"srcStart\":4,\"srcEnd\":5"), "段二区间应为 [4,5)")
+    Ok(0)
+}
+
+@test
+fn core_blocks_list_item_spans() -> Result<i32, String> {
+    let src = "# T\n\n- 甲\n- 乙\n"
+    let state = build_document(parse(lex(src)), src)
+    let json = blocks_to_json(state, src)
+    assert(json.contains("\"kind\":\"ul\",\"level\":0,\"srcStart\":2,\"srcEnd\":3"), "项一区间 [2,3)")
+    assert(json.contains("\"kind\":\"ul\",\"level\":0,\"srcStart\":3,\"srcEnd\":4"), "项二区间 [3,4)")
+    Ok(0)
+}
+
+@test
+fn core_blocks_table_span_includes_delims() -> Result<i32, String> {
+    let src = "@[table t]\n| a | b |\n| --- | --- |\n| 1 | 2 |\n@[/table]\n"
+    let state = build_document(parse(lex(src)), src)
+    let json = blocks_to_json(state, src)
+    assert(json.contains("\"kind\":\"table\""), "应有 table 记录")
+    // 区间含 @[table] 与 @[/table] 定界行:[0,5)
+    assert(json.contains("\"srcStart\":0,\"srcEnd\":5"), "表格区间应含定界行 [0,5)")
+    assert(json.contains("@[/table]"), "text 应含收尾定界行")
+    Ok(0)
+}
+
+@test
+fn core_blocks_raw_code_and_math() -> Result<i32, String> {
+    let src = "@[c py]\nprint(1)\n@[/c]\n\n@[m]\nE=mc^2\n@[/m]\n"
+    let state = build_document(parse(lex(src)), src)
+    let json = blocks_to_json(state, src)
+    assert(json.contains("\"kind\":\"code\""), "应有 code 记录")
+    assert(json.contains("\"lang\":\"py\""), "code 应带 lang")
+    assert(json.contains("\"kind\":\"math\""), "无 lang 且 @[m] 开头应为 math")
+    Ok(0)
+}
+
+@test
+fn core_blocks_diags_line_one_based() -> Result<i32, String> {
+    // 未闭合表格 → 错误诊断,行号为 1 基
+    let src = "@[table t]\n| a |\n"
+    let state = build_document(parse(lex(src)), src)
+    let json = blocks_to_json(state, src)
+    assert(json.contains("\"sev\":\"err\""), "未闭合表格应为 err")
+    Ok(0)
+}
+
+@test
+fn core_blocks_outline_marked_text() -> Result<i32, String> {
+    let src = "# 章 **粗**\n\n正文。\n"
+    let state = build_document(parse(lex(src)), src)
+    let json = blocks_to_json(state, src)
+    assert(json.contains("\"text\":\"章 **粗**\""), "大纲文本应保留标记")
+    Ok(0)
+}

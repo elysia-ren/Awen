@@ -1,1 +1,1 @@
-{}
+{"default":{"identifier":"default","description":"Awen 编辑器主窗口默认能力:核心事件 + 文件对话框","local":true,"windows":["main"],"permissions":["core:default","dialog:allow-open","dialog:allow-save"]}}
