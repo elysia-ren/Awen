@@ -84,8 +84,19 @@ function breakLines(text){
 // ── 行内工具 ──
 function escHtml(s){return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;')}
 function escAttr(s){return escHtml(s).replace(/"/g,'&quot;').replace(/'/g,'&#39;')}
+// 属性值转义:文本已过 escHtml(&<> 已是实体),再转引号即可(避免 & 双重转义)
+function escAttrQ(s){return String(s).replace(/"/g,'&quot;')}
+// 转义序列占位:@@X 与 @X(@# @** @_ @~~ @- @> @` @1.)→ \uE000 X \uE001,
+// 行内替换全部完成后再还原为字面 X(防止 @** 被误解析为粗体等)
+function escTokens(s){
+  return s.replace(/@@([\s\S])/g,'\uE000$1\uE001').replace(/@(1\.|[#*_~>`\-]|&gt;)/g,'\uE000$1\uE001');
+}
+function unescTokens(s){
+  return s.replace(/\uE000([\s\S]*?)\uE001/g,'$1');
+}
 function displayText(t){
-  return t
+  var s=escTokens(t);
+  s=s
     .replace(/@\[(u|color|size|font|mark|sup|sub)\s*[^\]]*\]((?:.|])*?)@\[\/\1\]/g,'$2')
     .replace(/\*\*((?:.|])*?)\*\*/g,'$1')
     .replace(/~~((?:.|])*?)~~/g,'$1')
@@ -95,9 +106,11 @@ function displayText(t){
     .replace(/@\[label\s+([^\]]+)\]/g,'$1')
     .replace(/@\[ref\s+([^\]]+)\]/g,'$1')
     .replace(/_((?:.|])*?)_/g,'$1');
+  return unescTokens(s);
 }
 function fmtH(t){
   var s=escHtml(t);
+  s=escTokens(s);
   s=s.replace(/@\[u\]((?:.|])*?)@\[\/u\]/g,'<u>$1</u>');
   s=s.replace(/@\[sup\]((?:.|])*?)@\[\/sup\]/g,'<sup>$1</sup>');
   s=s.replace(/@\[sub\]((?:.|])*?)@\[\/sub\]/g,'<sub>$1</sub>');
@@ -105,7 +118,10 @@ function fmtH(t){
   s=s.replace(/@\[color\s+([^\]]+)\]((?:.|])*?)@\[\/color\]/g,'<span data-cmd="@[color $1]" data-close="@[/color]" style="color:$1">$2</span>');
   s=s.replace(/@\[size\s+([^\]]+)\]((?:.|])*?)@\[\/size\]/g,'<span data-cmd="@[size $1]" data-close="@[/size]" style="font-size:$1pt">$2</span>');
   s=s.replace(/@\[link\s+([^\]]+?)\s+url:\s*"?([^"\]]+)"?\]/g,'<a href="$2" target="_blank" style="color:#2a4a66;text-decoration:underline">$1</a>');
-  s=s.replace(/@\[footnote\s+(\d+)\s+([^\]]+)\]/g,function(m,n,txt){return '<sup class="fn" title="'+txt.replace(/"/g,'')+'" style="color:#2a4a66;cursor:help">'+n+'</sup>'});
+  s=s.replace(/@\[footnote\s+(\d+)\s+([^\]]+)\]/g,function(m,n,txt){
+    // data-self:自闭合命令,序列化只回写原命令(显示体是编号,内容在 data-cmd 里)
+    return '<sup class="fn" data-cmd="'+escAttrQ(m)+'" data-self="1" title="'+txt.replace(/"/g,'')+'" style="color:#2a4a66;cursor:help">'+n+'</sup>';
+  });
   s=s.replace(/@\[font\s+([^\]]+)\]((?:.|])*?)@\[\/font\]/g,function(m,f,inner){
     f=f.replace(/"/g,'');
     return'<span data-cmd=\'@[font "' + f + '"]\' data-close="@[/font]" style="font-family:\'' + f + '\',serif">' + inner + '</span>';
@@ -114,9 +130,13 @@ function fmtH(t){
   s=s.replace(/~~((?:.|])*?)~~/g,'<del>$1</del>');
   s=s.replace(/`((?:.|])*?)`/g,'<code>$1</code>');
   s=s.replace(/_((?:.|])*?)_/g,'<em>$1</em>');
-  s=s.replace(/@\[label\s+([^\]]+)\]/g,'<span class="inline-label" title="标签">📌$1</span>');
-  s=s.replace(/@\[ref\s+([^\]]+)\]/g,'<span class="inline-ref" title="引用">↦$1</span>');
-  s=s.replace(/@@\[/g,'@[').replace(/@@/g,'@');
+  s=s.replace(/@\[label\s+([^\]]+)\]/g,function(m){
+    return '<span class="inline-label" data-cmd="'+escAttrQ(m)+'" data-self="1" title="标签">📌'+escAttrQ(m).replace(/@\[label\s+/,'').replace(/\]$/,'')+'</span>';
+  });
+  s=s.replace(/@\[ref\s+([^\]]+)\]/g,function(m){
+    return '<span class="inline-ref" data-cmd="'+escAttrQ(m)+'" data-self="1" title="引用">↦'+escAttrQ(m).replace(/@\[ref\s+/,'').replace(/\]$/,'')+'</span>';
+  });
+  s=unescTokens(s);
   return s;
 }
 // 多行作用域命令参数 → CSS(kind:"font"/"size"/"color";param 为源码参数原文)
@@ -126,6 +146,17 @@ function scopeCss(kind,param){
   if(kind==='size'){ var n=parseFloat(v); return'font-size:'+(isNaN(n)?v:(/^\d+(\.\d+)?$/.test(v)?n+'pt':v))+';' }
   if(kind==='color')return'color:'+v+';';
   return'';
+}
+
+// 命令闭合 ] 的配平扫描(对齐 native ex_scan_balanced):从起始 [ 起数嵌套,返回闭合 ] 索引或 -1
+function scanCmdClose(s,from){
+  var depth=0;
+  for(var i=from;i<s.length;i++){
+    var c=s.charAt(i);
+    if(c==='[')depth++;
+    else if(c===']'){ depth--; if(depth===0)return i }
+  }
+  return -1;
 }
 
 // ── 块级解析(带源码行区间;srcStart 0 基,srcEnd 半开 [start,end))──
@@ -153,11 +184,21 @@ function miniParse(src){
     }
     if(/^@\[comment/.test(t)){
       flush(i);
-      var ci=i+1;
-      if(t.indexOf('@[/comment]')<0){
-        while(ci<lines.length&&lines[ci].indexOf('@[/comment]')<0&&lines[ci].trim()!==']')ci++;
-        ci=Math.min(ci+1,lines.length);
+      // 单行自闭合:本行有配平 ] 且命令内含非空内容(corpus 41 行式);
+      // 裸 @[comment] 一律视为块级开头,向后找 @[/comment](corpus 47 行式)
+      var cb=t.indexOf('[');
+      var closeBr=cb>=0?scanCmdClose(t,cb):-1;
+      var nameEnd=cb+1+'comment'.length;
+      if(closeBr>nameEnd&&t.slice(nameEnd,closeBr).trim()!==''){
+        var restC=t.substring(closeBr+1).trim();
+        nodes.push({kind:'comment',text:t,srcStart:i,srcEnd:i+1});
+        if(restC)nodes.push({kind:'para',text:restC,srcStart:i+1,srcEnd:i+2});
+        continue;
       }
+      // 块级:向后找 @[/comment] 收尾
+      var ci=i+1;
+      while(ci<lines.length&&lines[ci].indexOf('@[/comment]')<0&&lines[ci].trim()!==']')ci++;
+      ci=Math.min(ci+1,lines.length);
       nodes.push({kind:'comment',text:lines.slice(i,ci).join('\n'),srcStart:i,srcEnd:ci});
       i=ci-1; continue;
     }
@@ -302,6 +343,23 @@ function ingestNative(blocks,src){
 }
 
 // ── 表格 HTML(对齐 + widths 列宽扩展;open 行经 data-open 保真)──
+// 单元格内 @[cell 属性...]内容@[/cell](规范 §表格:span/background/border-bottom)
+function parseCell(raw){
+  var m=raw.match(/^@\[cell\s+([^\]]+)\]([\s\S]*?)@\[\/cell\]\s*$/);
+  if(!m)return{inner:raw,cmd:null,span:1,style:''};
+  var cmd=m[1];
+  var out={inner:m[2],cmd:'@[cell '+cmd+']',span:1,style:''};
+  var sm=cmd.match(/span:\s*(\d+)/);
+  if(sm)out.span=Math.max(1,parseInt(sm[1])||1);
+  var bm=cmd.match(/background:\s*("[^"]*"|#[0-9a-fA-F]{3,8}|\S+)/);
+  if(bm)out.style+='background-color:'+bm[1].replace(/"/g,'')+';';
+  var dm=cmd.match(/border-bottom:\s*([^;]+?)\s*(?:"([^"]*)")?\s*$/);
+  if(dm){
+    var color=(dm[2]||'').replace(/"/g,'');
+    out.style+='border-bottom:'+(dm[1].replace(/"[^"]*"/,'').trim()+(color?' '+color:''))+';';
+  }
+  return out;
+}
 function tableHtml(b){
   var rows=b.rows||[];
   function cells(r){return r.replace(/^\||\|$/g,'').split('|').map(function(c){return c.trim()})}
@@ -339,8 +397,13 @@ function tableHtml(b){
     var isHead=(r===0);
     h+='<tr>';
     for(var c3=0;c3<cells2.length;c3++){
-      var al=(aligns&&aligns[c3]&&aligns[c3]!=='left')?' style="text-align:'+aligns[c3]+'"':'';
-      h+=(isHead?'<th':'<td')+al+'>'+fmtH(cells2[c3])+(isHead?'</th>':'</td>');
+      var ci=parseCell(cells2[c3]);
+      var al=(aligns&&aligns[c3]&&aligns[c3]!=='left')?'text-align:'+aligns[c3]+';':'';
+      var st=al+ci.style;
+      h+=(isHead?'<th':'<td')+(ci.span>1?' colspan="'+ci.span+'"':'')
+        +(st?' style="'+escAttrQ(st)+'"':'')
+        +(ci.cmd?' data-cell-cmd="'+escAttrQ(ci.cmd)+'"':'')
+        +'>'+fmtH(ci.inner)+(isHead?'</th>':'</td>');
     }
     h+='</tr>';
   }
@@ -357,9 +420,11 @@ function objHtml(b){
     var um=params.match(/"([^"]+)"/)||params.match(/(data:[^\s\]]+|https?:\/\/[^\s\]]+)/);
     var url=um?um[1]:'';
     var wm=params.match(/width:?\s*(\d+(?:\.\d+)?)\s*%/);
+    var hm=params.match(/height:?\s*(\d+(?:\.\d+)?)\s*(mm|cm|%|px)?/);
     var am=params.match(/align:?\s*(\w+)/);
     var style='';
     if(wm)style+='width:'+wm[1]+'%;';
+    if(hm)style+='height:'+hm[1]+(hm[2]||'mm')+';';
     if(am){
       if(am[1]==='center')style+='margin-left:auto;margin-right:auto;';
       else if(am[1]==='right')style+='margin-left:auto;margin-right:0;';
@@ -468,6 +533,8 @@ function inlineSource(el){
     if(n.nodeType===3){ out+=n.textContent; return }
     if(n.nodeType!==1)return;
     var tag=n.tagName, inner=inlineSource(n);
+    // 自闭合命令(footnote/label/ref):显示体不是内容,只回写原命令
+    if(n.dataset&&n.dataset.self&&n.dataset.cmd){ out+=n.dataset.cmd; return }
     if(tag==='STRONG'||tag==='B')out+='**'+inner+'**';
     else if(tag==='EM'||tag==='I')out+='_'+inner+'_';
     else if(tag==='DEL'||tag==='S'||tag==='STRIKE')out+='~~'+inner+'~~';
@@ -511,6 +578,10 @@ function serializeBlockEl(el){
     // 多行对象(figure 等)整段保真
     el.dataset.raw.split('\n').forEach(function(l){lines.push(l)});
   }
+  else if(kind==='label'||kind==='ref'){
+    // 块级 label/ref:渲染时把原始参数存入 data-raw,原样回写
+    lines.push('@['+kind+' '+(el.dataset.raw||'')+']');
+  }
   else if(kind==='scope'&&el.dataset.cmd){
     // 多行作用域回写:开命令 + 各内行 + 收尾命令(缺口修复)
     lines.push(el.dataset.cmd);
@@ -548,7 +619,12 @@ function serializeBlockEl(el){
     var first=true;
     el.querySelectorAll('tr').forEach(function(tr){
       var cellsArr=[];
-      tr.querySelectorAll('th,td').forEach(function(c){cellsArr.push(inlineSource(c).trim())});
+      tr.querySelectorAll('th,td').forEach(function(c){
+        var txt=inlineSource(c).trim();
+        // @[cell ...] 属性单元格回写原命令包装
+        var cc=c.getAttribute('data-cell-cmd');
+        cellsArr.push(cc?cc+txt+'@[/cell]':txt);
+      });
       lines.push('| '+cellsArr.join(' | ')+' |');
       if(first){
         first=false;
