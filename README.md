@@ -52,15 +52,20 @@
 
 ```
 ├── preview/
-│   ├── template.html    ← 编辑器源码（模板）
-│   └── editor.html      ← 构建产物（可直接打开）
+│   ├── template.html    ← 编辑器 UI 层源码（手工维护）
+│   ├── engine.js        ← 浏览器近似引擎（解析/渲染/分页/序列化）
+│   ├── bridge.js        ← 引擎桥（桌面走 Tauri IPC，浏览器本地降级）
+│   └── editor.html      ← 同步副本（双击即用；gen_tpl.py 生成）
 ├── manual/              ← 使用手册 + 截图
-├── src/                 ← Aine 语言核心
+├── src/                 ← Aine 语言核心（权威引擎）
 ├── corpus/              ← 测试文档
-├── tauri-app/           ← Tauri v2 桌面应用
-├── dist/                ← 打包产物
-└── docs/                ← 设计文档
+├── docs/                ← 设计文档
+└── tauri-app/           ← Tauri v2 桌面应用（IPC 调 Aine 原生引擎）
 ```
+
+构建产物（`preview/preview.html`、`tauri-app/dist/`、桌面 exe）与测试写入的
+`test_*.awen` 均不入库，可用 `python gen_tpl.py`、
+`aine run src/generate_preview.aine`、`cargo build --release` 重新生成。
 
 ## 技术栈
 
