@@ -7,5 +7,11 @@ _*.py
 _*.js
 _doc_b64.txt
 _inject_expr.js
+
+# 构建产物 / 测试写入文件(均可重新生成)
+/dist/
 build/
+test_*.awen
+preview/preview.html
+tauri-app/src-tauri/gen/
 tauri-app/src-tauri/resources/
