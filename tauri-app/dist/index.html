@@ -272,7 +272,7 @@ input.docname:focus{outline:none;border-color:var(--accent);background:#fff}
 </div></div><div class="rg-label">字体</div></div>
 <div class="rgroup"><div class="rg-body">
 <select id="sel-style" title="段落样式" onchange="applyStyle(this.value)" style="width:104px;height:30px">
-<option value="" selected>正文</option><option value="1">标题 1</option><option value="2">标题 2</option><option value="3">标题 3</option><option value="4">标题 4</option><option value="5">标题 5</option><option value="6">标题 6</option>
+<option value="" selected>正文</option><option value="1" style="font-weight:700;font-size:16px">标题 1</option><option value="2" style="font-weight:700;font-size:14px">标题 2</option><option value="3" style="font-weight:600;font-size:13px">标题 3</option><option value="4" style="font-weight:600">标题 4</option><option value="5" style="font-weight:600">标题 5</option><option value="6" style="font-weight:600;color:#888">标题 6</option>
 </select>
 </div><div class="rg-label">样式</div></div>
 <div class="rgroup"><div class="rg-body">
@@ -280,10 +280,10 @@ input.docname:focus{outline:none;border-color:var(--accent);background:#fff}
 <button class="rbtn" onclick="listCmd('ul')" title="项目符号列表"><span data-icon="ul"></span></button>
 <button class="rbtn" onclick="listCmd('ol')" title="编号列表"><span data-icon="ol"></span></button>
 <button class="rbtn" onclick="cycleLineSpacing()" title="行距(循环切换)"><span data-icon="lineh"></span></button>
-<button class="rbtn" onclick="fmtCmd('justifyLeft')" title="左对齐"><span data-icon="al"></span></button>
-<button class="rbtn" onclick="fmtCmd('justifyCenter')" title="居中"><span data-icon="ac"></span></button>
-<button class="rbtn" onclick="fmtCmd('justifyRight')" title="右对齐"><span data-icon="ar"></span></button>
-<button class="rbtn" onclick="fmtCmd('justifyFull')" title="两端对齐"><span data-icon="aj"></span></button>
+<button class="rbtn" id="al" onclick="fmtCmd('justifyLeft')" title="左对齐"><span data-icon="al"></span></button>
+<button class="rbtn" id="ac" onclick="fmtCmd('justifyCenter')" title="居中"><span data-icon="ac"></span></button>
+<button class="rbtn" id="ar" onclick="fmtCmd('justifyRight')" title="右对齐"><span data-icon="ar"></span></button>
+<button class="rbtn" id="aj" onclick="fmtCmd('justifyFull')" title="两端对齐"><span data-icon="aj"></span></button>
 </div>
 </div><div class="rg-label">段落</div></div>
 <div class="rgroup"><div class="rg-body">
@@ -344,8 +344,17 @@ input.docname:focus{outline:none;border-color:var(--accent);background:#fff}
 <button class="sbtn" onclick="toggleSidebar()" title="显示/隐藏文档结构窗格">导航窗格</button>
 </div><div class="rg-label">显示</div></div>
 <div class="rgroup"><div class="rg-body">
-<span style="font-size:12px;color:#5a5c60">缩放在状态栏右下角,支持自定义百分比</span>
-</div><div class="rg-label">提示</div></div>
+<button class="sbtn" onclick="toggleSidebar()" title="显示/隐藏文档结构窗格">导航窗格</button>
+</div><div class="rg-label">显示</div></div>
+<div class="rgroup"><div class="rg-body"><div class="fcol">
+<div class="frow">
+<select id="sel-zoom-view" title="缩放比例" style="width:84px;height:26px" onchange="applyZoom(this.value)">
+<option value="0.7">70%</option><option value="0.85">85%</option><option value="1" selected>100%</option><option value="1.25">125%</option><option value="1.5">150%</option><option value="2">200%</option><option value="custom">自定义…</option>
+</select>
+<input type="number" id="zoom-view-custom" min="30" max="300" step="5" style="display:none;width:60px;height:26px;border:1px solid #c9cbce;border-radius:4px;font-size:12px" title="缩放百分比 30-300" onchange="applyZoomCustom(this.value,'sel-zoom-view')">
+</div>
+<div style="font-size:11px;color:#8a8c90">状态栏亦可缩放</div>
+</div></div><div class="rg-label">缩放</div></div>
 </div>
 <div class="ribbon-page" data-page="page">
 <div class="rgroup"><div class="rg-body"><div class="fcol">
@@ -435,7 +444,7 @@ input.docname:focus{outline:none;border-color:var(--accent);background:#fff}
 <span class="item" id="st-pos">第 1 页 · 行 1, 列 1</span>
 <span class="spacer"></span>
 <div class="statuspop" id="diagpop"></div>
-<select id="sel-zoom" style="background:rgba(255,255,255,.15);color:#fff;border:1px solid rgba(255,255,255,.3);border-radius:3px;height:20px;padding:0 4px" onchange="applyZoom(this.value)">
+<select id="sel-zoom" style="background:rgba(255,255,255,.15);color:#fff;border:1px solid rgba(255,255,255,.3);border-radius:3px;height:20px;padding:0 4px" onchange="zoomEntry(this.value,'sel-zoom')">
 <option value="0.7">70%</option><option value="0.85">85%</option><option value="1" selected>100%</option><option value="1.25">125%</option><option value="1.5">150%</option><option value="2">200%</option><option value="custom">自定义…</option>
 </select>
 <input type="number" id="zoom-custom" min="30" max="300" step="5" style="display:none;width:64px;height:20px;border:1px solid #c9cbce;border-radius:3px;font-size:12px" title="缩放百分比 30-300" onchange="applyZoomCustom(this.value)">
@@ -494,11 +503,14 @@ function renderNodes(){
         toc.className='tocblock'; toc.contentEditable='false';
         toc.dataset.bid=b.bid; toc.dataset.kind='toc'; toc.dataset.raw=b.text;
         var inner='<div class="toc-title">目录</div>';
+        var tocCount=0;
         for(var ti=0;ti<gNodes.length;ti++){
           var hn=gNodes[ti];
           if(hn.kind!=='heading'||hn.level>dep)continue;
+          tocCount++;
           inner+='<div class="toc-item lv'+hn.level+'" data-bid="'+hn.bid+'">'+Engine.escHtml(Engine.displayText(hn.text||''))+'</div>';
         }
+        if(!tocCount)inner+='<div style="color:#9aa0a6;font-size:10pt">暂无标题,写作过程中自动生成</div>';
         toc.innerHTML=inner;
         toc.onclick=function(ev){
           var it=ev.target.closest('.toc-item');
@@ -898,7 +910,7 @@ function applySize(v){
   if(!v)return;
   if(inDisplayMode()){
     var s=window.getSelection();
-    if(!s.rangeCount||s.isCollapsed)return;
+    if(!s.rangeCount||s.isCollapsed){ document.getElementById('findmsg').textContent='请先选中要设置字号的文字'; return }
     if(wrapSpan('@[size '+v+']','@[/size]',{fontSize:v+'pt'},false))onPaperInput();
   }
   else wrapSyntax('@[size '+v+']','@[/size]');
@@ -961,6 +973,7 @@ function insertBlock(kind){
   }
   var ins=snippets[kind];
   if(!ins)return;
+  var renameNew=(kind==='label'||kind==='link');   // 插入后选中占位文字,直接输入即改名
   if(inDisplayMode()){
     // 在当前块后插入新块
     var bel=caretBlock();
@@ -976,6 +989,19 @@ function insertBlock(kind){
     if(insertAt>0&&lines[insertAt-1].trim()!=='')insert=[''].concat(insert);
     lines.splice.apply(lines,[insertAt,0].concat(insert));
     setSrc(lines.join('\n'));
+    if(renameNew){
+      // 选中刚插入块的占位文字(链接文字/书签名),直接输入即覆盖
+      var nb=document.querySelectorAll('#display-pane [data-bid]');
+      var lastBlk=nb[nb.length-1];
+      if(lastBlk){
+        var w=document.createTreeWalker(lastBlk,NodeFilter.SHOW_TEXT);
+        var tn=w.nextNode();
+        var rr=document.createRange();
+        if(tn)rr.selectNodeContents(tn); else rr.selectNodeContents(lastBlk);
+        var ss=window.getSelection(); ss.removeAllRanges(); ss.addRange(rr);
+      }
+      return;
+    }
     restoreCaret(_caret);
   }else insertSyntax('\n'+ins.join('\n')+'\n');
 }
@@ -1059,12 +1085,22 @@ function updateMinibar(){
   mb.style.left=x+'px';
   mb.style.top=y+'px';
 }
-// 光标位置跟踪(状态栏)
+// 光标位置跟踪(状态栏)+ 段落对齐激活态
 var posTimer=null;
 document.addEventListener('selectionchange',function(){
   if(posTimer)clearTimeout(posTimer);
-  posTimer=setTimeout(updateCaretPos,150);
+  posTimer=setTimeout(function(){ updateCaretPos(); updateAlignState() },150);
 });
+function updateAlignState(){
+  var map={al:'justifyLeft',ac:'justifyCenter',ar:'justifyRight',aj:'justifyFull'};
+  for(var id in map){
+    var b=document.getElementById(id);
+    if(!b)continue;
+    var on=false;
+    try{ on=inDisplayMode()&&document.queryCommandState(map[id]) }catch(e){}
+    b.classList.toggle('on',on);
+  }
+}
 function updateCaretPos(){
   var el=document.getElementById('st-pos');
   if(!el)return;
@@ -1134,10 +1170,28 @@ function doPaste(){
   if(navigator.clipboard&&navigator.clipboard.readText){
     navigator.clipboard.readText().then(function(t){
       if(!t)return;
-      if(!document.execCommand('insertText',false,t))insertAtSelection(t);
-      onPaperInput();
+      pastePlain(t);
     }).catch(function(){ document.getElementById('findmsg').textContent='剪贴板不可读,请用 Ctrl+V' });
   }else document.getElementById('findmsg').textContent='剪贴板不可读,请用 Ctrl+V';
+}
+// 多行文本按行插入(空行分段,其余换 <br>),保持纸面段落结构
+function pastePlain(t){
+  var lines=t.replace(/\r/g,'').split('\n');
+  var first=true;
+  for(var i=0;i<lines.length;i++){
+    var seg=lines[i];
+    if(i<lines.length-1&&seg.trim()===''){ insertAtSelection('\u00A0'); paraBreakAtSelection(); first=true; continue }
+    if(!first&&i<lines.length-1) insertAtSelection('\u00A0'), paraBreakAtSelection();
+    if(seg!=='')insertAtSelection(seg);
+    if(i<lines.length-1&&seg.trim()!=='') paraBreakAtSelection();
+    first=false;
+  }
+  onPaperInput();
+}
+function paraBreakAtSelection(){
+  var sel=window.getSelection();
+  if(!sel.rangeCount)return;
+  document.execCommand('insertParagraph');
 }
 function doCut(){ if(document.execCommand('cut'))onPaperInput() }
 function doCopy(){ document.execCommand('copy') }
@@ -1151,24 +1205,48 @@ function insertAtSelection(text){
   r.setStartAfter(tn); r.collapse(true);
   sel.removeAllRanges(); sel.addRange(r);
 }
-// 格式刷:吸取光标处带 data-cmd 的格式(mark/color/size/font),再选中文字应用
+// ═══ 格式刷(Word 式):点击吸取光标处格式 → 刷模式 → 选中文字自动应用一次 ═══
 var brushCmd=null;
 function brushClick(){
-  if(brushCmd){
-    if(wrapSpan(brushCmd.cmd,brushCmd.close,null,false))onPaperInput();
-    brushCmd=null;
-    document.getElementById('btn-brush').classList.remove('on');
-    return;
-  }
+  if(brushCmd){ stopBrush(); return }   // 再点取消刷模式
   var sel=window.getSelection();
   var node=sel.rangeCount?sel.getRangeAt(0).startContainer:null;
   var el=node&&(node.nodeType===1?node:node.parentElement);
-  var src=el&&el.closest?el.closest('[data-cmd]'):null;
-  if(!src){ document.getElementById('findmsg').textContent='光标处无可吸取的格式(支持颜色/底纹/字号/字体)'; return }
-  brushCmd={cmd:src.getAttribute('data-cmd'),close:src.getAttribute('data-close')||''};
+  var src=el&&el.closest?el.closest('[data-cmd],b,strong,i,em,u,del,s,strike,code'):null;
+  if(!src){ document.getElementById('findmsg').textContent='光标处无可吸取的格式'; return }
+  if(src.dataset&&src.dataset.cmd){
+    brushCmd={cmd:src.getAttribute('data-cmd'),close:src.getAttribute('data-close')||'',native:false};
+  }else{
+    var tag=src.tagName;
+    if(tag==='B'||tag==='STRONG')brushCmd={cmd:'**',close:'**',native:false};
+    else if(tag==='I'||tag==='EM')brushCmd={cmd:'_',close:'_',native:false};
+    else if(tag==='U')brushCmd={cmd:'@[u]',close:'@[/u]',native:false};
+    else if(tag==='DEL'||tag==='S'||tag==='STRIKE')brushCmd={cmd:'~~',close:'~~',native:false};
+    else if(tag==='CODE')brushCmd={cmd:'`',close:'`',native:true};
+    else{ document.getElementById('findmsg').textContent='光标处无可吸取的格式'; return }
+  }
   document.getElementById('btn-brush').classList.add('on');
-  document.getElementById('findmsg').textContent='格式已吸取:选中文字后再点格式刷应用';
+  document.getElementById('findmsg').textContent='格式刷已吸取:选中要应用的文字即可';
+  document.body.style.cursor='crosshair';
 }
+function stopBrush(){
+  brushCmd=null;
+  var b=document.getElementById('btn-brush');
+  if(b)b.classList.remove('on');
+  document.body.style.cursor='';
+}
+// 刷模式下的选区监听:选中非空文字即应用一次并退出
+document.addEventListener('selectionchange',function(){
+  if(!brushCmd)return;
+  var sel=window.getSelection();
+  if(!sel.rangeCount||sel.isCollapsed)return;
+  var node=sel.getRangeAt(0).startContainer;
+  var el=node&&(node.nodeType===1?node:node.parentElement);
+  if(!el||!el.closest||!el.closest('.paper'))return;
+  var cmd=brushCmd;
+  stopBrush();
+  if(wrapSpan(cmd.cmd,cmd.close,null,cmd.native))onPaperInput();
+});
 // 行距循环按钮:1.15→1.5→1.9→2→2.5→1.15(写回文档级设置)
 var LSP=[1.15,1.5,1.9,2,2.5];
 function cycleLineSpacing(){
@@ -1177,6 +1255,8 @@ function cycleLineSpacing(){
   for(var i=0;i<LSP.length;i++){ if(LSP[i]>=cur-0.01){idx=i;break} }
   var v=LSP[(idx+1)%LSP.length];
   setDocsetLine(/^@\[line-spacing\s/,'@[line-spacing '+v+']');
+  var btn=event&&event.target?event.target.closest('button'):null;
+  if(btn)btn.title='行距(当前 '+v+' 倍,点击切换)';
 }
 function replaceEntry(){ toggleFind(); setTimeout(function(){ document.getElementById('replacebox').focus() },60) }
 function selectAllDoc(){
@@ -1741,31 +1821,42 @@ function fitZoom(base){
   }
   return v;
 }
+// 双缩放控件(状态栏+视图页)同步;自定义动态档位两边都补
+function syncZoomSelects(v){
+  ['sel-zoom','sel-zoom-view'].forEach(function(id){
+    var sel=document.getElementById(id);
+    if(!sel)return;
+    var has=[].some.call(sel.options,function(o){return o.value===v});
+    if(!has){
+      var o=document.createElement('option');
+      o.value=v; o.textContent=Math.round(parseFloat(v)*100)+'%';
+      sel.insertBefore(o,sel.querySelector('option[value="custom"]'));
+    }
+    sel.value=v;
+  });
+}
 function applyZoom(v){
   if(v==='custom'){
     var inp=document.getElementById('zoom-custom');
     inp.style.display='inline-block'; inp.focus();
     return;
   }
-  var inp=document.getElementById('zoom-custom');
-  if(inp)inp.style.display='none';
+  ['zoom-custom','zoom-view-custom'].forEach(function(id){
+    var inp=document.getElementById(id);
+    if(inp)inp.style.display='none';
+  });
   var z=fitZoom(v);
   document.getElementById('display-pane').style.zoom=z;
   document.getElementById('syntax-pane').style.zoom=z;
+  syncZoomSelects(v);
 }
-// 自定义缩放百分比:30-300,动态补入下拉档位(避免 select 显示空白)
-function applyZoomCustom(v){
+// 自定义缩放百分比:30-300;which=发起控件(其自定义输入框收起,另一控件联动)
+function applyZoomCustom(v,which){
   var x=parseFloat(v);
   if(!(x>=30&&x<=300))return;
-  var sel=document.getElementById('sel-zoom');
   var val=String(Math.round(x)/100);
-  var has=[].some.call(sel.options,function(o){return o.value===val});
-  if(!has){
-    var o=document.createElement('option');
-    o.value=val; o.textContent=Math.round(x)+'%';
-    sel.insertBefore(o,sel.querySelector('option[value="custom"]'));
-  }
-  sel.value=val;
+  var otherInp=document.getElementById(which==='sel-zoom-view'?'zoom-view-custom':'zoom-custom');
+  if(otherInp)otherInp.style.display='none';
   applyZoom(val);
 }
 window.addEventListener('resize',function(){ applyZoom(document.getElementById('sel-zoom').value) });
@@ -2040,7 +2131,11 @@ function renderRecentList(){
     var d=document.createElement('div');
     d.className='recent-item';
     d.textContent=f.name;
-    d.title=f.path||f.name;
+    d.title=(f.path||f.name)+(f.path?'':'（浏览器版仅记录名称,点击重新选择文件）');
+    if(!f.path){
+      d.style.color='#9aa0a6';
+      d.style.fontStyle='italic';
+    }
     d.onclick=function(){
       if(f.path&&Bridge.native) Bridge.openPath(f.path).then(function(res){ if(res)openDocument(res) });
       else openFileClick();
@@ -2057,11 +2152,13 @@ function renderFileTabs(){
   openFiles.forEach(function(f,i){
     var t=document.createElement('div');
     t.className='ftab'+(i===activeFile?' active':'')+(f.dirty?' dirty':'');
+    t.title=f.name+'（中键或 ✕ 关闭）';
     t.innerHTML='<span class="fdirty"></span><span>'+f.name.replace(/</g,'&lt;')+'</span><span class="fclose" data-i="'+i+'">✕</span>';
     t.onclick=function(ev){
       if(ev.target.classList.contains('fclose')){closeFile(i);return}
       switchFile(i);
     };
+    t.onauxclick=function(ev){ if(ev.button===1)closeFile(i) };   // 中键关闭
     bar.appendChild(t);
   });
 }
@@ -2171,11 +2268,36 @@ document.addEventListener('keydown',function(e){
   if(k==='r'&&!e.shiftKey){e.preventDefault();if(inDisplayMode()){document.execCommand('justifyRight');onPaperInput()}return}
   if(k==='j'){e.preventDefault();if(inDisplayMode()){document.execCommand('justifyFull');onPaperInput()}return}
 });
-// 选区字号步进(Ctrl+Shift+,/ .):取当前字号选择值 ±1
+// 缩放入口:发起控件选'自定义'时展开它自己的输入框
+function zoomEntry(v,which){
+  if(v==='custom'){
+    var inp=document.getElementById(which==='sel-zoom-view'?'zoom-view-custom':'zoom-custom');
+    inp.style.display='inline-block'; inp.focus();
+    return;
+  }
+  applyZoom(v);
+}
+// 选区字号步进:同步字号下拉显示
+var SIZE_LADDER=[9,10.5,11,12,14,16,18,20,22,26,36,48,72];
 function stepSize(d){
   var sel=document.getElementById('sel-size');
   var cur=parseFloat(sel.value)||10.5;
-  var v=Math.min(72,Math.max(5,Math.round((cur+d)*2)/2));
+  var v;
+  if(d>0){
+    v=SIZE_LADDER.find(function(x){return x>cur+0.01});
+    if(v===undefined)v=SIZE_LADDER[SIZE_LADDER.length-1];
+  }else{
+    v=null;
+    for(var i=SIZE_LADDER.length-1;i>=0;i--){ if(SIZE_LADDER[i]<cur-0.01){v=SIZE_LADDER[i];break} }
+    if(v===null)v=SIZE_LADDER[0];
+  }
+  var has=[].some.call(sel.options,function(o){return parseFloat(o.value)===v});
+  if(!has){
+    var o=document.createElement('option');
+    o.value=String(v); o.textContent=(v===Math.round(v)?v:v.toFixed(1))+' 号';
+    sel.appendChild(o);
+  }
+  sel.value=String(v);
   applySize(String(v));
 }
 
