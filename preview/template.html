@@ -1573,7 +1573,12 @@ function fname(ext){
 function saveWithPicker(name,content){
   Bridge.saveDialog(name,content).then(function(ok){ if(ok)markClean() });
 }
-function markClean(){ docDirty=false; updateTitle() }
+function markClean(){
+  docDirty=false;
+  if(activeFile>=0&&openFiles[activeFile])openFiles[activeFile].dirty=false;
+  updateTitle();
+  renderFileTabs();
+}
 function updateTitle(src){
   var inp=document.getElementById('docname');
   var en=document.getElementById('export-name');
@@ -1599,6 +1604,12 @@ function openFileClick(){
   Bridge.openDialog().then(function(res){
     if(!res)return;
     var name=res.name.replace(/\.(awen(\.txt)?|txt|md|markdown)$/i,'');
+    // 已有打开的文件:先把当前文件的最新状态写回其标签(否则被覆盖丢失)
+    if(activeFile>=0){
+      applySyncNow();
+      openFiles[activeFile].src=gSrc;
+      openFiles[activeFile].dirty=docDirty;
+    }
     document.getElementById('docname').value=name;
     setSrc(res.src);
     addFileTab(name);
@@ -1753,13 +1764,18 @@ function renderFileTabs(){
 function switchFile(i){
   if(i===activeFile)return;
   applySyncNow();
-  openFiles[activeFile].src=gSrc;
-  openFiles[activeFile].dirty=docDirty;
+  if(activeFile>=0){
+    openFiles[activeFile].src=gSrc;
+    openFiles[activeFile].dirty=docDirty;
+  }
   activeFile=i;
   var f=openFiles[i];
   document.getElementById('docname').value=f.name;
   setSrc(f.src);
   docDirty=f.dirty;
+  // 撤销栈按文件隔离:切换后从当前内容重开历史,避免跨文件串档
+  hist=[f.src]; histIdx=0; histTime=0;
+  updateUndoButtons();
   updateTitle();
   renderFileTabs();
 }
@@ -1767,6 +1783,7 @@ function closeFile(i){
   if(openFiles[i].dirty&&!window.confirm('「'+openFiles[i].name+'」未保存,确定关闭?'))return;
   openFiles.splice(i,1);
   if(activeFile>=i)activeFile--;
+  if(activeFile<0)activeFile=0;
   if(activeFile>=openFiles.length)activeFile=openFiles.length-1;
   if(!openFiles.length){ newDoc(); return }
   var f=openFiles[activeFile];
