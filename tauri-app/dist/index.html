@@ -16,9 +16,15 @@ select{font:inherit;border:1px solid #c9cbce;border-radius:4px;background:#fff;p
 input[type=color]{width:26px;height:24px;border:1px solid #c9cbce;border-radius:4px;background:#fff;padding:1px;cursor:pointer}
 input.findbox{border:1px solid #c9cbce;border-radius:4px;padding:4px 6px;font-size:12px;outline:none;width:110px}
 .app{height:100vh;display:flex;flex-direction:column}
-.titlebar{height:36px;background:var(--bg2);border-bottom:1px solid var(--border);display:flex;align-items:center;padding:0 14px;gap:12px;flex:none;user-select:none}
+.titlebar{height:36px;background:var(--bg2);border-bottom:1px solid var(--border);display:flex;align-items:center;padding:0 10px;gap:10px;flex:none;user-select:none}
+.qat{display:flex;gap:1px;flex:none}
+.qat .rbtn{width:28px;height:26px}
 .brand{font-weight:700;font-size:15px;color:#1a1c1f}
 .docname{font-size:13px;color:var(--fg2)}
+.tabbar .chev{width:22px;height:22px;display:flex;align-items:center;justify-content:center;color:#8a8c90;border-radius:4px;flex:none;margin-left:2px}
+.tabbar .chev:hover{background:#e6e7e9;color:#303238}
+.rbtn.on{background:#d7e2ec;outline:1px solid var(--accent)}
+.sbtn.on{background:#d7e2ec;border-color:var(--accent);color:#2a4a66;font-weight:600}
 /* ── Word/WPS 功能区:标签栏 + 紧凑图标网格 + 分组名 ── */
 .filetabs{display:flex;align-items:center;gap:2px;flex:none;overflow-x:auto;height:28px}
 .ftab{display:flex;align-items:center;gap:6px;height:26px;padding:0 8px 0 12px;border-radius:5px;font-size:12px;color:#5a5c60;cursor:pointer;flex:none;border:1px solid transparent}
@@ -113,7 +119,7 @@ input.docname:focus{outline:none;border-color:var(--accent);background:#fff}
 .statuspop .dline:hover{background:#f7f7f8}
 .diag-err{color:#c0392b;font-weight:600}
 .diag-warn{color:#8a6d1a;font-weight:600}
-@media print{.tabbar,.ribbon,.sidebar,.statusbar,.titlebar{display:none!important}.app{height:auto}.workspace{overflow:visible;display:block}.pane{overflow:visible;padding:0;background:#fff;gap:0}.sheet{box-shadow:none;page-break-after:always;min-height:auto}}
+@media print{.tabbar,.ribbon,.sidebar,.statusbar,.titlebar,.findbar-pop,#minibar,#tblpop,.statuspop,.filetabs{display:none!important}.app{height:auto}.workspace{overflow:visible;display:block}.pane{overflow:visible;padding:0;background:#fff;gap:0;zoom:1!important}.sheet{box-shadow:none;page-break-after:always;min-height:auto}}
 .workspace{min-height:0;flex:1;display:flex;overflow:hidden}
 /* ── 专注模式:隐藏功能区/侧栏/状态栏 ── */
 .app.focus .tabbar,.app.focus .ribbon,.app.focus .sidebar,.app.focus #sb-open,.app.focus .statusbar{display:none!important}
@@ -147,7 +153,16 @@ input.docname:focus{outline:none;border-color:var(--accent);background:#fff}
 .paper h4{font-size:12pt;font-weight:600}
 .paper h5{font-size:11pt;font-weight:600}
 .paper h6{font-size:10.5pt;font-weight:600;color:#888}
-.paper p{margin:0}
+.paper .tocblock{border:1px solid #d7e2ec;border-radius:4px;padding:10px 14px;background:#f8fafc;margin:4px 0}
+.paper .toc-title{font-weight:700;font-size:12pt;margin-bottom:6px;color:#2a4a66}
+.paper .toc-item{cursor:pointer;padding:2px 6px;border-radius:3px;font-size:11pt}
+.paper .toc-item:hover{background:#eef4f8}
+.paper .toc-item.lv2{padding-left:24px}
+.paper .toc-item.lv3{padding-left:42px}
+.paper .toc-item.lv4{padding-left:60px}
+.paper .toc-item.lv5{padding-left:78px}
+.paper .toc-item.lv6{padding-left:96px}
+.paper p{margin:0;text-indent:var(--fl,0)}
 .paper strong,.paper b{font-weight:700}
 .paper em,.paper i{font-style:italic}
 .paper del,.paper s,.paper strike{text-decoration:line-through;color:#999}
@@ -198,36 +213,36 @@ input.docname:focus{outline:none;border-color:var(--accent);background:#fff}
 <body>
 <div class="app">
 <div class="titlebar">
+<div class="qat">
+<button class="rbtn" onclick="doUndo()" title="撤销 (Ctrl+Z)"><span data-icon="undo"></span></button>
+<button class="rbtn" onclick="doRedo()" title="重做 (Ctrl+Y)"><span data-icon="redo"></span></button>
+<button class="rbtn" onclick="doSave()" title="保存 (Ctrl+S)"><span data-icon="save"></span></button>
+</div>
 <div class="brand">Awen</div>
 <input class="docname" id="docname" value="未命名文档" title="点击修改文档名"><span id="dirty-mark" style="font-size:11px;color:#c0392b;display:none">未保存</span>
-<div style="margin-left:auto"><button class="rbtn" style="width:auto;padding:0 8px;gap:4px;font-size:12px" onclick="doSave()" title="保存 (Ctrl+S)"><span data-icon="save"></span>保存</button></div>
 </div>
 <div class="filetabs" id="filetabs"></div>
 <div class="tabbar">
-<div class="tab active" data-page="home" onclick="showRibbon('home')">开始</div>
-<div class="tab" data-page="insert" onclick="showRibbon('insert')">插入</div>
-<div class="tab" data-page="page" onclick="showRibbon('page')">页面</div>
-<div class="tab" data-page="file" onclick="showRibbon('file')">文件</div>
-<button class="rbtn" style="width:28px;height:26px;margin-left:auto;margin-right:8px" onclick="toggleRibbonCollapse()" id="btn-collapse" title="折叠/展开功能区 (Ctrl+F1)"><span style="font-size:12px">▲</span></button>
-<div class="view-tabs">
-<button class="active" data-mode="display">显示</button>
-<button data-mode="syntax">语法</button>
-<button data-mode="split">分屏</button>
-<button data-mode="swapsplit" title="左右交换" style="padding:4px 8px" onclick="swapSplit()">⇄</button>
-<button title="专注模式:隐藏功能区/侧栏/状态栏 (Esc 退出)" style="padding:4px 8px" onclick="toggleFocus()">专注</button>
-</div>
+<div class="tab active" data-page="home" onclick="showRibbon('home')" ondblclick="toggleRibbonCollapse()">开始</div>
+<div class="tab" data-page="insert" onclick="showRibbon('insert')" ondblclick="toggleRibbonCollapse()">插入</div>
+<div class="tab" data-page="page" onclick="showRibbon('page')" ondblclick="toggleRibbonCollapse()">页面</div>
+<div class="tab" data-page="view" onclick="showRibbon('view')" ondblclick="toggleRibbonCollapse()">视图</div>
+<div class="tab" data-page="file" onclick="showRibbon('file')" ondblclick="toggleRibbonCollapse()">文件</div>
+<div style="flex:1"></div>
+<button class="chev" onclick="toggleRibbonCollapse()" id="btn-collapse" title="折叠功能区(双击标签名同效)"><svg viewBox="0 0 16 16" style="width:13px;height:13px"><path d="M3 10l5-5 5 5" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/></svg></button>
 </div>
 <div class="ribbon">
 <div class="ribbon-page active" data-page="home">
 <div class="rgroup"><div class="rg-body">
-<button class="rbtn" style="width:38px" onclick="doUndo()" title="撤销 (Ctrl+Z)"><span data-icon="undo"></span></button>
-<button class="rbtn" style="width:38px" onclick="doRedo()" title="重做 (Ctrl+Y)"><span data-icon="redo"></span></button>
+<button class="rbtn" style="width:36px" onclick="doPaste()" title="粘贴"><span data-icon="paste"></span></button>
+<button class="rbtn" style="width:36px" onclick="doCut()" title="剪切"><span data-icon="cut"></span></button>
+<button class="rbtn" style="width:36px" onclick="doCopy()" title="复制"><span data-icon="copy"></span></button>
+<button class="rbtn" style="width:36px" id="btn-brush" onclick="brushClick()" title="格式刷:点击吸取光标处格式,选中文字后再点应用"><span data-icon="brush"></span></button>
 </div><div class="rg-label">剪贴板</div></div>
 <div class="rgroup"><div class="rg-body"><div class="fcol">
 <div class="frow">
-<select id="sel-style" title="段落样式" onchange="applyStyle(this.value)">
-<option value="" selected>正文</option><option value="1" style="font-weight:700;font-size:16px">标题 1</option><option value="2" style="font-weight:700;font-size:14px">标题 2</option><option value="3" style="font-weight:600;font-size:13px">标题 3</option><option value="4" style="font-weight:600">标题 4</option><option value="5" style="font-weight:600">标题 5</option><option value="6" style="font-weight:600;color:#888">标题 6</option>
-</select>
+<button class="rbtn" style="width:30px" onclick="stepSize(1)" title="增大字号 (Ctrl+Shift+.)"><span data-icon="fup"></span></button>
+<button class="rbtn" style="width:30px" onclick="stepSize(-1)" title="减小字号 (Ctrl+Shift+,)"><span data-icon="fdown"></span></button>
 <select id="sel-font" title="字体" onchange="applyFont(this.value)">
 <optgroup label="中文"><option value="SimSun" selected>宋体</option><option value="SimHei">黑体</option><option value="KaiTi">楷体</option><option value="FangSong">仿宋</option><option value="Microsoft YaHei">微软雅黑</option><option value="DengXian">等线</option><option value="LiSu">隶书</option><option value="YouYuan">幼圆</option><option value="STZhongsong">华文中宋</option><option value="STXihei">华文细黑</option></optgroup>
 <optgroup label="西文"><option value="Times New Roman">Times New Roman</option><option value="Arial">Arial</option><option value="Calibri">Calibri</option><option value="Georgia">Georgia</option><option value="Cambria">Cambria</option><option value="Segoe UI">Segoe UI</option><option value="Courier New">Courier New</option><option value="Consolas">Consolas</option></optgroup>
@@ -256,11 +271,15 @@ input.docname:focus{outline:none;border-color:var(--accent);background:#fff}
 </div>
 </div></div><div class="rg-label">字体</div></div>
 <div class="rgroup"><div class="rg-body">
+<select id="sel-style" title="段落样式" onchange="applyStyle(this.value)" style="width:104px;height:30px">
+<option value="" selected>正文</option><option value="1">标题 1</option><option value="2">标题 2</option><option value="3">标题 3</option><option value="4">标题 4</option><option value="5">标题 5</option><option value="6">标题 6</option>
+</select>
+</div><div class="rg-label">样式</div></div>
+<div class="rgroup"><div class="rg-body">
 <div class="rgrid3">
 <button class="rbtn" onclick="listCmd('ul')" title="项目符号列表"><span data-icon="ul"></span></button>
 <button class="rbtn" onclick="listCmd('ol')" title="编号列表"><span data-icon="ol"></span></button>
-<button class="rbtn" onclick="insertBlock('quote')" title="插入引用"><span data-icon="quote"></span></button>
-<button class="rbtn" onclick="insertBlock('hr')" title="插入分隔线"><span data-icon="hr"></span></button>
+<button class="rbtn" onclick="cycleLineSpacing()" title="行距(循环切换)"><span data-icon="lineh"></span></button>
 <button class="rbtn" onclick="fmtCmd('justifyLeft')" title="左对齐"><span data-icon="al"></span></button>
 <button class="rbtn" onclick="fmtCmd('justifyCenter')" title="居中"><span data-icon="ac"></span></button>
 <button class="rbtn" onclick="fmtCmd('justifyRight')" title="右对齐"><span data-icon="ar"></span></button>
@@ -268,7 +287,9 @@ input.docname:focus{outline:none;border-color:var(--accent);background:#fff}
 </div>
 </div><div class="rg-label">段落</div></div>
 <div class="rgroup"><div class="rg-body">
-<button class="rbtn" onclick="toggleFind()" title="查找和替换 (Ctrl+F)"><span data-icon="search"></span></button>
+<button class="rbtn" onclick="toggleFind()" title="查找 (Ctrl+F)"><span data-icon="search"></span></button>
+<button class="rbtn" onclick="replaceEntry()" title="查找和替换 (Ctrl+H)"><span data-icon="replace"></span></button>
+<button class="rbtn" onclick="selectAllDoc()" title="全选当前文档"><span data-icon="selall"></span></button>
 </div><div class="rg-label">编辑</div></div>
 </div>
 <div class="findbar-pop" id="findbar">
@@ -298,11 +319,33 @@ input.docname:focus{outline:none;border-color:var(--accent);background:#fff}
 <button class="tbtn" onclick="insertBlock('link')" title="插入链接"><span data-icon="link"></span>链接</button>
 <button class="tbtn" onclick="insertBlock('hr')" title="插入分隔线"><span data-icon="hr"></span>分隔线</button>
 <button class="tbtn" onclick="insertBlock('footnote')" title="插入脚注"><span data-icon="footnote"></span>脚注</button>
-<button class="tbtn" onclick="insertBlock('toc')" title="插入目录"><span data-icon="toc"></span>目录</button>
+<button class="tbtn" onclick="insertBlock('toc')" title="插入目录(按标题生成)"><span data-icon="toc"></span>目录</button>
 </div><div class="rg-label">插入</div></div>
 <div class="rgroup"><div class="rg-body">
+<button class="tbtn" onclick="insertBlock('math')" title="数学公式"><span data-icon="math"></span>数学</button>
+<button class="tbtn" onclick="insertBlock('label')" title="书签(供 @[ref] 引用)"><span data-icon="bookmark"></span>书签</button>
+<button class="tbtn" onclick="insertBlock('date')" title="插入日期"><span data-icon="date"></span>日期</button>
+<button class="tbtn" onclick="toggleSymbolPanel(this)" title="特殊符号"><span data-icon="symbol"></span>符号</button>
+</div><div class="rg-label">公式与符号</div></div>
+<div class="rgroup"><div class="rg-body">
+<button class="tbtn" onclick="insertBlock('quote')" title="引用块"><span data-icon="quote"></span>引用</button>
 <button class="tbtn" onclick="insertBlock('comment')" title="批注(不参与渲染,仅存于源码)"><span data-icon="comment"></span>批注</button>
-</div><div class="rg-label">批注</div></div>
+</div><div class="rg-label">引用与批注</div></div>
+</div>
+<div class="ribbon-page" data-page="view">
+<div class="rgroup"><div class="rg-body">
+<button class="sbtn" id="vb-display" onclick="setMode('display')">显示</button>
+<button class="sbtn" id="vb-syntax" onclick="setMode('syntax')">语法</button>
+<button class="sbtn" id="vb-split" onclick="setMode('split')">分屏</button>
+</div><div class="rg-label">文档视图</div></div>
+<div class="rgroup"><div class="rg-body">
+<button class="sbtn" onclick="toggleFocus()" title="隐藏功能区/侧栏/状态栏,Esc 退出">专注模式</button>
+<button class="sbtn" onclick="swapSplit()" title="分屏左右交换">左右交换</button>
+<button class="sbtn" onclick="toggleSidebar()" title="显示/隐藏文档结构窗格">导航窗格</button>
+</div><div class="rg-label">显示</div></div>
+<div class="rgroup"><div class="rg-body">
+<span style="font-size:12px;color:#5a5c60">缩放在状态栏右下角,支持自定义百分比</span>
+</div><div class="rg-label">提示</div></div>
 </div>
 <div class="ribbon-page" data-page="page">
 <div class="rgroup"><div class="rg-body"><div class="fcol">
@@ -336,6 +379,7 @@ input.docname:focus{outline:none;border-color:var(--accent);background:#fff}
 <button class="tbtn" onclick="newDoc()" title="新建文档 (Ctrl+N)"><span data-icon="newdoc"></span>新建</button>
 <button class="tbtn" onclick="openFileClick()" title="打开 (.awen / .txt / .md) (Ctrl+O)"><span data-icon="open"></span>打开</button>
 <button class="tbtn" onclick="doSave()" title="保存为 Awen 源码 (Ctrl+S)"><span data-icon="save"></span>保存</button>
+<button class="tbtn" onclick="doSaveAs()" title="另存为新文件"><span data-icon="savenew"></span>另存为</button>
 <button class="tbtn" onclick="doPrint()" title="打印 / 另存为 PDF (Ctrl+P)"><span data-icon="print"></span>打印</button>
 </div></div><div class="rg-label">文档</div></div>
 <div class="rgroup"><div class="rg-body"><div class="frow">
@@ -345,6 +389,7 @@ input.docname:focus{outline:none;border-color:var(--accent);background:#fff}
 <button class="sbtn" onclick="exportFile('doc')">导出 Word</button>
 <button class="sbtn" onclick="exportFile('txt')">导出 TXT</button>
 </div></div><div class="rg-label">导出</div></div>
+<div class="rgroup"><div class="rg-body"><div class="fcol" id="recent-list" style="min-width:180px;max-height:60px;overflow:auto"></div></div><div class="rg-label">最近文件</div></div>
 </div>
 </div>
 <div class="workspace">
@@ -413,6 +458,13 @@ var gSrc='', gPages=[], gNodes=[];
 function render(src){
   gSrc=src;
   gNodes=Engine.parse(src);
+  Engine.applyDocsets(gNodes);   // 文档级 @[page/margin/...] 设置生效(源码即权威)
+  CFG=Engine.getConfig();
+  gPages=Engine.layoutPages(gNodes);
+  renderNodes();
+}
+// 只重排+重渲(不重新解析/不重应用文档设置)——横向等会话级覆盖用
+function renderKeep(){
   gPages=Engine.layoutPages(gNodes);
   renderNodes();
 }
@@ -430,9 +482,33 @@ function renderNodes(){
     paper.className='paper';
     paper.contentEditable='true';
     paper.style.lineHeight=CFG.LINE_H;
+    if(CFG.FONT)paper.style.fontFamily='\''+CFG.FONT+'\',serif';
+    paper.style.setProperty('--fl',CFG.FIRSTLINE||'0em');
     paper.dataset.page=p;
     for(var k=0;k<gPages[p].length;k++){
       var item=gPages[p][k], b=item.b;
+      if(b.kind==='toc'){
+        // 目录块:按标题节点生成,深度取 depth 参数,点击跳转
+        var dep=parseInt((b.text.match(/depth:\s*(\d+)/)||[0,6])[1]);
+        var toc=document.createElement('div');
+        toc.className='tocblock'; toc.contentEditable='false';
+        toc.dataset.bid=b.bid; toc.dataset.kind='toc'; toc.dataset.raw=b.text;
+        var inner='<div class="toc-title">目录</div>';
+        for(var ti=0;ti<gNodes.length;ti++){
+          var hn=gNodes[ti];
+          if(hn.kind!=='heading'||hn.level>dep)continue;
+          inner+='<div class="toc-item lv'+hn.level+'" data-bid="'+hn.bid+'">'+Engine.escHtml(Engine.displayText(hn.text||''))+'</div>';
+        }
+        toc.innerHTML=inner;
+        toc.onclick=function(ev){
+          var it=ev.target.closest('.toc-item');
+          if(!it)return;
+          var t=document.querySelector('#display-pane [data-bid="'+it.dataset.bid+'"]');
+          if(t)t.scrollIntoView({behavior:'smooth',block:'start'});
+        };
+        paper.appendChild(toc);
+        paper.appendChild(gapEl()); continue;
+      }
       if(b.kind==='docset'){
         var d=document.createElement('div'); d.className='docset'; d.contentEditable='false'; d.textContent=b.text;
         paper.appendChild(d);
@@ -449,6 +525,7 @@ function renderNodes(){
         pre.className='codeblock';
         pre.contentEditable='false';
         pre.dataset.bid=b.bid; pre.dataset.kind='code';
+        pre.dataset.raw=b.text; pre.dataset.lang=b.lang||'';
         pre.innerHTML='<div class="code-lang">'+Engine.escHtml(b.lang)+'</div><pre><code>'+Engine.escHtml(b.text)+'</code></pre>';
         paper.appendChild(pre);
         paper.appendChild(gapEl()); continue;
@@ -457,6 +534,7 @@ function renderNodes(){
         var mm=document.createElement('div');
         mm.className='mathblock'; mm.contentEditable='false';
         mm.dataset.bid=b.bid; mm.dataset.kind='math';
+        mm.dataset.raw=b.text;
         mm.innerHTML='<div class="math-label">数学</div><div class="math-content">'+Engine.escHtml(b.text)+'</div>';
         paper.appendChild(mm);
         paper.appendChild(gapEl()); continue;
@@ -614,6 +692,8 @@ function applySyncNow(){
   var caret=saveCaret();
   var before=gPages.length+'|'+gPages.map(function(p){return p.length?p[0].b.bid:-1}).join(',');
   gNodes=Engine.parse(gSrc);
+  Engine.applyDocsets(gNodes);
+  CFG=Engine.getConfig();
   gPages=Engine.layoutPages(gNodes);
   var after=gPages.length+'|'+gPages.map(function(p){return p.length?p[0].b.bid:-1}).join(',');
   if(before!==after){ renderNodes(); restoreCaret(caret) }
@@ -748,6 +828,8 @@ function adoptNativeBlocks(){
     adoptNativeResult(res);
     var caret=saveCaret();
     gNodes=Engine.ingestNative(res.blocks,gSrc);
+    Engine.applyDocsets(gNodes);
+    CFG=Engine.getConfig();
     gPages=Engine.layoutPages(gNodes);
     renderNodes();
     restoreCaret(caret);
@@ -867,10 +949,18 @@ function insertBlock(kind){
     table:['@[table demo]','| 列1 | 列2 |','| --- | --- |','| 内容 | 内容 |','@[/table]'],
     toc:['@[toc depth: 2]'],
     comment:['@[comment 批注内容,不参与渲染]'],
-    footnote:['@[footnote 1 脚注内容]']
+    footnote:['@[footnote 1 脚注内容]'],
+    math:['@[m]','E = mc^2','@[/m]'],
+    label:['@[label 引用名]']
   };
   if(kind==='image'){pickImageInsert();return}
+  if(kind==='date'){
+    var d=new Date();
+    insertRawLine(d.getFullYear()+' 年 '+(d.getMonth()+1)+' 月 '+d.getDate()+' 日');
+    return;
+  }
   var ins=snippets[kind];
+  if(!ins)return;
   if(inDisplayMode()){
     // 在当前块后插入新块
     var bel=caretBlock();
@@ -1039,6 +1129,88 @@ function gotoLine(n){
   setGutterCur(n);
 }
 
+// ═══ 剪贴板与格式刷 ═══
+function doPaste(){
+  if(navigator.clipboard&&navigator.clipboard.readText){
+    navigator.clipboard.readText().then(function(t){
+      if(!t)return;
+      if(!document.execCommand('insertText',false,t))insertAtSelection(t);
+      onPaperInput();
+    }).catch(function(){ document.getElementById('findmsg').textContent='剪贴板不可读,请用 Ctrl+V' });
+  }else document.getElementById('findmsg').textContent='剪贴板不可读,请用 Ctrl+V';
+}
+function doCut(){ if(document.execCommand('cut'))onPaperInput() }
+function doCopy(){ document.execCommand('copy') }
+function insertAtSelection(text){
+  var sel=window.getSelection();
+  if(!sel.rangeCount)return;
+  var r=sel.getRangeAt(0);
+  r.deleteContents();
+  var tn=document.createTextNode(text);
+  r.insertNode(tn);
+  r.setStartAfter(tn); r.collapse(true);
+  sel.removeAllRanges(); sel.addRange(r);
+}
+// 格式刷:吸取光标处带 data-cmd 的格式(mark/color/size/font),再选中文字应用
+var brushCmd=null;
+function brushClick(){
+  if(brushCmd){
+    if(wrapSpan(brushCmd.cmd,brushCmd.close,null,false))onPaperInput();
+    brushCmd=null;
+    document.getElementById('btn-brush').classList.remove('on');
+    return;
+  }
+  var sel=window.getSelection();
+  var node=sel.rangeCount?sel.getRangeAt(0).startContainer:null;
+  var el=node&&(node.nodeType===1?node:node.parentElement);
+  var src=el&&el.closest?el.closest('[data-cmd]'):null;
+  if(!src){ document.getElementById('findmsg').textContent='光标处无可吸取的格式(支持颜色/底纹/字号/字体)'; return }
+  brushCmd={cmd:src.getAttribute('data-cmd'),close:src.getAttribute('data-close')||''};
+  document.getElementById('btn-brush').classList.add('on');
+  document.getElementById('findmsg').textContent='格式已吸取:选中文字后再点格式刷应用';
+}
+// 行距循环按钮:1.15→1.5→1.9→2→2.5→1.15(写回文档级设置)
+var LSP=[1.15,1.5,1.9,2,2.5];
+function cycleLineSpacing(){
+  var cur=Engine.getConfig().LINE_H;
+  var idx=0;
+  for(var i=0;i<LSP.length;i++){ if(LSP[i]>=cur-0.01){idx=i;break} }
+  var v=LSP[(idx+1)%LSP.length];
+  setDocsetLine(/^@\[line-spacing\s/,'@[line-spacing '+v+']');
+}
+function replaceEntry(){ toggleFind(); setTimeout(function(){ document.getElementById('replacebox').focus() },60) }
+function selectAllDoc(){
+  var p=document.querySelector('#display-pane .paper');
+  if(p&&currentMode!=='syntax'){ p.focus(); document.execCommand('selectAll') }
+  else{ var ta=document.getElementById('syntax-src'); if(ta){ta.focus();ta.select()} }
+}
+// ═══ 特殊符号面板 ═══
+var SYMBOLS='©®™±×÷≈≠≤≥℃㎡①②③④⑤⑥⑦⑧⑨⑩→←↑↓↔⇒∴∵§¶†‡•…°′″¥€£'.split('');
+function toggleSymbolPanel(btn){
+  var old=document.getElementById('symbol-pop');
+  if(old){old.remove();return}
+  var pop=document.createElement('div');
+  pop.id='symbol-pop';
+  pop.style.cssText='position:fixed;z-index:210;background:#fff;border:1px solid #c9cbce;border-radius:6px;box-shadow:0 4px 16px rgba(0,0,0,.18);padding:8px;display:grid;grid-template-columns:repeat(8,30px);gap:3px';
+  var r=btn.getBoundingClientRect();
+  pop.style.left=Math.min(r.left,window.innerWidth-280)+'px';
+  pop.style.top=(r.bottom+6)+'px';
+  SYMBOLS.forEach(function(ch){
+    var d=document.createElement('div');
+    d.textContent=ch;
+    d.style.cssText='text-align:center;cursor:pointer;padding:3px 0;border-radius:4px;font-size:14px';
+    d.onmouseenter=function(){d.style.background='#eef4f8'};
+    d.onmouseleave=function(){d.style.background=''};
+    d.onclick=function(){ insertAtSelection(ch); onPaperInput(); pop.remove() };
+    pop.appendChild(d);
+  });
+  document.body.appendChild(pop);
+  setTimeout(function(){
+    document.addEventListener('click',function hider(ev){
+      if(!pop.contains(ev.target)&&ev.target!==btn&&!btn.contains(ev.target)){pop.remove();document.removeEventListener('click',hider)}
+    });
+  },0);
+}
 // ═══ 色板:单一浮动面板,功能区/迷你栏四箭头共用,每次打开重建 ═══
 var curFore='#c0392b', curMark='#fff176';
 var PAL_MAIN=['#000000','#404040','#808080','#bfbfbf','#ffffff','#c00000','#ff0000','#ffc000','#ffff00','#92d050',
@@ -1268,12 +1440,25 @@ function replaceAll(){
   document.getElementById('findmsg').textContent='已替换 '+starts.length+' 处';
 }
 
-// ═══ 页面设置(几何参数在引擎,UI 只收集输入)═══
-var PAPER_SIZES={A4:[210,297],Letter:[215.9,279.4],B5:[176,250],A3:[297,420],A5:[148,210]};
+// ═══ 页面设置(写回文档级设置行,源码即权威)═══
+function setDocsetLine(matchRe,newLine){
+  var lines=gSrc.split('\n');
+  for(var i=0;i<lines.length;i++){
+    if(matchRe.test(lines[i])){
+      if(newLine===null)lines.splice(i,1); else lines[i]=newLine;
+      setSrc(lines.join('\n'));
+      return;
+    }
+  }
+  // 未找到:插入文件头 @[...] 设置区末尾
+  var at=0;
+  while(at<lines.length&&lines[at].indexOf('@[')===0)at++;
+  lines.splice(at,0,newLine);
+  setSrc(lines.join('\n'));
+}
 function applyPaper(v){
-  var sz=PAPER_SIZES[v]||PAPER_SIZES.A4;
-  Engine.setPage({PAGE_W:sz[0],PAGE_H:sz[1]});
-  render(gSrc);
+  var sz=Engine.PAPER_SIZES[v]; if(!sz)return;
+  setDocsetLine(/^@\[page\s/,'@[page '+v+']');
 }
 function applyMargin(v){
   if(v==='custom'){
@@ -1281,12 +1466,11 @@ function applyMargin(v){
     inp.style.display='block'; inp.focus();
     return;
   }
-  Engine.setPage({MARGIN:parseFloat(v)||20});
-  render(gSrc);
+  setDocsetLine(/^@\[margin\s/,'@[margin '+v+'mm]');
 }
 function applyMarginCustom(v){
   var x=parseFloat(v);
-  if(x>=5&&x<=60){ Engine.setPage({MARGIN:x}); render(gSrc) }
+  if(x>=5&&x<=60) setDocsetLine(/^@\[margin\s/,'@[margin '+x+'mm]');
 }
 function applyLineSpacing(v){
   if(v==='custom'){
@@ -1294,16 +1478,16 @@ function applyLineSpacing(v){
     inp.style.display='block'; inp.focus();
     return;
   }
-  Engine.setPage({LINE_H:parseFloat(v)||1.9});
-  render(gSrc);
+  setDocsetLine(/^@\[line-spacing\s/,'@[line-spacing '+v+']');
 }
 function applyLineSpacingCustom(v){
   var x=parseFloat(v);
-  if(x>=1&&x<=4){ Engine.setPage({LINE_H:x}); render(gSrc) }
+  if(x>=1&&x<=4) setDocsetLine(/^@\[line-spacing\s/,'@[line-spacing '+x+']');
 }
 function toggleOrientation(){
+  // 横向为会话级覆盖(规范暂无横向语法):只重排,不写回源码
   Engine.setPage({PAGE_W:CFG.PAGE_H,PAGE_H:CFG.PAGE_W});
-  render(gSrc);
+  renderKeep();
   document.getElementById('btn-orient').textContent=CFG.PAGE_W>CFG.PAGE_H?'横向':'纵向';
 }
 
@@ -1502,6 +1686,9 @@ function applyHistory(text){
   var ta=document.getElementById('syntax-src');
   if(ta)ta.value=text;
   render(text);
+  // 与 setSrc 相同的序列化规范化(但 undo 不入史)
+  var norm=Engine.serializeAll();
+  if(norm!==gSrc){ render(norm); }
   restoreCaret(caret);
   updateDiagBar();
   updateUndoButtons();
@@ -1537,6 +1724,11 @@ function setMode(mode){
   if(st)st.style.display=(mode==='split')?'block':'none';
   var ta=document.getElementById('syntax-src');
   if(ta)ta.value=gSrc;
+  // 视图页模式按钮激活态
+  ['display','syntax','split'].forEach(function(m){
+    var b=document.getElementById('vb-'+m);
+    if(b)b.classList.toggle('on',mode===m);
+  });
   // 从语法切回显示/分屏时,按最新源码刷新显示窗格
   if(mode!=='syntax')render(gSrc);
   applyZoom(document.getElementById('sel-zoom').value);
@@ -1593,7 +1785,7 @@ function fname(ext){
 }
 // 导出统一走 Bridge(桌面版原生对话框+写盘;浏览器 picker/download)
 function saveWithPicker(name,content){
-  Bridge.saveDialog(name,content).then(function(ok){ if(ok)markClean() });
+  Bridge.saveDialog(name,content).then(function(r){ if(r.saved)markClean() });
 }
 function markClean(){
   docDirty=false;
@@ -1613,8 +1805,21 @@ function updateTitle(src){
   }
 }
 function doSave(){
-  var header='# awen v0.4\n# ---\n';
-  Bridge.saveDialog(fname('awen'),header+gSrc).then(function(ok){ if(ok)markClean() });
+  var content=buildAwenHeader()+gSrc;
+  if(currentFilePath){
+    Bridge.savePath(currentFilePath,content).then(function(ok){ if(ok)markClean(); else doSaveDialog(); });
+  }else doSaveDialog();
+}
+function doSaveDialog(){
+  Bridge.saveDialog(fname('awen'),buildAwenHeader()+gSrc).then(function(r){
+    if(r.saved){ if(r.path)currentFilePath=r.path; markClean() }
+  });
+}
+function doSaveAs(){ currentFilePath=null; doSaveDialog(); }
+// E8:完整 .awen v0.4 manifest(nodes/next_id 与引擎 save_awen 对齐)
+function buildAwenHeader(){
+  var n=gNodes.length;
+  return '# awen v0.4\n# nodes: '+n+'\n# next_id: '+(n+1)+'\n# res: 0\n# ---\n';
 }
 function newDoc(){
   if(docDirty&&!window.confirm('当前文档未保存,确定新建?'))return;
@@ -1636,30 +1841,33 @@ function newDoc(){
   addFileTab('未命名文档');
   markClean();
 }
+// 打开文档统一入口:对话框/命令行/最近文件共用;当前是干净空白文档则复用标签
+function openDocument(res){
+  var name=res.name.replace(/\.(awen(\.txt)?|txt|md|markdown)$/i,'');
+  var reuse=false;
+  if(activeFile>=0){
+    applySyncNow();
+    var cur=openFiles[activeFile];
+    reuse=(cur.name==='未命名文档'&&!docDirty);
+    if(!reuse){ cur.src=gSrc; cur.dirty=docDirty }
+  }
+  document.getElementById('docname').value=name;
+  setSrc(res.src);
+  if(reuse){
+    openFiles[activeFile]={name:name,src:gSrc,dirty:false,path:res.path||null};
+    renderFileTabs();
+  }else{
+    addFileTab(name,res.path||null);
+  }
+  currentFilePath=res.path||null;
+  updateTitle();
+  markClean();
+  pushRecentFile(name,res.path||null);
+  adoptNativeBlocks();
+}
+var currentFilePath=null;
 function openFileClick(){
-  Bridge.openDialog().then(function(res){
-    if(!res)return;
-    var name=res.name.replace(/\.(awen(\.txt)?|txt|md|markdown)$/i,'');
-    // 打开前保存当前文件状态;当前是干净空白文档则直接替换该标签(启动→直接开文件的路径)
-    var reuse=false;
-    if(activeFile>=0){
-      applySyncNow();
-      var cur=openFiles[activeFile];
-      reuse=(cur.name==='未命名文档'&&!docDirty);
-      if(!reuse){ cur.src=gSrc; cur.dirty=docDirty }
-    }
-    document.getElementById('docname').value=name;
-    setSrc(res.src);
-    if(reuse){
-      openFiles[activeFile]={name:name,src:gSrc,dirty:false};
-      renderFileTabs();
-    }else{
-      addFileTab(name);
-    }
-    updateTitle();
-    markClean();
-    adoptNativeBlocks();
-  });
+  Bridge.openDialog().then(function(res){ if(res)openDocument(res); });
 }
 function caretBlock(){
   var s=window.getSelection();
@@ -1695,11 +1903,29 @@ var ICONS={
   pick:'<svg viewBox="0 0 16 16"><circle cx="8" cy="8" r="5" '+SW+'/><path d="M8 3a5 5 0 0 1 0 10" fill="currentColor"/></svg>',
   toc:'<svg viewBox="0 0 16 16"><path d="M2.5 3.5h4M2.5 8h3M2.5 12.5h4" '+SW+'/><path d="M8.5 3.5h5M9.5 8h4M8.5 12.5h5" '+SW+'/></svg>',
   newdoc:'<svg viewBox="0 0 16 16"><path d="M4 2.5h5.5L12.5 5.5V13.5H4z" '+SW+'/><path d="M9.5 2.5V5.5H12.5" '+SW+'/><path d="M6.5 9h4M8.5 7v4" '+SW+'/></svg>',
-  open:'<svg viewBox="0 0 16 16"><path d="M2.5 12.5V4a1 1 0 0 1 1-1H6l1.5 1.5h6a1 1 0 0 1 1 1v7z" '+SW+'/></svg>'
+  open:'<svg viewBox="0 0 16 16"><path d="M2.5 12.5V4a1 1 0 0 1 1-1H6l1.5 1.5h6a1 1 0 0 1 1 1v7z" '+SW+'/></svg>',
+  savenew:'<svg viewBox="0 0 16 16"><path d="M3 3h8l2 2v8H3z" '+SW+'/><path d="M5.5 3v3h4V3" '+SW+'/><path d="M8 7.5v4M6 9.5l2-2 2 2" '+SW+'/></svg>',
+  paste:'<svg viewBox="0 0 16 16"><path d="M5 4H4a1 1 0 0 0-1 1v8a1 1 0 0 0 1 1h8a1 1 0 0 0 1-1V5a1 1 0 0 0-1-1h-1" '+SW+'/><rect x="5" y="2.5" width="6" height="3" rx="0.5" '+SW+'/><path d="M6.5 8.5h4M6.5 11h3" '+SW+'/></svg>',
+  cut:'<svg viewBox="0 0 16 16"><circle cx="4.5" cy="12" r="1.6" '+SW+'/><circle cx="11.5" cy="12" r="1.6" '+SW+'/><path d="M5.5 10.5L12 2.5M10.5 10.5L4 2.5" '+SW+'/></svg>',
+  copy:'<svg viewBox="0 0 16 16"><rect x="5.5" y="5.5" width="8" height="8" rx="1" '+SW+'/><path d="M10.5 5.5V3a1 1 0 0 0-1-1h-6a1 1 0 0 0-1 1v6a1 1 0 0 0 1 1h2" '+SW+'/></svg>',
+  brush:'<svg viewBox="0 0 16 16"><path d="M9.5 2.5l4 4-5.5 5.5H5v-3z" '+SW+'/><path d="M4 13.5c1.5 0 2.5-1 3-2.5" '+SW+'/></svg>',
+  fup:'<svg viewBox="0 0 16 16"><text x="4" y="12" font-size="11" font-weight="700" fill="currentColor" font-family="Georgia,serif">A</text><path d="M11 8l2.5-2.5L16 8" '+SW+'/><path d="M13.5 5.5V13" '+SW+'/></svg>',
+  fdown:'<svg viewBox="0 0 16 16"><text x="4" y="10" font-size="11" font-weight="700" fill="currentColor" font-family="Georgia,serif">A</text><path d="M11 8l2.5 2.5L16 8" '+SW+'/><path d="M13.5 10.5V3" '+SW+'/></svg>',
+  lineh:'<svg viewBox="0 0 16 16"><path d="M3 3h10M3 6.5h10M3 10h6" '+SW+'/><path d="M11.5 9v5M9.5 12l2 2 2-2" '+SW+'/></svg>',
+  replace:'<svg viewBox="0 0 16 16"><path d="M3 5h7M10 5l-2-2M10 5l-2 2" '+SW+'/><path d="M13 11H6M6 11l2-2M6 11l2 2" '+SW+'/></svg>',
+  selall:'<svg viewBox="0 0 16 16"><rect x="2.5" y="2.5" width="11" height="11" rx="1" '+SW+'/><path d="M2.5 6h11M6 2.5v11" '+SW+' stroke-dasharray="2 1.6"/></svg>',
+  math:'<svg viewBox="0 0 16 16"><path d="M3 3h10v2M4.5 3v10M3 13h10" '+SW+'/><path d="M9 8h4M11 6v4" '+SW+'/></svg>',
+  bookmark:'<svg viewBox="0 0 16 16"><path d="M4.5 2.5h7V14L8 11 4.5 14z" '+SW+'/></svg>',
+  date:'<svg viewBox="0 0 16 16"><rect x="2.5" y="3.5" width="11" height="10" rx="1" '+SW+'/><path d="M2.5 6.5h11M5.5 2v3M10.5 2v3" '+SW+'/></svg>',
+  symbol:'<svg viewBox="0 0 16 16"><text x="8" y="12" text-anchor="middle" font-size="12" font-weight="700" fill="currentColor">Ω</text></svg>',
+  chev:'<svg viewBox="0 0 16 16"><path d="M3 10l5-5 5 5" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/></svg>'
 };
 function showRibbon(page){
+  // 折叠状态下点击标签=展开功能区
+  if(ribbonCollapsed)toggleRibbonCollapse();
   document.querySelectorAll('.tab').forEach(function(t){t.classList.toggle('active',t.dataset.page===page)});
   document.querySelectorAll('.ribbon-page').forEach(function(p){p.classList.toggle('active',p.dataset.page===page)});
+  if(page==='file')renderRecentList();
 }
 
 // ═══ 侧栏收起/展开 ═══
@@ -1787,6 +2013,41 @@ document.querySelectorAll('.ribbon,.tabbar,#minibar,#float-pal').forEach(functio
   });
 });
 
+// ═══ 最近文件(localStorage;桌面版带路径可直开,浏览器版仅记录名称)═══
+function getRecent(){
+  try{
+    var l=JSON.parse(localStorage.getItem('awen-recent-files')||'[]');
+    if(Array.isArray(l))return l;
+  }catch(e){}
+  return [];
+}
+function pushRecentFile(name,path){
+  var list=getRecent().filter(function(x){return x.path?x.path!==path:x.name!==name});
+  list.unshift({name:name,path:path||null,time:Date.now()});
+  if(list.length>10)list=list.slice(0,10);
+  try{localStorage.setItem('awen-recent-files',JSON.stringify(list))}catch(e){}
+}
+function renderRecentList(){
+  var el=document.getElementById('recent-list');
+  if(!el)return;
+  var list=getRecent();
+  el.innerHTML='';
+  if(!list.length){
+    el.innerHTML='<span style="color:#9aa0a6;font-size:12px">暂无</span>';
+    return;
+  }
+  list.forEach(function(f){
+    var d=document.createElement('div');
+    d.className='recent-item';
+    d.textContent=f.name;
+    d.title=f.path||f.name;
+    d.onclick=function(){
+      if(f.path&&Bridge.native) Bridge.openPath(f.path).then(function(res){ if(res)openDocument(res) });
+      else openFileClick();
+    };
+    el.appendChild(d);
+  });
+}
 // ═══ 多文件管理 ═══
 var openFiles=[];
 var activeFile=-1;
@@ -1813,6 +2074,7 @@ function switchFile(i){
   }
   activeFile=i;
   var f=openFiles[i];
+  currentFilePath=f.path||null;
   document.getElementById('docname').value=f.name;
   setSrc(f.src);
   docDirty=f.dirty;
@@ -1830,15 +2092,17 @@ function closeFile(i){
   if(activeFile>=openFiles.length)activeFile=openFiles.length-1;
   if(!openFiles.length){ newDoc(); return }
   var f=openFiles[activeFile];
+  currentFilePath=f.path||null;
   document.getElementById('docname').value=f.name;
   setSrc(f.src);
   docDirty=f.dirty;
   updateTitle();
   renderFileTabs();
 }
-function addFileTab(name){
-  openFiles.push({name:name,src:gSrc,dirty:docDirty});
+function addFileTab(name,path){
+  openFiles.push({name:name,src:gSrc,dirty:docDirty,path:path||null});
   activeFile=openFiles.length-1;
+  renderFileTabs();
 }
 
 // ═══ 功能区折叠 ═══
@@ -1973,6 +2237,10 @@ renderOutline=function(){
   });
   // 桌面版:初始化后立即用原生引擎刷新诊断并做权威初渲染
   if(Bridge.native){ refreshNativeDiags(); adoptNativeBlocks(); }
+  // 单实例/命令行转发的打开请求(桌面版)
+  Bridge.listenOpenPath(function(path){
+    Bridge.openPath(path).then(function(res){ if(res)openDocument(res) });
+  });
 })();
 </script>
 </body>

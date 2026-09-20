@@ -47,12 +47,12 @@ window.Bridge={
     });
   },
 
-  // 打开文件对话框。返回 Promise<{name, src}|null>(取消为 null)
+  // 打开文件对话框。返回 Promise<{name, src, path?}|null>(取消为 null)
   openDialog:function(){
     if(tauri){
       return tauri.core.invoke('core_open_dialog').then(function(res){
         if(!res)return null;
-        return {name:res.name,src:res.src};
+        return {name:res.name,src:res.src,path:res.path||null};
       });
     }
     return new Promise(function(resolve){
@@ -81,28 +81,40 @@ window.Bridge={
     });
   },
 
-  // 保存对话框。返回 Promise<boolean>(是否已保存)
+  // 保存对话框。返回 Promise<{saved, path}>(path 供"保存"直写复用)
   saveDialog:function(name,content){
     if(tauri){
       return tauri.core.invoke('core_save_dialog',{name:name,content:content})
-        .then(function(ok){return !!ok});
+        .then(function(res){ return {saved:!!(res&&res.saved),path:(res&&res.path)||null} });
     }
     return new Promise(function(resolve){
-      var done=function(){resolve(true)};
+      var done=function(path){resolve({saved:true,path:path||null})};
       if(window.showSaveFilePicker){
         var ext=name.split('.').pop();
         var acc={};acc['text/plain;charset=utf-8']=['.'+ext];
         window.showSaveFilePicker({suggestedName:name,types:[{description:ext.toUpperCase()+' 文件',accept:acc}]})
           .then(function(h){return h.createWritable().then(function(w){return w.write(new Blob([content],{type:'text/plain;charset=utf-8'}))}).then(function(w){return w.close()})})
-          .then(done)
+          .then(function(){done(null)})
           .catch(function(e){
-            if(e&&e.name==='AbortError'){resolve(false);return}
-            downloadFallback(name,content);done();
+            if(e&&e.name==='AbortError'){resolve({saved:false,path:null});return}
+            downloadFallback(name,content);done(null);
           });
       }else{
-        downloadFallback(name,content);done();
+        downloadFallback(name,content);done(null);
       }
     });
+  },
+
+  // 已知路径直写(桌面版"保存"不再弹框)
+  savePath:function(path,content){
+    if(!tauri)return Promise.resolve(false);
+    return tauri.core.invoke('core_save_file',{path:path,content:content}).then(function(ok){return !!ok});
+  },
+
+  // 监听单实例/命令行转发的文件路径(桌面版)
+  listenOpenPath:function(cb){
+    if(!tauri||!tauri.event||!tauri.event.listen)return;
+    tauri.event.listen('awen-open-path',function(ev){ cb(String(ev.payload)); });
   }
 };
 
