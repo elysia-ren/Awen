@@ -4,10 +4,11 @@ function updateGutter(){
   var ta=document.getElementById('syntax-src');
   if(!g||!ta)return;
   var n=ta.value.split('\n').length;
-  var out='';
-  for(var i=1;i<=n;i++)out+='<div class="ln" data-ln="'+i+'">'+i+'</div>';
-  if(g.dataset.count!==String(n)){ g.innerHTML=out; g.dataset.count=String(n) }
-  g.scrollTop=ta.scrollTop;
+  if(g.dataset.count!==String(n)){
+    var out='';
+    for(var i=1;i<=n;i++)out+='<div class="ln" data-ln="'+i+'">'+i+'</div>';
+    g.innerHTML=out; g.dataset.count=String(n);
+  }
 }
 // 当前行高亮:光标所在行(语法视图)
 function setGutterCur(line){
@@ -16,11 +17,14 @@ function setGutterCur(line){
   var prev=g.querySelector('.ln.cur');
   if(prev)prev.classList.remove('cur');
   var el=g.querySelector('.ln[data-ln="'+line+'"]');
-  if(el){ el.classList.add('cur');
-    // 保证当前行可见
+  if(el){
+    el.classList.add('cur');
+    // 当前行在窗格视口外时滚动窗格(行号与文本同滚动流,窗格是唯一滚动层)
+    var pane=document.getElementById('syntax-pane');
+    if(!pane)return;
     var top=el.offsetTop, h=el.offsetHeight;
-    var gTop=g.scrollTop, gH=g.clientHeight;
-    if(top<gTop||top+h>gTop+gH)g.scrollTop=Math.max(0,top-gH/2);
+    var pTop=pane.scrollTop, pH=pane.clientHeight;
+    if(top<pTop||top+h>pTop+pH)pane.scrollTop=Math.max(0,top-pH/2);
   }
 }
 function caretLineNumber(){

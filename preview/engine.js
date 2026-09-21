@@ -132,20 +132,35 @@ function displayText(t){
 function fmtH(t){
   var s=escHtml(t);
   s=escTokens(s);
-  s=s.replace(/@\[u\]((?:.|])*?)@\[\/u\]/g,'<u>$1</u>');
-  s=s.replace(/@\[sup\]((?:.|])*?)@\[\/sup\]/g,'<sup>$1</sup>');
-  s=s.replace(/@\[sub\]((?:.|])*?)@\[\/sub\]/g,'<sub>$1</sub>');
-  s=s.replace(/@\[mark\s+([^\]]+)\]((?:.|])*?)@\[\/mark\]/g,'<span data-cmd="@[mark $1]" data-close="@[/mark]" style="background:$1">$2</span>');
-  s=s.replace(/@\[color\s+([^\]]+)\]((?:.|])*?)@\[\/color\]/g,'<span data-cmd="@[color $1]" data-close="@[/color]" style="color:$1">$2</span>');
-  s=s.replace(/@\[size\s+([^\]]+)\]((?:.|])*?)@\[\/size\]/g,'<span data-cmd="@[size $1]" data-close="@[/size]" style="font-size:$1pt">$2</span>');
+  // 行内命令;中文名(字体/大小/颜色/底纹/下划线…)是同一命令的方言写法(规范 §6.14)
+  // 闭合式 @[u]xx@[/u];行内数学 @[m]…@[/m];「@[font "X"] 文字」单行作用域(无闭合,生效到行尾)
+  s=s.replace(/@\[(?:u|下划线|下划)\]((?:.|])*?)@\[\/(?:u|下划线|下划)\]/g,'<u>$1</u>');
+  s=s.replace(/@\[(?:sup|上标)\]((?:.|])*?)@\[\/(?:sup|上标)\]/g,'<sup>$1</sup>');
+  s=s.replace(/@\[(?:sub|下标)\]((?:.|])*?)@\[\/(?:sub|下标)\]/g,'<sub>$1</sub>');
+  s=s.replace(/@\[(?:m|math|数学)\]((?:.|])*?)@\[\/(?:m|math|数学)\]/g,'<span class="inline-math" data-cmd="@[m]" data-close="@[/m]" style="font-family:Georgia,\'Times New Roman\',serif;font-style:italic">$1</span>');
+  s=s.replace(/@\[(?:mark|底纹)\s+([^\]]+)\]((?:.|])*?)@\[\/(?:mark|底纹)\]/g,'<span data-cmd="@[mark $1]" data-close="@[/mark]" style="background:$1">$2</span>');
+  s=s.replace(/@\[(?:color|颜色)\s+([^\]]+)\]((?:.|])*?)@\[\/(?:color|颜色)\]/g,'<span data-cmd="@[color $1]" data-close="@[/color]" style="color:$1">$2</span>');
+  s=s.replace(/@\[(?:size|大小|字号)\s+([^\]]+)\]((?:.|])*?)@\[\/(?:size|大小|字号)\]/g,'<span data-cmd="@[size $1]" data-close="@[/size]" style="font-size:$1pt">$2</span>');
   s=s.replace(/@\[link\s+([^\]]+?)\s+url:\s*"?([^"\]]+)"?\]/g,'<a href="$2" target="_blank" style="color:#2a4a66;text-decoration:underline">$1</a>');
   s=s.replace(/@\[footnote\s+(\d+)\s+([^\]]+)\]/g,function(m,n,txt){
     // data-self:自闭合命令,序列化只回写原命令(显示体是编号,内容在 data-cmd 里)
     return '<sup class="fn" data-cmd="'+escAttrQ(m)+'" data-self="1" title="'+txt.replace(/"/g,'')+'" style="color:#2a4a66;cursor:help">'+n+'</sup>';
   });
-  s=s.replace(/@\[font\s+([^\]]+)\]((?:.|])*?)@\[\/font\]/g,function(m,f,inner){
+  s=s.replace(/@\[(?:font|字体)\s+([^\]]+)\]((?:.|])*?)@\[\/(?:font|字体)\]/g,function(m,f,inner){
     f=f.replace(/"/g,'');
     return'<span data-cmd=\'@[font "' + f + '"]\' data-close="@[/font]" style="font-family:\'' + f + '\',serif">' + inner + '</span>';
+  });
+  // 单行作用域(无闭合):@[font "SimSun"] 文字 → 生效到行尾(与 lexer 段内行内命令语义一致)
+  s=s.replace(/@\[(font|字体)\s+([^\]\[]+)\]((?:.|])*?)$/g,function(m,name,rest,inner){
+    if(inner.indexOf('@[')>=0)return m;
+    var f=rest.replace(/"/g,'');
+    return'<span data-cmd=\'@[' + name + ' "' + f + '"]\' style="font-family:\'' + f + '\',serif">' + inner + '</span>';
+  });
+  s=s.replace(/@\[(size|大小|字号|color|颜色)\s+([^\]\[]+)\]((?:.|])*?)$/g,function(m,name,rest,inner){
+    if(inner.indexOf('@[')>=0)return m;
+    var val=rest.replace(/"/g,'');
+    var st=(name==='size'||name==='大小'||name==='字号')?('font-size:'+val+'pt'):('color:'+val);
+    return'<span data-cmd="@[' + name + ' ' + rest + ']" style="' + st + '">' + inner + '</span>';
   });
   s=s.replace(/\*\*((?:.|])*?)\*\*/g,'<strong>$1</strong>');
   s=s.replace(/~~((?:.|])*?)~~/g,'<del>$1</del>');

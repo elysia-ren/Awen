@@ -183,9 +183,9 @@ body.show-marks .paper p::after{content:' b6';color:#d5d8dc;margin-left:2px}
 .statusbar .item{white-space:nowrap}
 .statusbar #st-diag{cursor:pointer}
 .statusbar .spacer{flex:1}
-.src-wrap{display:flex;height:100%;overflow:hidden;flex:1}
-.gutter{width:46px;flex:none;overflow:hidden;text-align:right;padding:0 6px 0 2px;color:#9aa0a6;font-size:10.5pt;line-height:1.8;background:var(--bg2);border-right:1px solid #e3e4e6;user-select:none;white-space:pre}
-.gutter .ln.cur{color:#2a4a66;font-weight:700;background:#e8eef4}
+.src-wrap{display:flex;height:auto;overflow:visible;flex:1;align-items:stretch;font:13px/1.8 Consolas,"Courier New",monospace;min-width:0}
+.gutter{width:52px;flex:none;text-align:right;padding:0 10px 0 6px;color:#b0b4ba;font-size:11px;line-height:1.8;background:#fafbfc;border-right:1px solid #ebedef;user-select:none;white-space:pre;position:sticky;left:0;min-height:100%}
+.gutter .ln.cur{color:#1a5276;background:#eef3f8;box-shadow:inset 2px 0 0 #4a81b4}
 .splitter{width:7px;flex:none;cursor:col-resize;background:var(--bg2);border-left:1px solid var(--border2);border-right:1px solid var(--border2)}
 .splitter:hover{background:#d7e2ec}
 .findbar-pop{display:none;position:fixed;top:120px;right:24px;z-index:150;width:340px;background:#fff;border:1px solid #c9cbce;border-radius:8px;box-shadow:0 8px 28px rgba(0,0,0,.2);overflow:hidden}

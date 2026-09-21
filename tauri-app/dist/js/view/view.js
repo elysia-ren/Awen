@@ -1,5 +1,13 @@
 // 视图:语法视图 / 模式与缩放 / 专注模式 / 全局快捷键 / 大纲跟随(自单文件版拆出;传统 script,全局变量直接共享)
 // ═══ 语法视图(同一 A4 纸张几何)═══
+// textarea 高度自适应内容(height 属性不会自动长,须按 scrollHeight 显式设置);
+// 行号列与文本同容器滚动,这里只需保证二者等高
+function autosizeSyntaxTa(){
+  var ta=document.getElementById('syntax-src');
+  if(!ta)return;
+  ta.style.height='auto';
+  ta.style.height=Math.max(ta.scrollHeight,Math.round((CFG.PAGE_H-2*CFG.MARGIN)*3.7795))+'px';
+}
 function buildSyntaxPane(){
   if(document.getElementById('syntax-src'))return;
   var pane=document.getElementById('syntax-pane');
@@ -11,7 +19,9 @@ function buildSyntaxPane(){
   gutter.id='gutter'; gutter.className='gutter';
   var ta=document.createElement('textarea');
   ta.id='syntax-src'; ta.spellcheck=false;
-  ta.style.cssText='flex:1;height:'+(CFG.PAGE_H-2*CFG.MARGIN-2)+'mm;border:0;outline:0;resize:none;background:transparent;font:inherit;color:inherit;white-space:pre;overflow:auto';
+  // 高度自适应内容、不出自身滚动条:滚动交给窗格本体(.pane),
+  // 行号与文本同处一个滚动流,天然对齐(原双滚动条 scrollTop 同步已废)
+  ta.style.cssText='flex:1;border:0;outline:0;resize:none;background:transparent;font:inherit;color:inherit;white-space:pre-wrap;overflow:hidden;height:auto';
   src.appendChild(gutter);
   src.appendChild(ta);
   sheet.appendChild(src);
@@ -34,30 +44,30 @@ function buildSyntaxPane(){
     document.addEventListener('mousemove',move);
     document.addEventListener('mouseup',up);
   });
-  ta.addEventListener('scroll',function(){
-    gutter.scrollTop=ta.scrollTop;
+  // 分屏滚动同步:两侧滚动层都是窗格本体(.pane)
+  var sp=document.getElementById('syntax-pane');
+  sp.addEventListener('scroll',function(){
     if(!window.scrollSyncLock&&currentMode==='split'){
-      window.scrollSyncLock='ta';
-      var pane=document.getElementById('display-pane');
-      var ratio=ta.scrollTop/Math.max(1,ta.scrollHeight-ta.clientHeight);
-      pane.scrollTop=ratio*Math.max(1,pane.scrollHeight-pane.clientHeight);
+      window.scrollSyncLock='sp';
+      var dp2=document.getElementById('display-pane');
+      var ratio=sp.scrollTop/Math.max(1,sp.scrollHeight-sp.clientHeight);
+      dp2.scrollTop=ratio*Math.max(1,dp2.scrollHeight-dp2.clientHeight);
       setTimeout(function(){window.scrollSyncLock=null},50);
     }
   });
   document.getElementById('display-pane').addEventListener('scroll',function(){
     if(currentMode!=='split'||window.scrollSyncLock)return;
     window.scrollSyncLock='dp';
-    var ta2=document.getElementById('syntax-src');
-    if(!ta2)return;
-    var pane2=document.getElementById('display-pane');
-    var ratio=pane2.scrollTop/Math.max(1,pane2.scrollHeight-pane2.clientHeight);
-    ta2.scrollTop=ratio*Math.max(1,ta2.scrollHeight-ta2.clientHeight);
-    gutter.scrollTop=ta2.scrollTop;
+    var sp2=document.getElementById('syntax-pane');
+    var dp2=document.getElementById('display-pane');
+    var ratio=dp2.scrollTop/Math.max(1,dp2.scrollHeight-dp2.clientHeight);
+    sp2.scrollTop=ratio*Math.max(1,sp2.scrollHeight-sp2.clientHeight);
     setTimeout(function(){window.scrollSyncLock=null},50);
   });
   ta.addEventListener('input',function(){
     lastEditSource='syntax';
     recordHist(ta.value,true);
+    autosizeSyntaxTa();
     setGutterCur(caretLineNumber());
     if(repagTimer)clearTimeout(repagTimer);
     repagTimer=setTimeout(applySyncNow,300);
