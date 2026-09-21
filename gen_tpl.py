@@ -1,10 +1,9 @@
 # -*- coding: utf-8 -*-
 # template.html 是手工维护的源文件(UI 层,配套 engine.js/bridge.js)。
-# 本脚本把前端三件套同步到所有交付位置,并暂存 Tauri 原生引擎运行时:
-#   1. preview/editor.html                       <- template.html(双击即用副本)
-#   2. tauri-app/dist/{index.html,engine.js,bridge.js}  <- 同步三件套(桌面版前端)
-#   3. tauri-app/src-tauri/resources/aine-runtime/      <- aine.exe + aine.toml + src/(暂存,已 gitignore)
-# generate_preview.aine 走的是另一条路:读取 template.html 并注入 /*__JSON__*/{} 生成 preview.html。
+# 本脚本把前端同步到桌面版交付位置,并暂存 Tauri 原生引擎运行时:
+#   1. tauri-app/dist/{index.html,engine.js,bridge.js,vendor/}  <- 同步前端(桌面版前端)
+#   2. tauri-app/src-tauri/resources/aine-runtime/      <- aine.exe + aine.toml + src/(暂存,已 gitignore)
+# 编辑器仅在桌面版运行;纯浏览器预览路径已移除(见 docs/实现决策记录.md)。
 # aine.exe 路径:环境变量 AWEN_AINE_EXE,或默认 flowc 构建输出。
 import os, shutil, sys
 
@@ -13,11 +12,7 @@ pre = os.path.join(base, 'preview')
 dist = os.path.join(base, 'tauri-app', 'dist')
 runtime = os.path.join(base, 'tauri-app', 'src-tauri', 'resources', 'aine-runtime')
 
-# 1) preview/editor.html
-shutil.copyfile(os.path.join(pre, 'template.html'), os.path.join(pre, 'editor.html'))
-print('已同步 preview/editor.html <- preview/template.html')
-
-# 2) tauri-app/dist 三件套 + vendor
+# 1) tauri-app/dist 前端三件套 + vendor
 os.makedirs(dist, exist_ok=True)
 for name, dst_name in [('template.html', 'index.html'), ('engine.js', 'engine.js'), ('bridge.js', 'bridge.js')]:
     shutil.copyfile(os.path.join(pre, name), os.path.join(dist, dst_name))

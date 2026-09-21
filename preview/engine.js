@@ -2,8 +2,8 @@
 // engine.js —— Awen 浏览器近似引擎(预览用途,非权威)
 //
 // 从 template.html 拆出的文档处理层。职责:
-//   解析(miniParse/ingestNative) → HTML 渲染(fmtH/blockHtml/tableHtml/objHtml)
-//   → 分页(layoutPages) → DOM 序列化(serializeAll) → 快速诊断(quickDiags)
+//   块结构来源:桌面版 ingestNative(Aine 权威解析);HTML 渲染(fmtH/blockHtml/tableHtml/objHtml)
+//   → 分页(layoutPages) → DOM 序列化(serializeAll) → 诊断由 Aine 原生提供
 //
 // ⚠ 权威边界:桌面版(Tauri)下块级解析/诊断由 Aine 原生引擎经 Bridge 提供,
 //   本文件的解析结果仅用于浏览器环境与交互式编辑;HTML 渲染、像素分页、
@@ -180,141 +180,10 @@ function scanCmdClose(s,from){
   return -1;
 }
 
-// ── 块级解析(带源码行区间;srcStart 0 基,srcEnd 半开 [start,end))──
-function miniParse(src){
-  var lines=src.split('\n'), nodes=[], para=null;
-  function flush(ei){ if(para){ para.srcEnd=ei; nodes.push(para); para=null } }
-  for(var i=0;i<lines.length;i++){
-    var t=lines[i].trim();
-    if(t===''){ flush(i); continue }
-    if(/^#{1,6}\s/.test(t)){
-      flush(i);
-      nodes.push({kind:'heading',level:t.match(/^#+/)[0].length,text:t.replace(/^#+\s*/,''),srcStart:i,srcEnd:i+1});
-      continue;
-    }
-    if(t==='---'){ flush(i); nodes.push({kind:'hr',text:'',srcStart:i,srcEnd:i+1}); continue }
-    if(/^[-*] /.test(t)){ flush(i); nodes.push({kind:'ul',level:Math.floor((lines[i].length-lines[i].replace(/^\s+/,'').length)/2),text:t.replace(/^[-*] /,''),srcStart:i,srcEnd:i+1}); continue }
-    if(/^\d+\. /.test(t)){ flush(i); nodes.push({kind:'ol',level:Math.floor((lines[i].length-lines[i].replace(/^\s+/,'').length)/2),text:t.replace(/^\d+\. /,''),srcStart:i,srcEnd:i+1}); continue }
-    if(/^> /.test(t)){ flush(i); nodes.push({kind:'quote',text:t.replace(/^>\s*/,''),srcStart:i,srcEnd:i+1}); continue }
-    if(t.charAt(0)==='|'&&t.charAt(t.length-1)==='|'){
-      flush(i);
-      var j=i, rows=[];
-      while(j<lines.length&&lines[j].trim().charAt(0)==='|'){ rows.push(lines[j].trim()); j++ }
-      nodes.push({kind:'table',open:'@[table demo]',rows:rows,srcStart:i,srcEnd:j});
-      i=j-1; continue;
-    }
-    if(/^@\[comment/.test(t)){
-      flush(i);
-      // 单行自闭合:本行有配平 ] 且命令内含非空内容(corpus 41 行式);
-      // 裸 @[comment] 一律视为块级开头,向后找 @[/comment](corpus 47 行式)
-      var cb=t.indexOf('[');
-      var closeBr=cb>=0?scanCmdClose(t,cb):-1;
-      var nameEnd=cb+1+'comment'.length;
-      if(closeBr>nameEnd&&t.slice(nameEnd,closeBr).trim()!==''){
-        var restC=t.substring(closeBr+1).trim();
-        nodes.push({kind:'comment',text:t,srcStart:i,srcEnd:i+1});
-        if(restC)nodes.push({kind:'para',text:restC,srcStart:i+1,srcEnd:i+2});
-        continue;
-      }
-      // 块级:向后找 @[/comment] 收尾
-      var ci=i+1;
-      while(ci<lines.length&&lines[ci].indexOf('@[/comment]')<0&&lines[ci].trim()!==']')ci++;
-      ci=Math.min(ci+1,lines.length);
-      nodes.push({kind:'comment',text:lines.slice(i,ci).join('\n'),srcStart:i,srcEnd:ci});
-      i=ci-1; continue;
-    }
-    if(/^@\[(table|figure)\s/.test(t)||t==='@[table]'){
-      flush(i);
-      var closeTag='@[/'+t.match(/^@\[(\w+)/)[1]+']';
-      var isFigure=t.indexOf('figure')>=0;
-      var fi;
-      if(t.indexOf(closeTag)>=0){ fi=i; }
-      else{
-        fi=i+1;
-        while(fi<lines.length&&lines[fi].indexOf(closeTag)<0&&lines[fi].trim()!==']')fi++;
-      }
-      if(fi>=lines.length&&!isFigure&&t.indexOf(closeTag)<0&&t!=='@[table]'){
-        // 未闭合的 @[figure …](单行对象,规范允许):不吞后文
-        nodes.push({kind:'obj',text:t,srcStart:i,srcEnd:i+1});
-        continue;
-      }
-      // fi=收尾行索引;rest=收尾行中 closeTag 之后的文字
-      var cl=fi<lines.length?lines[fi]:'';
-      var ci2=cl.indexOf(closeTag);
-      var rest=ci2>=0?cl.substring(ci2+closeTag.length).trim():'';
-      var trows=[];
-      for(var ri=i+1;ri<fi;ri++){ if(lines[ri].trim().charAt(0)==='|')trows.push(lines[ri].trim()) }
-      if(isFigure){
-        nodes.push({kind:'obj',text:lines.slice(i,Math.min(fi+1,lines.length)).join('\n'),srcStart:i,srcEnd:Math.min(fi+1,lines.length)});
-      }else{
-        nodes.push({kind:'table',open:t,rows:trows,srcStart:i,srcEnd:Math.min(fi+1,lines.length)});
-      }
-      if(rest)nodes.push({kind:'para',text:rest,srcStart:fi+1,srcEnd:fi+2});
-      i=Math.min(fi,lines.length-1); continue;
-    }
-    if(/^@\[c (\w+)\]/.test(t)){
-      flush(i);
-      var lang=t.match(/^@\[c (\w+)\]/)[1];
-      var cc=i+1;
-      var cClose='@[/c]';
-      while(cc<lines.length&&lines[cc].indexOf(cClose)<0)cc++;
-      var codeLines=[];
-      for(var li=i+1;li<cc;li++)codeLines.push(lines[li]);
-      nodes.push({kind:'code',lang:lang,text:codeLines.join('\n'),srcStart:i,srcEnd:Math.min(cc+1,lines.length)});
-      i=Math.min(cc,lines.length-1); continue;
-    }
-    if(t==='@[m]'){
-      flush(i);
-      var mi=i+1; var mLines=[];
-      while(mi<lines.length&&lines[mi].indexOf('@[/m]')<0){mLines.push(lines[mi]);mi++}
-      nodes.push({kind:'math',text:mLines.join('\n'),srcStart:i,srcEnd:Math.min(mi+1,lines.length)});
-      i=Math.min(mi,lines.length-1); continue;
-    }
-    if(/^@\[label\s+/.test(t)){ flush(i); nodes.push({kind:'label',text:t.replace(/^@\[label\s+/,'').replace(/\]$/,''),srcStart:i,srcEnd:i+1}); continue }
-    if(/^@\[ref\s+/.test(t)){ flush(i); nodes.push({kind:'ref',text:t.replace(/^@\[ref\s+/,'').replace(/\]$/,''),srcStart:i,srcEnd:i+1}); continue }
-    // 多行作用域:开行 `@[font|size|color 参数]` 后无行内内容,且后面存在以
-    // `@[/同名]` 开头的收尾行(行内 `文字@[/font]。` 不以 @[/ 开头,不误判;
-    // doc 级 `@[font "X"]` 后无行首收尾行,仍走 docset 分支)
-    var mScope=t.match(/^@\[(font|size|color)\s+([^\]]*)\]\s*$/);
-    if(mScope){
-      var kind2=mScope[1];
-      var close2='@[/'+kind2+']';
-      var si=i+1, found=false;
-      while(si<lines.length){ if(lines[si].trim().indexOf(close2)===0){found=true;break} si++ }
-      if(found){
-        flush(i);
-        var innerLines=[];
-        for(var li2=i+1;li2<si;li2++)innerLines.push(lines[li2]);
-        var param=mScope[2].trim();
-        var openCmd='@['+kind2+' '+param+']';
-        nodes.push({kind:'scope',style:kind2,param:param,open:openCmd,text:innerLines.join('\n'),srcStart:i,srcEnd:si+1});
-        // 收尾行 ] 之后的内容归入后续段落
-        var restS=lines[si].trim().substring(close2.length).trim();
-        if(restS)nodes.push({kind:'para',text:restS,srcStart:si+1,srcEnd:si+2});
-        i=si; continue;
-      }
-      // 未找到收尾行 → 视为 doc 级设置,落入 docset 分支
-    }
-    if(/^@\[toc/.test(t)){
-      // 目录块:渲染期由标题节点生成(深度取 depth 参数),序列化原样回写
-      flush(i);
-      nodes.push({kind:'toc',text:t,srcStart:i,srcEnd:i+1});
-      continue;
-    }
-    if(/^@\[image/.test(t)){ flush(i); nodes.push({kind:'obj',text:t,srcStart:i,srcEnd:i+1}); continue }
-    if(/^@\[(page|margin|font|size|line-spacing|first-line|theme|numbering|para-spacing)\s/.test(t)){
-      flush(i); nodes.push({kind:'docset',text:t,srcStart:i,srcEnd:i+1}); continue;
-    }
-    if(!para)para={kind:'para',text:'',srcStart:i};
-    para.text=para.text?(para.text+' '+t):t;
-  }
-  flush(lines.length);
-  return nodes;
-}
 
 // ── native blocks JSON → 引擎节点(桌面版权威解析结果的入口)──
 // native 记录:{kind, level, srcStart, srcEnd, text}(text=原始源码行 \n 连接,
-// 含块定界行)。这里按 miniParse 同一套规则规整 text 与行区间,保证下游
+// 含块定界行)。这里按引擎行区间约定规整 text 与行区间,保证下游
 // blockHtml/layoutPages/serializeAll 与本地解析路径零差异。
 function ingestNative(blocks,src){
   var srcLines=src.split('\n'), out=[];
@@ -726,27 +595,6 @@ function serializeAll(){
   return out.join('\n');
 }
 
-// ── 快速诊断(浏览器降级;桌面版以 Bridge 原生诊断为准)──
-function quickDiags(src){
-  var out=[],lines=src.split('\n');
-  var tOpen=0,cOpen=0;
-  for(var i=0;i<lines.length;i++){
-    var t=lines[i];
-    if(t.indexOf('@[table')===0)tOpen++;
-    if(t.indexOf('@[/table]')>=0)tOpen--;
-    var trimT=t.trim();
-    if(t.indexOf('@[comment')===0&&trimT.charAt(trimT.length-1)!==']')cOpen++;
-    if(t.indexOf('@[/comment]')>=0)cOpen--;
-    var m=t.match(/^@\[([a-z-]+)[\s\]]/i);
-    if(m){
-      var known='table,figure,image,comment,link,footnote,toc,first-line,page,margin,font,size,line-spacing,para-spacing,theme,toc,numbering,u,color,mark,sup,sub,label,ref,cell,b,bold,m,math,c,code'.split(',');
-      if(known.indexOf(m[1].toLowerCase())<0)out.push({sev:'warn',msg:'未识别的命令: @['+m[1],line:i+1});
-    }
-  }
-  if(tOpen>0)out.push({sev:'err',msg:'表格 @[table] 缺少 @[/table] 收尾',line:lines.length});
-  if(cOpen>0)out.push({sev:'err',msg:'批注 @[comment] 缺少 @[/comment] 收尾',line:lines.length});
-  return out;
-}
 
 // ── 导出 ──
 window.AwenEngine={
@@ -756,9 +604,7 @@ window.AwenEngine={
   setPage:function(o){ if('PAGE_W'in o)cfg.PAGE_W=o.PAGE_W; if('PAGE_H'in o)cfg.PAGE_H=o.PAGE_H; if('MARGIN'in o)cfg.MARGIN=o.MARGIN; if('LINE_H'in o)cfg.LINE_H=o.LINE_H; recalc() },
   applyDocsets:applyDocsets,
   // 解析
-  parse:miniParse,
   ingestNative:ingestNative,
-  quickDiags:quickDiags,
   // 行内 / 块渲染
   escHtml:escHtml, escAttr:escAttr, displayText:displayText, fmtH:fmtH, scopeCss:scopeCss,
   tableHtml:tableHtml, objHtml:objHtml, blockHtml:blockHtml,

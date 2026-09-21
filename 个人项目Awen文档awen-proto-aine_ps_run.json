@@ -1,0 +1,12 @@
+(async function(){
+  var out={};
+  setSrc('@[para-spacing 0.5em]\n段一\n\n段二\n');
+  await new Promise(function(res){setTimeout(res,1500)});
+  if(repagTimer){clearTimeout(repagTimer);repagTimer=null}
+  out.ps=Engine.getConfig().PARA_SPACING;
+  var p2=document.querySelectorAll('#display-pane p')[1];
+  out.mb=p2?getComputedStyle(p2).marginBottom:null;
+  out.ser=Engine.serializeAll().indexOf('@[para-spacing 0.5em]')>=0;
+  out.blocks=gNodes.length;
+  return out;
+})()
