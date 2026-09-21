@@ -118,6 +118,37 @@ function showRibbon(page){
   if(page==='file')renderRecentList();
 }
 
+// ═══ 占位功能统一提示(功能区规划中未实现项,按钮带红点角标)═══
+var todoTimer=null;
+function todo(name,why){
+  var t=document.getElementById('todo-toast');
+  if(!t){
+    t=document.createElement('div');
+    t.id='todo-toast';
+    document.body.appendChild(t);
+  }
+  t.textContent='「'+name+'」功能规划中'+(why?'('+why+')':'');
+  t.style.display='block';
+  if(todoTimer)clearTimeout(todoTimer);
+  todoTimer=setTimeout(function(){t.style.display='none'},2200);
+}
+
+// ═══ 上下文选项卡:选中表格/图片时显示对应工具选项卡(不自动切换页)═══
+function updateCtxTabs(){
+  var b=caretBlock();
+  var inTable=b&&b.closest&&b.closest('table');
+  var blk=b&&b.closest?b.closest('[data-bid]'):null;
+  // 图片块容器可能就是 IMG 本身(objHtml 返回裸 img,dataset 设在其上)
+  var inImg=!!blk&&(!!blk.querySelector('img,.img-ph')||blk.tagName==='IMG'||blk.classList.contains('img-ph'));
+  var tt=document.querySelector('.tab[data-page=tblctx]');
+  var it=document.querySelector('.tab[data-page=imgctx]');
+  if(tt)tt.style.display=inTable?'block':'none';
+  if(it)it.style.display=inImg?'block':'none';
+  // 当前页被隐藏(焦点离开对象)→ 回到开始页
+  var active=document.querySelector('.tab.active');
+  if(active&&active.style.display==='none'&&active.dataset.page!=='home')showRibbon('home');
+}
+
 // ═══ 侧栏收起/展开 ═══
 function toggleSidebar(){
   var sb=document.getElementById('sidebar');
@@ -129,6 +160,14 @@ function toggleSidebar(){
 // ═══ 图片属性面板(E2-5):点击图片→改宽度/对齐→写回源码行 ═══
 var btn_anchor=null;
 function openImagePanel(bid){
+  // 无参调用(图片工具选项卡按钮):取当前光标所在图片块
+  if(bid===undefined){
+    var blk=caretBlock();
+    if(!blk)return;
+    var el=blk.closest?blk.closest('[data-bid]'):null;
+    if(!el)return;
+    bid=el.dataset.bid;
+  }
   var b=nodeByBid(bid);
   if(!b||b.kind!=='obj')return;
   var first=(b.text||'').split('\n')[0];
