@@ -57,6 +57,7 @@ module tests_cjk;
 module tests_numbering;
 module tests_export;
 module tests_core_blocks;
+module tests_para_sp;
 
 // 本文件原为 7965 行上帝文件,M4 代码审计时按主题拆分为上述测试模块。
 // 运行入口不变:aine test src/tests.aine

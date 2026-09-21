@@ -1,0 +1,2 @@
+module page_flow;
+fn main(){ print("x") }

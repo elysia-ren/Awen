@@ -82,3 +82,16 @@ fn core_blocks_outline_marked_text() -> Result<i32, String> {
     assert(json.contains("\"text\":\"章 **粗**\""), "大纲文本应保留标记")
     Ok(0)
 }
+
+@test
+fn core_blocks_nested_list_levels() -> Result<i32, String> {
+    // 嵌套列表:两空格一级
+    let src = "- 一级\n  - 二级\n    - 三级\n- 同级\n"
+    let st = build_document(parse(lex(src)), src)
+    let json = blocks_to_json(st, src)
+    assert(json.contains("\"kind\":\"ul\",\"level\":0,\"srcStart\":0,\"srcEnd\":1"), "一级 level 0")
+    assert(json.contains("\"kind\":\"ul\",\"level\":1,\"srcStart\":1,\"srcEnd\":2"), "二级 level 1")
+    assert(json.contains("\"kind\":\"ul\",\"level\":2,\"srcStart\":2,\"srcEnd\":3"), "三级 level 2")
+    assert(json.contains("\"kind\":\"ul\",\"level\":0,\"srcStart\":3,\"srcEnd\":4"), "同级回到 level 0")
+    Ok(0)
+}
