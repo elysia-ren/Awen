@@ -168,7 +168,7 @@ body.show-marks .paper p::after{content:' b6';color:#d5d8dc;margin-left:2px}
 .paper .toc-item.lv4{padding-left:60px}
 .paper .toc-item.lv5{padding-left:78px}
 .paper .toc-item.lv6{padding-left:96px}
-.paper p{margin:0;text-indent:var(--fl,0)}
+.paper p{margin:0 0 var(--ps,0em);text-indent:var(--fl,0)}
 .paper strong,.paper b{font-weight:700}
 .paper em,.paper i{font-style:italic}
 .paper del,.paper s,.paper strike{text-decoration:line-through;color:#999}
@@ -512,6 +512,7 @@ function renderNodes(){
     paper.style.lineHeight=CFG.LINE_H;
     if(CFG.FONT)paper.style.fontFamily='\''+CFG.FONT+'\',serif';
     paper.style.setProperty('--fl',CFG.FIRSTLINE||'0em');
+    paper.style.setProperty('--ps',CFG.PARA_SPACING||'0em');
     paper.dataset.page=p;
     for(var k=0;k<gPages[p].length;k++){
       var item=gPages[p][k], b=item.b;
@@ -620,6 +621,7 @@ function makeBlock(b,item){
     var inner=wrap.firstElementChild;
     inner.dataset.bid=b.bid;
     inner.dataset.kind=b.kind;
+    if(b.level)inner.dataset.level=b.level;
     if(b.kind==='obj')inner.dataset.raw=b.text;
     return inner;
   }
