@@ -36,18 +36,18 @@ input.findbox{border:1px solid #c9cbce;border-radius:4px;padding:4px 6px;font-si
 .ftab .fclose{width:16px;height:16px;display:flex;align-items:center;justify-content:center;border-radius:3px;color:#8a8c90;font-size:11px}
 .ftab .fclose:hover{background:#dcdde0;color:#303238}
 .tabbar{height:32px;background:var(--bg2);border-bottom:1px solid var(--border);display:flex;align-items:center;padding:0 10px;gap:2px;flex:none;user-select:none}
-.tab{font-size:13px;color:#5a5c60;padding:5px 16px;border-radius:5px;cursor:pointer}
+.tab{font-size:13px;color:#5a5c60;padding:0 16px;height:28px;display:flex;align-items:center;border-radius:5px;cursor:pointer;border:1px solid transparent}
 .tab:hover{background:#e9eaec}
-.tab.active{background:#fff;color:#1a1c1f;font-weight:600;box-shadow:0 1px 2px rgba(0,0,0,.06);border:1px solid var(--border)}
+.tab.active{background:#fff;color:#1a1c1f;font-weight:600;box-shadow:0 1px 2px rgba(0,0,0,.06);border-color:var(--border)}
 .tabbar .view-tabs{margin-left:auto;display:flex;background:#e9eaec;padding:2px;border-radius:6px;gap:1px}
 .view-tabs button{font-size:12px;padding:4px 14px;border-radius:5px;color:#6b6d72}
 .view-tabs button.active{background:#fff;color:#222;box-shadow:0 1px 2px rgba(0,0,0,.08)}
 .ribbon{background:var(--bg3);border-bottom:1px solid var(--border2);flex:none;user-select:none}
 .ribbon-page{display:none;align-items:stretch;padding:5px 16px 0;min-height:96px;height:96px}
 .ribbon-page.active{display:flex}
-.rgroup{display:flex;flex-direction:column;padding:0 18px;border-right:1px solid #e0e1e4;flex:none;justify-content:center}
+.rgroup{display:flex;flex-direction:column;padding:0 18px;border-right:1px solid #e0e1e4;flex:none;justify-content:flex-end}
 .rgroup:last-child{border-right:0}
-.rg-body{display:flex;gap:10px;align-items:center}
+.rg-body{display:flex;gap:10px;align-items:center;height:68px}
 .rg-label{font-size:10px;color:#8a8c90;text-align:center;padding:4px 2px 6px;line-height:1;white-space:nowrap}
 .rbtn{width:34px;height:32px;display:flex;align-items:center;justify-content:center;border-radius:4px;color:#303238;flex:none}
 .rbtn:hover{background:#e6e7e9}
@@ -63,7 +63,7 @@ input.findbox{border:1px solid #c9cbce;border-radius:4px;padding:4px 6px;font-si
 .rgrid4{display:grid;grid-template-columns:repeat(4,34px);gap:3px}
 .fcol{display:flex;flex-direction:column;gap:4px}
 .frow{display:flex;gap:4px;align-items:center}
-.frow select{height:28px;font-size:12px;padding:2px 6px}
+.frow select{height:32px;font-size:12px;padding:2px 6px}
 .frow #sel-style{width:100px}
 .frow #sel-font{width:130px}
 .frow #sel-size{width:78px}
@@ -272,7 +272,7 @@ input.docname:focus{outline:none;border-color:var(--accent);background:#fff}
 </div>
 </div></div><div class="rg-label">字体</div></div>
 <div class="rgroup"><div class="rg-body">
-<select id="sel-style" title="段落样式" onchange="applyStyle(this.value)" style="width:104px;height:30px">
+<select id="sel-style" title="段落样式" onchange="applyStyle(this.value)" style="width:104px;height:32px">
 <option value="" selected>正文</option><option value="1" style="font-weight:700;font-size:16px">标题 1</option><option value="2" style="font-weight:700;font-size:14px">标题 2</option><option value="3" style="font-weight:600;font-size:13px">标题 3</option><option value="4" style="font-weight:600">标题 4</option><option value="5" style="font-weight:600">标题 5</option><option value="6" style="font-weight:600;color:#888">标题 6</option>
 </select>
 </div><div class="rg-label">样式</div></div>
