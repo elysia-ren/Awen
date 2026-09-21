@@ -47,14 +47,19 @@ fn blocks_to_json(state: DocState, src: String) -> String {
             let e = sp.end_line + 1
             let kind = node.kind
             if kind == "list" {
-                // 列表组 → 逐项记录
+                // 列表组 → 逐项记录;层级从原文行前导空格算(两空格一级)
                 var i = s
                 while i < e {
                     let t = lines[i].trim()
-                    if starts_with_at(t, 0, "- ") {
-                        recs = recs.push(block_rec("ul", 0, i, i + 1, lines[i], ""))
-                    } else if is_ordered_item(t) {
-                        recs = recs.push(block_rec("ol", 0, i, i + 1, lines[i], ""))
+                    if starts_with_at(t, 0, "- ") || is_ordered_item(t) {
+                        var lead = 0
+                        var done = false
+                        while lead < lines[i].len() && !done {
+                            if lines[i][lead] == " " { lead += 1 } else { done = true }
+                        }
+                        let level = lead / 2
+                        let k2 = if starts_with_at(t, 0, "- ") { "ul" } else { "ol" }
+                        recs = recs.push(block_rec(k2, level, i, i + 1, lines[i], ""))
                     }
                     i += 1
                 }

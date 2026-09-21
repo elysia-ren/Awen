@@ -233,8 +233,35 @@ fn page_flow_count_lines(placed: Vec<PlacedLine>, page: i32) -> i32 {
     return n
 }
 
+// F-4 段间距:从源码扫描 @[para-spacing X](em/mm/纯数值→em),返回 mm
+// 多个设置行取最后一个;未找到返回 0
+fn doc_para_spacing_mm(state: DocState) -> f64 {
+    // F-4 段间距:扫源码取最后一个 @[para-spacing X](mm/em/纯数值→em)
+    let lines = state.source.split("\n")
+    var val = 0.0
+    var i = 0
+    while i < lines.len() {
+        let t = lines[i]
+        let tag = "@[para-spacing "
+        if t.starts_with(tag) {
+            let close = t.len() - 1
+            var inner = t[tag.len() .. close]
+            let tail2 = inner[inner.len() - 2 .. inner.len()]
+            if tail2 == "mm" {
+                val = inner[0 .. inner.len() - 2].to_f64()
+            } else {
+                val = inner.to_f64() * 11.0 * 0.352778
+            }
+        }
+        i += 1
+    }
+    return val
+}
+
+
 // 全量排版(M5-a)
 fn page_flow(state: DocState) -> PageFlowResult {
+    let para_sp = doc_para_spacing_mm(state)
     let ctx = page_flow_ctx()
     var page = 0
     var y = 0.0
@@ -250,6 +277,14 @@ fn page_flow(state: DocState) -> PageFlowResult {
         y = r.y
         if r.lines >= 0 {
             boxes = boxes.push(NodeBox { node_id: node.id, start_page: r.box_start, end_page: r.box_end, lines: r.box_lines })
+        }
+        // F-4 段间距:段落之后追加额外间距(跨页则截断到下一页首)
+        if node.kind == "para" && para_sp > 0.0 {
+            y = y + para_sp
+            if y + ctx.line_h > ctx.content_h {
+                page = page + 1
+                y = 0.0
+            }
         }
     }
 

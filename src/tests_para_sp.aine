@@ -1,0 +1,44 @@
+// 测试模块:tests_para_sp(F-4 段间距排版生效)
+
+@test
+fn para_spacing_adds_gap() -> Result<i32, String> {
+    let src_no = "# t\n\n段一\n\n段二\n"
+    let src_yes = "@[para-spacing 10mm]\n# t\n\n段一\n\n段二\n"
+    let st1 = build_document(parse(lex(src_no)), src_no)
+    let st2 = build_document(parse(lex(src_yes)), src_yes)
+    let r1 = page_flow(st1)
+    let r2 = page_flow(st2)
+    var y1 = -1.0
+    var y2 = -1.0
+    for l in r1.placed {
+        if l.text.contains("段二") { y1 = l.y_mm }
+    }
+    for l in r2.placed {
+        if l.text.contains("段二") { y2 = l.y_mm }
+    }
+    assert(y1 >= 0, "无设置版本应排到段二")
+    assert(y2 >= 0, "有设置版本应排到段二")
+    let diff = y2 - y1
+    assert(diff >= 9.0 && diff <= 11.0, f"段二 y 差应约 10mm,实际 {diff}")
+    Ok(0)
+}
+
+@test
+fn para_spacing_default_zero() -> Result<i32, String> {
+    // 无设置行:段间距为 0
+    let src = "# t\n\n段一\n\n段二\n"
+    let st = build_document(parse(lex(src)), src)
+    let v = doc_para_spacing_mm(st)
+    assert(v == 0.0, "无设置时段距应为 0")
+    Ok(0)
+}
+
+@test
+fn para_spacing_picks_last() -> Result<i32, String> {
+    // 多个设置行取最后一个
+    let src = "@[para-spacing 2mm]\n正文\n@[para-spacing 6mm]\n"
+    let st = build_document(parse(lex(src)), src)
+    let v = doc_para_spacing_mm(st)
+    assert(v == 6.0, f"应取最后设置 6mm,实际 {v}")
+    Ok(0)
+}
