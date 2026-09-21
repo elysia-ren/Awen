@@ -36,6 +36,16 @@ fn compute_spans(state: DocState, src: String) -> Vec<NodeSpan> {
     return spans
 }
 
+// 纯对象行:整行就是一个自闭合命令(如 @[image "a.png"]、@[page A4]、@[m])。
+// 「命令 + 尾随文字」的行(如 @[font "SimSun"] 正文。)不是纯对象行——
+// 它是段落(lexer 解析为含行内命令的 Paragraph),曾因行首 @ 被排除
+// 导致 span 找不到、整段块丢失。
+fn is_pure_obj_line(t: String) -> bool {
+    if !starts_with_at(t, 0, "@[") { return false }
+    let n = t.len()
+    return n >= 3 && t[n - 1] == "]"
+}
+
 // 找到节点在源码中的起始行
 fn find_node_start(lines: Vec<String>, from: i32, node: SemNode) -> i32 {
     var i = from
@@ -54,8 +64,8 @@ fn find_node_start(lines: Vec<String>, from: i32, node: SemNode) -> i32 {
                 return i
             }
         } else if node.kind == "para" {
-            // 段落:非空、非标记行
-            if t.len() > 0 && t[0] != "#" && t[0] != "-" && t[0] != ">" && t[0] != "@" && t != "---" {
+            // 段落:非空、非标记行;「@[cmd …] 文字」的行也是段落
+            if t.len() > 0 && t[0] != "#" && t[0] != "-" && t[0] != ">" && !is_pure_obj_line(t) && t != "---" {
                 if !starts_with_at(t, 0, "- ") && !is_ordered_item(t) {
                     return i
                 }
@@ -71,9 +81,9 @@ fn find_node_start(lines: Vec<String>, from: i32, node: SemNode) -> i32 {
         } else if node.kind == "hr" {
             if t == "---" { return i }
         } else if node.kind == "obj" {
-            if starts_with_at(t, 0, "@[") { return i }
+            if is_pure_obj_line(t) { return i }
         } else if node.kind == "raw" {
-            if starts_with_at(t, 0, "@[") { return i }
+            if is_pure_obj_line(t) { return i }
         } else if node.kind == "table" {
             if starts_with_at(t, 0, "@[table") { return i }
         } else if node.kind == "comment" {
@@ -148,7 +158,8 @@ fn find_node_end(lines: Vec<String>, start: i32, node: SemNode) -> i32 {
         while i + 1 < lines.len() {
             let next = lines[i + 1].trim()
             if next.len() == 0 { return i }
-            if next[0] == "#" || next[0] == "@" { return i }
+            // 「@[cmd] 文字」行是段落延续(含行内命令的 Paragraph),不断段
+            if next[0] == "#" || is_pure_obj_line(next) { return i }
             if starts_with_at(next, 0, "- ") || starts_with_at(next, 0, "> ") { return i }
             if next == "---" { return i }
             if is_ordered_item(next) { return i }

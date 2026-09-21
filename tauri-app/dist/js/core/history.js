@@ -42,7 +42,7 @@ function doRedo(){
 function applyHistory(text){
   var caret=saveCaret();
   var ta=document.getElementById('syntax-src');
-  if(ta)ta.value=text;
+  if(ta){ ta.value=text; autosizeSyntaxTa() }
   // render 异步(Bridge.parse):撤销精确恢复历史源码,不做纸面序列化规范化——
   // 规范化读到的还是旧 DOM,会反向 render(旧内容)把撤销顶掉
   render(text,caret);
@@ -52,7 +52,7 @@ function applyHistory(text){
 }
 function setSrc(s,caret){
   var ta=document.getElementById('syntax-src');
-  if(ta)ta.value=s;
+  if(ta){ ta.value=s; autosizeSyntaxTa() }
   recordHist(s,false);
   render(s,caret);
   scheduleAutosave();
