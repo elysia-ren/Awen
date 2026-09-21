@@ -17,11 +17,17 @@ runtime = os.path.join(base, 'tauri-app', 'src-tauri', 'resources', 'aine-runtim
 shutil.copyfile(os.path.join(pre, 'template.html'), os.path.join(pre, 'editor.html'))
 print('已同步 preview/editor.html <- preview/template.html')
 
-# 2) tauri-app/dist 三件套
+# 2) tauri-app/dist 三件套 + vendor
 os.makedirs(dist, exist_ok=True)
 for name, dst_name in [('template.html', 'index.html'), ('engine.js', 'engine.js'), ('bridge.js', 'bridge.js')]:
     shutil.copyfile(os.path.join(pre, name), os.path.join(dist, dst_name))
-print('已同步 tauri-app/dist/{index.html,engine.js,bridge.js}')
+vendor_src = os.path.join(pre, 'vendor')
+vendor_dst = os.path.join(dist, 'vendor')
+if os.path.isdir(vendor_src):
+    os.makedirs(vendor_dst, exist_ok=True)
+    for fn in os.listdir(vendor_src):
+        shutil.copyfile(os.path.join(vendor_src, fn), os.path.join(vendor_dst, fn))
+print('已同步 tauri-app/dist/{index.html,engine.js,bridge.js,vendor/}')
 
 # 3) aine-runtime 暂存
 aine_exe = os.environ.get('AWEN_AINE_EXE') or r'E:\个人项目\Flow\flowc\target\release\aine.exe'
