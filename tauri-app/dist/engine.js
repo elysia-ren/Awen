@@ -19,7 +19,7 @@
 'use strict';
 
 // ── 页面模型状态(§30 A4 默认;文档级 @[...] 设置经 applyDocsets 覆盖)──
-var cfg={PAGE_W:210,PAGE_H:297,MARGIN:20,LINE_H:1.9,FONT_PT:11,PT2MM:0.352778,FONT:'',FIRSTLINE:''};
+var cfg={PAGE_W:210,PAGE_H:297,MARGIN:20,LINE_H:1.9,FONT_PT:11,PT2MM:0.352778,FONT:'',FIRSTLINE:'',PARA_SPACING:'0em'};
 var PAPER_SIZES={A4:[210,297],Letter:[215.9,279.4],B5:[176,250],A3:[297,420],A5:[148,210]};
 var CHAR_MM,CONTENT_W,CONTENT_H,MAX_EM,LINE_MM,LINES_PER_PAGE;
 function recalc(){
@@ -36,7 +36,7 @@ recalc();
 function applyDocsets(nodes){
   var m;
   cfg.PAGE_W=210; cfg.PAGE_H=297; cfg.MARGIN=20; cfg.LINE_H=1.9;
-  cfg.FONT_PT=11; cfg.FONT=''; cfg.FIRSTLINE='';
+  cfg.FONT_PT=11; cfg.FONT=''; cfg.FIRSTLINE=''; cfg.PARA_SPACING='0em';
   for(var i=0;i<nodes.length;i++){
     if(nodes[i].kind!=='docset')continue;
     var t=nodes[i].text||'';
@@ -46,6 +46,7 @@ function applyDocsets(nodes){
     else if(m=t.match(/^@\[size\s+([\d.]+)\s*(?:pt)?\s*\]/)){ cfg.FONT_PT=parseFloat(m[1]) }
     else if(m=t.match(/^@\[font\s+"([^"]+)"\s*\]/)){ cfg.FONT=m[1] }
     else if(m=t.match(/^@\[first-line\s+([\d.]+em)\s*\]/)){ cfg.FIRSTLINE=m[1] }
+    else if(m=t.match(/^@\[para-spacing\s+([\d.]+em|\d+)\s*\]/)){ cfg.PARA_SPACING=m[1].match(/em$/)?m[1]:m[1]+'em' }
   }
   recalc();
 }
@@ -192,8 +193,8 @@ function miniParse(src){
       continue;
     }
     if(t==='---'){ flush(i); nodes.push({kind:'hr',text:'',srcStart:i,srcEnd:i+1}); continue }
-    if(/^[-*] /.test(t)){ flush(i); nodes.push({kind:'ul',text:t.replace(/^[-*] /,''),srcStart:i,srcEnd:i+1}); continue }
-    if(/^\d+\. /.test(t)){ flush(i); nodes.push({kind:'ol',text:t.replace(/^\d+\. /,''),srcStart:i,srcEnd:i+1}); continue }
+    if(/^[-*] /.test(t)){ flush(i); nodes.push({kind:'ul',level:Math.floor((lines[i].length-lines[i].replace(/^\s+/,'').length)/2),text:t.replace(/^[-*] /,''),srcStart:i,srcEnd:i+1}); continue }
+    if(/^\d+\. /.test(t)){ flush(i); nodes.push({kind:'ol',level:Math.floor((lines[i].length-lines[i].replace(/^\s+/,'').length)/2),text:t.replace(/^\d+\. /,''),srcStart:i,srcEnd:i+1}); continue }
     if(/^> /.test(t)){ flush(i); nodes.push({kind:'quote',text:t.replace(/^>\s*/,''),srcStart:i,srcEnd:i+1}); continue }
     if(t.charAt(0)==='|'&&t.charAt(t.length-1)==='|'){
       flush(i);
@@ -301,7 +302,7 @@ function miniParse(src){
       continue;
     }
     if(/^@\[image/.test(t)){ flush(i); nodes.push({kind:'obj',text:t,srcStart:i,srcEnd:i+1}); continue }
-    if(/^@\[(page|margin|font|size|line-spacing|first-line|theme|numbering)\s/.test(t)){
+    if(/^@\[(page|margin|font|size|line-spacing|first-line|theme|numbering|para-spacing)\s/.test(t)){
       flush(i); nodes.push({kind:'docset',text:t,srcStart:i,srcEnd:i+1}); continue;
     }
     if(!para)para={kind:'para',text:'',srcStart:i};
@@ -333,8 +334,9 @@ function ingestNative(blocks,src){
     }else if(k==='para'){
       b.text=raw.map(function(l){return l.trim()}).filter(function(l){return l!==''}).join(' ');
     }else if(k==='ul'||k==='ol'){
-      b.text=raw.map(function(l){return l.trim()}).filter(function(l){return l!==''})
-        .map(function(l){return l.replace(k==='ul'?/^[-*] /:/^\d+\. /,'')}).join(' ');
+      var items=raw.map(function(l){return l.trim()}).filter(function(l){return l!==''});
+      b.level=items.length?Math.floor((items[0].length-items[0].replace(/^\s+/,'').length)/2):0;
+      b.text=items.map(function(l){return l.replace(k==='ul'?/^[-*] /:/^\d+\. /,'')}).join(' ');
     }else if(k==='quote'){
       b.text=raw.map(function(l){return l.trim()}).filter(function(l){return l!==''})
         .map(function(l){return l.replace(/^>\s*/,'')}).join(' ');
@@ -355,7 +357,7 @@ function ingestNative(blocks,src){
       var one=(nb.text||'').split('\n')[0].trim();
       if(/^@\[toc/.test(one)){
         b.kind='toc'; b.text=one;
-      }else if(/^@\[(page|margin|font|size|line-spacing|first-line|theme|numbering)\s/.test(one)){
+      }else if(/^@\[(page|margin|font|size|line-spacing|first-line|theme|numbering|para-spacing)\s/.test(one)){
         b.kind='docset'; b.text=one;
       }else if(/^@\[label\s/.test(one)){
         b.kind='label'; b.text=one.replace(/^@\[label\s+/,'').replace(/\]$/,'');
@@ -472,8 +474,8 @@ function blockHtml(b){
   switch(b.kind){
     case 'heading':return'<h'+b.level+'>'+fmtH(b.text)+'</h'+b.level+'>';
     case 'hr':return'<hr>';
-    case 'ul':return'<ul><li>'+fmtH(b.text)+'</li></ul>';
-    case 'ol':return'<ol><li>'+fmtH(b.text)+'</li></ol>';
+    case 'ul':return'<ul'+(b.level?' style="margin-left:'+(b.level*2)+'em"':'')+'><li>'+fmtH(b.text)+'</li></ul>';
+    case 'ol':return'<ol'+(b.level?' style="margin-left:'+(b.level*2)+'em"':'')+'><li>'+fmtH(b.text)+'</li></ol>';
     case 'quote':return'<blockquote><p>'+fmtH(b.text)+'</p></blockquote>';
     case 'table':return tableHtml(b);
     case 'obj':return objHtml(b);
@@ -650,7 +652,9 @@ function serializeBlockEl(el){
   else if(kind==='ul'||kind==='ol'){
     var items=el.querySelectorAll('li');
     if(items.length===0)items=[el];
-    items.forEach(function(li){ lines.push(blockPrefix(kind)+inlineSource(li).trim()) });
+    var lvl=parseInt(el.dataset.level||'0',10)||0;
+    var indent=new Array(lvl+1).join('  ');
+    items.forEach(function(li){ lines.push(indent+blockPrefix(kind)+inlineSource(li).trim()) });
   }
   else if(kind==='quote'){
     var qs=el.querySelectorAll('p,div');
@@ -734,7 +738,7 @@ function quickDiags(src){
     if(t.indexOf('@[/comment]')>=0)cOpen--;
     var m=t.match(/^@\[([a-z-]+)[\s\]]/i);
     if(m){
-      var known='table,figure,image,comment,link,footnote,toc,first-line,page,margin,font,size,line-spacing,theme,toc,numbering,u,color,mark,sup,sub,label,ref,cell,b,bold,m,math,c,code'.split(',');
+      var known='table,figure,image,comment,link,footnote,toc,first-line,page,margin,font,size,line-spacing,para-spacing,theme,toc,numbering,u,color,mark,sup,sub,label,ref,cell,b,bold,m,math,c,code'.split(',');
       if(known.indexOf(m[1].toLowerCase())<0)out.push({sev:'warn',msg:'未识别的命令: @['+m[1],line:i+1});
     }
   }

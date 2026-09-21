@@ -20,6 +20,7 @@ enum ExplicitCommand {
     Numbering
     LineSpacing
     FirstLine
+    ParaSpacing
     Bold
     Math
     Code
@@ -45,6 +46,7 @@ fn lookup(name: String) -> Option<ExplicitCommand> {
     if name == "theme" { return Some(Theme) }
     if name == "numbering" { return Some(Numbering) }
     if name == "line-spacing" { return Some(LineSpacing) }
+    if name == "para-spacing" { return Some(ParaSpacing) }
     if name == "first-line" { return Some(FirstLine) }
     if name == "bold" || name == "b" { return Some(Bold) }
     if name == "math" || name == "m" { return Some(Math) }
@@ -59,7 +61,7 @@ fn is_raw_block(cmd: ExplicitCommand) -> bool {
 fn is_doc_level(cmd: ExplicitCommand) -> bool {
     return cmd == Page || cmd == Margin || cmd == Font || cmd == Size
         || cmd == LineSpacing || cmd == FirstLine || cmd == Theme || cmd == Numbering
-        || cmd == Toc
+        || cmd == Toc || cmd == ParaSpacing
 }
 
 fn is_scoped(cmd: ExplicitCommand) -> bool {
@@ -78,7 +80,8 @@ fn close_matches(cmd: ExplicitCommand, close_name: String) -> bool {
 
 fn positional_arity(cmd: ExplicitCommand) -> Option<i32> {
     if cmd == Font || cmd == Size || cmd == Color || cmd == Theme
-        || cmd == Page || cmd == Margin || cmd == LineSpacing || cmd == FirstLine {
+        || cmd == Page || cmd == Margin || cmd == LineSpacing || cmd == FirstLine
+        || cmd == ParaSpacing {
         return Some(1)
     }
     if cmd == Bold || cmd == U || cmd == Math || cmd == Toc {

@@ -480,3 +480,11 @@ fn lw_scan_deep_nesting() -> Result<i32, String> {
     assert(has_bold(r.inline), "应有粗体")
     return Ok(0)
 }
+
+@test
+fn registry_para_spacing_doc_level() -> Result<i32, String> {
+    assert(is_doc_level(ParaSpacing), "para-spacing 为文档级设置")
+    assert(!is_scoped(ParaSpacing), "para-spacing 非行内作用域")
+    assert(lookup("para-spacing") == Some(ParaSpacing), "para-spacing 已注册")
+    Ok(0)
+}
