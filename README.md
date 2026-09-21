@@ -8,9 +8,7 @@
 
 ## 快速开始
 
-双击 `preview/editor.html` 在浏览器中打开即可使用。
-
-推荐浏览器：Chrome / Edge / Firefox 最新版。
+安装桌面版：运行 `tauri-app/src-tauri/target/release/bundle/nsis/Awen 编辑器_1.0.0_x64-setup.exe`，安装后从开始菜单启动，可直接双击 `.awen` 文件打开。
 
 ## 功能
 
@@ -57,9 +55,9 @@
 ```
 ├── preview/
 │   ├── template.html    ← 编辑器 UI 层源码（手工维护）
-│   ├── engine.js        ← 浏览器近似引擎（解析/渲染/分页/序列化）
-│   ├── bridge.js        ← 引擎桥（桌面走 Tauri IPC，浏览器本地降级）
-│   └── editor.html      ← 同步副本（双击即用；gen_tpl.py 生成）
+│   ├── engine.js        ← 渲染/分页/序列化（DOM 层；解析走 Aine 原生）
+│   ├── bridge.js        ← Tauri IPC 桥（块结构/诊断/文件读写）
+│   └── vendor/          ← 本地第三方库（mammoth，离线 docx 导入）
 ├── manual/              ← 使用手册 + 截图
 ├── src/                 ← Aine 语言核心（权威引擎）
 ├── corpus/              ← 测试文档
@@ -67,13 +65,12 @@
 └── tauri-app/           ← Tauri v2 桌面应用（IPC 调 Aine 原生引擎）
 ```
 
-构建产物（`preview/preview.html`、`tauri-app/dist/`、桌面 exe）与测试写入的
-`test_*.awen` 均不入库，可用 `python gen_tpl.py`、
-`aine run src/generate_preview.aine`、`cargo build --release` 重新生成。
+构建产物（`tauri-app/dist/`、桌面 exe）与测试写入的 `test_*.awen` 均不入库，
+可用 `python gen_tpl.py`、`npx @tauri-apps/cli build`（在 tauri-app/src-tauri 下）重新生成。
 
 ## 技术栈
 
-- 前端：原生 HTML/CSS/JavaScript，无框架依赖
+- 前端：原生 HTML/CSS/JavaScript，无框架依赖（仅 docx 导入内置 mammoth）
 - 排版引擎：CJK 排版（镜像 `layout_width` Aine 模块）
 - 核心：Aine 语言（编译为原生代码）
 - 桌面：Tauri v2（Rust）

@@ -478,18 +478,31 @@ var Bridge=window.Bridge;
 var CFG=Engine.getConfig();
 
 // ═══ 启动即空白新文档:内容来自打开的文件,不内置示例 ═══
-var DOC_DATA = /*__JSON__*/{};
 var DEFAULT_SRC = '# 未命名文档\n\n';
 
 // ═══ 渲染:每张 A4 纸一个整体可编辑区(原生 Enter/Delete)═══
 var gSrc='', gPages=[], gNodes=[];
-function render(src){
+// 渲染入口(异步):源码 → Aine 权威解析 → ingest → 分页 → DOM
+// seq 防过期:新请求发出后,旧响应丢弃
+var renderSeq=0;
+function render(src,caret,done){
   gSrc=src;
-  gNodes=Engine.parse(src);
-  Engine.applyDocsets(gNodes);   // 文档级 @[page/margin/...] 设置生效(源码即权威)
-  CFG=Engine.getConfig();
-  gPages=Engine.layoutPages(gNodes);
-  renderNodes();
+  var seq=++renderSeq;
+  Bridge.parse(src).then(function(res){
+    if(seq!==renderSeq)return;
+    gNodes=Engine.ingestNative(res.blocks||[],gSrc);
+    Engine.applyDocsets(gNodes);   // 文档级 @[page/margin/...] 设置生效(源码即权威)
+    CFG=Engine.getConfig();
+    gPages=Engine.layoutPages(gNodes);
+    renderNodes();
+    nativeDiags={src:gSrc,ds:res.diags||[]};
+    updateDiagBar();
+    if(caret)restoreCaret(caret);
+    if(done)done();
+  }).catch(function(e){
+    document.getElementById('st-diag').textContent='解析失败';
+    console.error(e);
+  });
 }
 // 只重排+重渲(不重新解析/不重应用文档设置)——横向等会话级覆盖用
 function renderKeep(){
@@ -722,10 +735,10 @@ function applySyncNow(){
     gSrc=taVal;
     if(currentMode==='split')render(gSrc);
     updateDiagBar();
-    scheduleNativeDiags();
-    return;
+      return;
   }
-  // 纸面编辑:DOM 序列化回写(含跨页片段合并)
+  // 纸面编辑:DOM 序列化回写源码(纸面即真实,不立即重建 DOM);
+  // 节流后交 Aine 权威解析,返回后按需重排并恢复光标
   var newSrc=Engine.serializeAll();
   if(newSrc===gSrc)return;
   gSrc=newSrc;
@@ -733,14 +746,19 @@ function applySyncNow(){
   if(ta)ta.value=gSrc;
   recordHist(gSrc,true);
   var caret=saveCaret();
-  var before=gPages.length+'|'+gPages.map(function(p){return p.length?p[0].b.bid:-1}).join(',');
-  gNodes=Engine.parse(gSrc);
-  Engine.applyDocsets(gNodes);
-  CFG=Engine.getConfig();
-  gPages=Engine.layoutPages(gNodes);
-  var after=gPages.length+'|'+gPages.map(function(p){return p.length?p[0].b.bid:-1}).join(',');
-  if(before!==after){ renderNodes(); restoreCaret(caret) }
-  else { renderOutline(); renderStatus() }
+  scheduleNativeRefresh(caret);
+  updateDiagBar();
+}
+// 节流的权威重排:输入暂停后交 native 解析
+var refreshTimer=null,refreshCaret=null;
+function scheduleNativeRefresh(caret){
+  refreshCaret=caret||refreshCaret||null;
+  if(refreshTimer)clearTimeout(refreshTimer);
+  refreshTimer=setTimeout(function(){
+    refreshTimer=null;
+    var c=refreshCaret; refreshCaret=null;
+    render(gSrc,c);
+  },500);
 }
 function saveCaret(){
   var s=window.getSelection();
@@ -834,49 +852,7 @@ function mergeBlocks(keepBid,goneBid){
 var nativeDiags=null, nativeTimer=null;
 function allDiags(){
   if(nativeDiags&&nativeDiags.src===gSrc)return nativeDiags.ds;
-  if(CORE_DIAGS.length)return CORE_DIAGS;
-  return Engine.quickDiags(gSrc);
-}
-function scheduleNativeDiags(){
-  if(!Bridge.native)return;
-  if(nativeTimer)clearTimeout(nativeTimer);
-  nativeTimer=setTimeout(refreshNativeDiags,800);
-}
-function refreshNativeDiags(){
-  if(!Bridge.native)return;
-  var atReq=gSrc;
-  Bridge.parse(atReq).then(function(res){
-    if(!res.native)return;
-    if(gSrc!==atReq)return;
-    adoptNativeResult(res);
-  });
-}
-// 原生结果落地:诊断 + 块结构交叉比对 + (可选)权威重渲染
-function adoptNativeResult(res){
-  var ds=(res.diags&&res.diags.length)?res.diags:Engine.quickDiags(gSrc);
-  var localCount=Engine.parse(gSrc).length;
-  if(res.blocks&&res.blocks.length&&res.blocks.length!==localCount){
-    ds=ds.concat([{sev:'warn',msg:'引擎分歧:原生 '+res.blocks.length+' 块 / 预览 '+localCount+' 块',line:1}]);
-  }
-  nativeDiags={src:gSrc,ds:ds};
-  updateDiagBar();
-}
-// 打开/初始化后:以原生解析结果重建文档结构(桌面版权威路径)
-function adoptNativeBlocks(){
-  if(!Bridge.native)return;
-  var atReq=gSrc;
-  Bridge.parse(atReq).then(function(res){
-    if(!res.native||!res.blocks||!res.blocks.length)return;
-    if(gSrc!==atReq)return;
-    adoptNativeResult(res);
-    var caret=saveCaret();
-    gNodes=Engine.ingestNative(res.blocks,gSrc);
-    Engine.applyDocsets(gNodes);
-    CFG=Engine.getConfig();
-    gPages=Engine.layoutPages(gNodes);
-    renderNodes();
-    restoreCaret(caret);
-  });
+  return [];
 }
 
 // ═══ 工具栏命令 ═══
@@ -1151,7 +1127,6 @@ function updateCaretPos(){
 }
 
 // ═══ 诊断(原生优先 → 核心 JSON 注入 → 本地快速检查)═══
-var CORE_DIAGS=(typeof DOC_DATA!=='undefined'&&DOC_DATA&&DOC_DATA.diags)||[];
 function updateDiagBar(){
   var ds=allDiags();
   var errs=ds.filter(function(d){return d.sev==='err'}).length;
@@ -1850,7 +1825,6 @@ function markDirty(){
   updateTitle();
   updateUndoButtons();
   updateDiagBar();
-  scheduleNativeDiags();
 }
 function updateUndoButtons(){
   document.querySelectorAll('button[onclick="doUndo()"]').forEach(function(b){b.disabled=histIdx<=0});
@@ -1881,15 +1855,11 @@ function applyHistory(text){
   updateUndoButtons();
   document.getElementById('st-diag').title='历史 '+histIdx+'/'+(hist.length-1);
 }
-function setSrc(s){
+function setSrc(s,caret){
   var ta=document.getElementById('syntax-src');
   if(ta)ta.value=s;
   recordHist(s,false);
-  render(s);
-  var norm=Engine.serializeAll();
-  if(norm!==s){ render(norm); }
-  updateDiagBar();
-  scheduleNativeDiags();
+  render(s,caret);
   scheduleAutosave();
 }
 
@@ -2087,7 +2057,6 @@ function openDocument(res){
   updateTitle();
   markClean();
   pushRecentFile(name,res.path||null);
-  adoptNativeBlocks();
 }
 var currentFilePath=null;
 function openFileClick(){
@@ -2662,7 +2631,7 @@ renderOutline=function(){
       setTimeout(function(){ if(d.dataset.kind!=='labels')d.style.display='none' },8000);
     },600);
   }
-  if(DOC_DATA&&DOC_DATA.source&&!auto)src=DOC_DATA.source;
+
   buildSyntaxPane();
   setSrc(src);
   // 多文件模型:启动即有一个空白(或注入)文档标签
@@ -2676,14 +2645,18 @@ renderOutline=function(){
     var dn=document.getElementById('docname');
     if(document.activeElement===en&&en.value.trim())dn.value=en.value.trim();
   });
-  // 桌面版:初始化后立即用原生引擎刷新诊断并做权威初渲染
-  if(Bridge.native){ refreshNativeDiags(); adoptNativeBlocks(); }
-  // 单实例/命令行转发的打开请求(桌面版):先拉启动参数暂存,再监听后续转发
-  function openByPath(path){ Bridge.openPath(path).then(function(res){ if(res)openDocument(res) }) }
-  if(Bridge.native){
-    Bridge.takePendingPaths().then(function(paths){ (paths||[]).forEach(openByPath) });
-    Bridge.listenOpenPath(openByPath);
+  // 仅桌面版:非 Tauri 环境显示阻断层
+  if(!Bridge.native){
+    document.body.innerHTML='<div style="height:100vh;display:flex;flex-direction:column;align-items:center;justify-content:center;font-family:var(--sans);color:#5a5c60">'
+      +'<div style="font-size:20px;font-weight:700;color:#1a1c1f;margin-bottom:10px">Awen 编辑器</div>'
+      +'<div>请在 Awen 桌面版中编辑文档。</div>'
+      +'</div>';
+    return;
   }
+  // 单实例/命令行转发的打开请求:先拉启动参数暂存,再监听后续转发
+  function openByPath(path){ Bridge.openPath(path).then(function(res){ if(res)openDocument(res) }) }
+  Bridge.takePendingPaths().then(function(paths){ (paths||[]).forEach(openByPath) });
+  Bridge.listenOpenPath(openByPath);
 })();
 </script>
 </body>
