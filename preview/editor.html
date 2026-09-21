@@ -26,6 +26,8 @@ input.findbox{border:1px solid #c9cbce;border-radius:4px;padding:4px 6px;font-si
 .tabbar .chev:hover{background:#e6e7e9;color:#303238}
 .rbtn.on{background:#d7e2ec;outline:1px solid var(--accent)}
 .sbtn.on{background:#d7e2ec;border-color:var(--accent);color:#2a4a66;font-weight:600}
+.stylebtn{height:32px;padding:0 10px;border:1px solid #d0d2d5;border-radius:4px;background:#fff;font-family:var(--serif);color:#303238;cursor:pointer;white-space:nowrap}
+.stylebtn:hover{background:#eef4f8;border-color:var(--accent)}
 /* ── Word/WPS 功能区:标签栏 + 紧凑图标网格 + 分组名 ── */
 .filetabs{display:flex;align-items:center;gap:2px;flex:none;overflow-x:auto;height:28px}
 .ftab{display:flex;align-items:center;gap:6px;height:26px;padding:0 8px 0 12px;border-radius:5px;font-size:12px;color:#5a5c60;cursor:pointer;flex:none;border:1px solid transparent}
@@ -120,6 +122,9 @@ input.docname:focus{outline:none;border-color:var(--accent);background:#fff}
 .statuspop .dline:hover{background:#f7f7f8}
 .diag-err{color:#c0392b;font-weight:600}
 .diag-warn{color:#8a6d1a;font-weight:600}
+/* ── 编辑标记显示 ── */
+body.show-marks .paper .gap::after{content:' b6';color:#c8ccd2;font-size:10pt}
+body.show-marks .paper p::after{content:' b6';color:#d5d8dc;margin-left:2px}
 @media print{.tabbar,.ribbon,.sidebar,.statusbar,.titlebar,.findbar-pop,#minibar,#tblpop,.statuspop,.filetabs{display:none!important}.app{height:auto}.workspace{overflow:visible;display:block}.pane{overflow:visible;padding:0;background:#fff;gap:0;zoom:1!important}.sheet{box-shadow:none;page-break-after:always;min-height:auto}}
 .workspace{min-height:0;flex:1;display:flex;overflow:hidden}
 /* ── 专注模式:隐藏功能区/侧栏/状态栏 ── */
@@ -235,10 +240,14 @@ input.docname:focus{outline:none;border-color:var(--accent);background:#fff}
 <div class="ribbon">
 <div class="ribbon-page active" data-page="home">
 <div class="rgroup"><div class="rg-body">
-<button class="rbtn" style="width:36px" onclick="doPaste()" title="粘贴"><span data-icon="paste"></span></button>
+<div class="colordrop splitbtn" style="flex-direction:column;width:36px">
+<button class="rbtn" style="width:34px;height:20px" onclick="doPaste()" title="粘贴"><span data-icon="paste"></span></button>
+<button class="rbtn" style="width:34px;height:12px;font-size:9px" onclick="pasteTextOnly()" title="只保留文本粘贴">T﹁</button>
+</div>
 <button class="rbtn" style="width:36px" onclick="doCut()" title="剪切"><span data-icon="cut"></span></button>
 <button class="rbtn" style="width:36px" onclick="doCopy()" title="复制"><span data-icon="copy"></span></button>
-<button class="rbtn" style="width:36px" id="btn-brush" onclick="brushClick()" title="格式刷:点击吸取光标处格式,选中文字后再点应用"><span data-icon="brush"></span></button>
+<button class="rbtn" style="width:36px" id="btn-brush" onclick="brushClick()" ondblclick="brushDouble()" title="格式刷:单击吸取后选文字应用一次;双击连续应用"><span data-icon="brush"></span></button>
+<button class="rbtn" onclick="toggleCase()" title="更改大小写(选中英文循环:aA/AA/aa)"><span data-icon="case"></span>Aa</button>
 </div><div class="rg-label">剪贴板</div></div>
 <div class="rgroup"><div class="rg-body"><div class="fcol">
 <div class="frow">
@@ -271,9 +280,15 @@ input.docname:focus{outline:none;border-color:var(--accent);background:#fff}
 <button class="rbtn" onclick="fmtCmd('removeFormat')" title="清除格式"><span data-icon="clear"></span></button>
 </div>
 </div></div><div class="rg-label">字体</div></div>
-<div class="rgroup"><div class="rg-body">
-<select id="sel-style" title="段落样式" onchange="applyStyle(this.value)" style="width:104px;height:32px">
-<option value="" selected>正文</option><option value="1" style="font-weight:700;font-size:16px">标题 1</option><option value="2" style="font-weight:700;font-size:14px">标题 2</option><option value="3" style="font-weight:600;font-size:13px">标题 3</option><option value="4" style="font-weight:600">标题 4</option><option value="5" style="font-weight:600">标题 5</option><option value="6" style="font-weight:600;color:#888">标题 6</option>
+<div class="rgroup"><div class="rg-body" style="gap:6px">
+<div style="display:flex;gap:4px">
+<button class="stylebtn" onclick="applyStyle('')" title="正文样式">正文</button>
+<button class="stylebtn" style="font-weight:700;font-size:15px" onclick="applyStyle('1')" title="标题 1">标题 1</button>
+<button class="stylebtn" style="font-weight:700;font-size:13px" onclick="applyStyle('2')" title="标题 2">标题 2</button>
+<button class="stylebtn" style="font-weight:600;font-size:12px" onclick="applyStyle('3')" title="标题 3">标题 3</button>
+</div>
+<select id="sel-style" title="更多段落样式" onchange="applyStyle(this.value)" style="width:76px;height:32px">
+<option value="" selected>正文</option><option value="1">1 级</option><option value="2">2 级</option><option value="3">3 级</option><option value="4">4 级</option><option value="5">5 级</option><option value="6">6 级</option>
 </select>
 </div><div class="rg-label">样式</div></div>
 <div class="rgroup"><div class="rg-body">
@@ -346,6 +361,7 @@ input.docname:focus{outline:none;border-color:var(--accent);background:#fff}
 </div><div class="rg-label">显示</div></div>
 <div class="rgroup"><div class="rg-body">
 <button class="sbtn" onclick="toggleSidebar()" title="显示/隐藏文档结构窗格">导航窗格</button>
+<button class="sbtn" id="btn-marks" onclick="toggleMarks()" title="显示段落标记(¶)">编辑标记</button>
 </div><div class="rg-label">显示</div></div>
 <div class="rgroup"><div class="rg-body"><div class="fcol">
 <div class="frow">
@@ -1246,6 +1262,43 @@ function paraBreakAtSelection(){
 }
 function doCut(){ if(document.execCommand('cut'))onPaperInput() }
 function doCopy(){ document.execCommand('copy') }
+function pasteTextOnly(){
+  if(navigator.clipboard&&navigator.clipboard.readText){
+    navigator.clipboard.readText().then(function(t){
+      if(!t)return;
+      insertAtSelection(t);   // DOM 插入,不依赖编辑器焦点
+      onPaperInput();
+    }).catch(function(){ document.getElementById('findmsg').textContent='剪贴板不可读,请用 Ctrl+V' });
+  }
+}
+// 更改大小写:选中英文循环 首字母大写→全大写→全小写
+function toggleCase(){
+  var sel=window.getSelection();
+  if(!sel.rangeCount||sel.isCollapsed){ document.getElementById('findmsg').textContent='请先选中英文文字'; return }
+  var t=sel.toString();
+  if(!/[a-zA-Z]/.test(t)){ document.getElementById('findmsg').textContent='选中内容不含英文字母'; return }
+  var allUp=t===t.toUpperCase(), allLow=t===t.toLowerCase();
+  var next;
+  if(!allUp&&!allLow)next=t.toUpperCase();
+  else if(allLow)next=t.charAt(0).toUpperCase()+t.slice(1).toLowerCase();
+  else if(allUp)next=t.toLowerCase();
+  else next=t.toLowerCase();
+  // 记录选区,替换后重设——保持选中以便连续点击循环
+  var rng=sel.getRangeAt(0);
+  document.execCommand('insertText',false,next);
+  var sel2=window.getSelection();
+  if(sel2.rangeCount){
+    var r2=sel2.getRangeAt(0);
+    try{ r2.setStart(r2.endContainer,r2.endOffset-t.length); r2.setEnd(r2.endContainer,r2.endOffset); sel2.removeAllRanges(); sel2.addRange(r2) }catch(e){}
+  }
+  onPaperInput();
+}
+// 格式刷双击:进入连续刷模式(应用后不退出,Esc 或再点取消)
+var brushSticky=false;
+function brushDouble(){
+  brushClick();
+  if(brushCmd){ brushSticky=true; document.getElementById('findmsg').textContent='连续格式刷:逐段选中文字应用;Esc 退出' }
+}
 function insertAtSelection(text){
   var sel=window.getSelection();
   if(!sel.rangeCount)return;
@@ -1282,6 +1335,7 @@ function brushClick(){
 }
 function stopBrush(){
   brushCmd=null;
+  brushSticky=false;
   var b=document.getElementById('btn-brush');
   if(b)b.classList.remove('on');
   document.body.style.cursor='';
@@ -1294,8 +1348,8 @@ document.addEventListener('selectionchange',function(){
   var node=sel.getRangeAt(0).startContainer;
   var el=node&&(node.nodeType===1?node:node.parentElement);
   if(!el||!el.closest||!el.closest('.paper'))return;
-  var cmd=brushCmd;
-  stopBrush();
+  var cmd=brushCmd, sticky=brushSticky;
+  if(!sticky)stopBrush();
   if(wrapSpan(cmd.cmd,cmd.close,null,cmd.native))onPaperInput();
 });
 // 行距循环按钮:1.15→1.5→1.9→2→2.5→1.15(写回文档级设置)
@@ -2472,6 +2526,12 @@ function showWordCount(){
   setTimeout(function(){pop.style.display='none'},4000);
 }
 
+// ═══ 编辑标记显示开关 ═══
+function toggleMarks(){
+  var on=document.body.classList.toggle('show-marks');
+  var b=document.getElementById('btn-marks');
+  if(b)b.classList.toggle('on',on);
+}
 // ═══ 专注模式:隐藏功能区/侧栏/状态栏,Esc 或按钮退出 ═══
 function toggleFocus(){
   var app=document.querySelector('.app');
@@ -2487,6 +2547,7 @@ document.addEventListener('keydown',function(e){
   if(e.key==='Escape'){
     var app=document.querySelector('.app');
     if(app.classList.contains('focus')){ app.classList.remove('focus'); toggleSidebar(); }
+    if(brushSticky||brushCmd)stopBrush();
     return;
   }
   if(e.altKey&&mod&&!e.shiftKey){
