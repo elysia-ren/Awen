@@ -14,6 +14,10 @@ fn json_escape(s: String) -> String {
             out = out + "\\n"
         } else if c == "\r" {
             out = out + "\\r"
+        } else if c == "\b" {
+            out = out + "\\b"
+        } else if c == "\f" {
+            out = out + "\\f"
         } else if c == "\t" {
             out = out + "\\t"
         } else {

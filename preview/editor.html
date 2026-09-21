@@ -6,6 +6,7 @@
 <title>Awen</title>
 <script src="engine.js"></script>
 <script src="bridge.js"></script>
+<script src="vendor/mammoth.browser.min.js"></script>
 <style>
 :root{--serif:Georgia,"Times New Roman","Noto Serif SC","Source Han Serif SC","Microsoft YaHei",serif;--sans:"Segoe UI","Microsoft YaHei",system-ui,sans-serif;--mono:"Cascadia Code","Consolas",monospace;--bg:#e8e9eb;--bg2:#fafafa;--bg3:#f7f7f8;--border:#dedfe2;--border2:#d9dade;--fg2:#6b6d72;--accent:#4b6f8d}
 *{box-sizing:border-box;margin:0;padding:0}
@@ -387,6 +388,7 @@ input.docname:focus{outline:none;border-color:var(--accent);background:#fff}
 <div class="rgroup"><div class="rg-body"><div class="frow">
 <button class="tbtn" onclick="newDoc()" title="新建文档 (Ctrl+N)"><span data-icon="newdoc"></span>新建</button>
 <button class="tbtn" onclick="openFileClick()" title="打开 (.awen / .txt / .md) (Ctrl+O)"><span data-icon="open"></span>打开</button>
+<button class="tbtn" onclick="importDocx()" title="导入 Word 文档 (.docx)"><span data-icon="docx"></span>导入 docx</button>
 <button class="tbtn" onclick="doSave()" title="保存为 Awen 源码 (Ctrl+S)"><span data-icon="save"></span>保存</button>
 <button class="tbtn" onclick="doSaveAs()" title="另存为新文件"><span data-icon="savenew"></span>另存为</button>
 <button class="tbtn" onclick="doPrint()" title="打印 / 另存为 PDF (Ctrl+P)"><span data-icon="print"></span>打印</button>
@@ -397,6 +399,7 @@ input.docname:focus{outline:none;border-color:var(--accent);background:#fff}
 <button class="sbtn" onclick="exportFile('html')">导出 HTML</button>
 <button class="sbtn" onclick="exportFile('doc')">导出 Word</button>
 <button class="sbtn" onclick="exportFile('txt')">导出 TXT</button>
+<button class="sbtn" onclick="discardAutosaveDraft()" title="清空自动保存的草稿并恢复空白文档">放弃草稿</button>
 </div></div><div class="rg-label">导出</div></div>
 <div class="rgroup"><div class="rg-body"><div class="fcol" id="recent-list" style="min-width:180px;max-height:60px;overflow:auto"></div></div><div class="rg-label">最近文件</div></div>
 </div>
@@ -519,6 +522,16 @@ function renderNodes(){
           if(t)t.scrollIntoView({behavior:'smooth',block:'start'});
         };
         paper.appendChild(toc);
+        paper.appendChild(gapEl()); continue;
+      }
+      if(b.kind==='obj'){
+        var obj=makeBlock(b,item);
+        obj.style.cursor='pointer';
+        obj.title='点击设置图片属性(宽度/对齐)';
+        (function(bb){
+          obj.addEventListener('click',function(){ openImagePanel(bb.bid) });
+        })(b);
+        paper.appendChild(obj);
         paper.appendChild(gapEl()); continue;
       }
       if(b.kind==='docset'){
@@ -1147,12 +1160,50 @@ function toggleLabelPop(){
   var pop=document.getElementById('diagpop');
   if(!pop)return;
   if(pop.style.display==='block'&&pop.dataset.kind==='labels'){pop.style.display='none';return}
+  renderLabelList();
+  pop.style.display='block';
+}
+function renderLabelList(){
+  var pop=document.getElementById('diagpop');
   var labels=gNodes.filter(function(n){return n.kind==='label'});
   pop.dataset.kind='labels';
-  pop.innerHTML=labels.length?labels.map(function(l){
-    return '<div class="dline" onclick="var t=document.querySelector(\'#display-pane [data-bid=&quot;'+l.bid+'&quot;]\');if(t)t.scrollIntoView({behavior:\'smooth\',block:\'start\'})">📌 '+(l.text||'').replace(/</g,'&lt;')+' — 第 '+(l.srcStart+1)+' 行</div>';
-  }).join(''):'<div style="color:#4a8a4a">文档中没有标签</div>';
-  pop.style.display='block';
+  pop.innerHTML=(labels.length?labels.map(function(l){
+    return '<div class="dline" style="display:flex;align-items:center;gap:6px">'
+      +'<span style="cursor:pointer;flex:1" onclick="var t=document.querySelector(\'#display-pane [data-bid=&quot;'+l.bid+'&quot;]\');if(t)t.scrollIntoView({behavior:\'smooth\',block:\'start\'})">📌 '+renamelabel_esc(l.text)+' — 第 '+(l.srcStart+1)+' 行</span>'
+      +'<button class="sbtn" style="height:20px;padding:0 6px;font-size:11px" onclick="renameLabelStart('+l.bid+',this)">改名</button>'
+      +'</div>';
+  }).join(''):'<div style="color:#4a8a4a">文档中没有标签</div>')
+  +'<div style="margin-top:6px;font-size:11px;color:#8a8c90">点击名称跳转;「改名」同步更新全部引用</div>';
+}
+function renamelabel_esc(s){return String(s||'').replace(/</g,'&lt;')}
+function renameLabelStart(bid,btn){
+  var b=nodeByBid(bid);
+  if(!b)return;
+  var line=btn?btn.parentNode:document.querySelector('#diagpop .dline');
+  if(!line)return;
+  line.innerHTML='<input id="rl-input" value="'+renamelabel_esc(b.text)+'" style="flex:1;min-width:0;height:22px;border:1px solid #4b6f8d;border-radius:4px;font-size:12px;padding:0 6px">'
+    +'<button class="sbtn" style="height:22px;padding:0 6px;font-size:11px;background:#d7e2ec" onclick="renameLabelApply('+bid+')">确定</button>';
+  var inp=document.getElementById('rl-input');
+  inp.focus(); inp.select();
+  inp.onkeydown=function(e){ if(e.key==='Enter')renameLabelApply(bid); if(e.key==='Escape')renderLabelList() };
+}
+function renameLabelApply(bid){
+  var b=nodeByBid(bid);
+  var inp=document.getElementById('rl-input');
+  var newName=(inp&&inp.value||'').trim().replace(/[\[\]]/g,'');
+  if(!b||!newName||newName===b.text){ renderLabelList(); return }
+  var old=b.text;
+  var count=0;
+  var reLabel=new RegExp('(@\\[label\\s+)'+old.replace(/[.*+?^${}()|[\]\\]/g,'\\$&')+'(\\])','g');
+  var reRef=new RegExp('(@\\[ref\\s+)'+old.replace(/[.*+?^${}()|[\]\\]/g,'\\$&')+'(\\])','g');
+  var lines=gSrc.split('\n');
+  for(var i=0;i<lines.length;i++){
+    var nl=lines[i].replace(reLabel,'$1'+newName+'$2').replace(reRef,'$1'+newName+'$2');
+    if(nl!==lines[i]){lines[i]=nl;count++}
+  }
+  if(count)setSrc(lines.join('\n'));
+  if(repagTimer){clearTimeout(repagTimer);repagTimer=null}
+  renderLabelList();
 }
 function gotoLine(n){
   var ta=document.getElementById('syntax-src');
@@ -1783,6 +1834,7 @@ function setSrc(s){
   if(norm!==s){ render(norm); }
   updateDiagBar();
   scheduleNativeDiags();
+  scheduleAutosave();
 }
 
 // ═══ 视图切换 ═══
@@ -1881,8 +1933,33 @@ function saveWithPicker(name,content){
 function markClean(){
   docDirty=false;
   if(activeFile>=0&&openFiles[activeFile])openFiles[activeFile].dirty=false;
+  clearAutosave();          // 已落盘,草稿快照不再需要
   updateTitle();
   renderFileTabs();
+}
+// ═══ 自动保存/崩溃恢复(localStorage 快照)═══
+var autosaveTimer=null;
+function scheduleAutosave(){
+  if(autosaveTimer)clearTimeout(autosaveTimer);
+  autosaveTimer=setTimeout(doAutosave,2000);
+}
+function doAutosave(){
+  try{
+    localStorage.setItem('awen-autosave',JSON.stringify({
+      name:document.getElementById('docname').value||'未命名文档',
+      src:gSrc,time:Date.now()
+    }));
+  }catch(e){}
+}
+function loadAutosave(){
+  try{ return JSON.parse(localStorage.getItem('awen-autosave')||'null') }catch(e){ return null }
+}
+function clearAutosave(){ try{localStorage.removeItem('awen-autosave')}catch(e){} }
+function discardAutosaveDraft(){
+  clearAutosave();
+  document.getElementById('docname').value='未命名文档';
+  setSrc('# 未命名文档\n\n');
+  markClean();
 }
 function updateTitle(src){
   var inp=document.getElementById('docname');
@@ -2009,7 +2086,8 @@ var ICONS={
   bookmark:'<svg viewBox="0 0 16 16"><path d="M4.5 2.5h7V14L8 11 4.5 14z" '+SW+'/></svg>',
   date:'<svg viewBox="0 0 16 16"><rect x="2.5" y="3.5" width="11" height="10" rx="1" '+SW+'/><path d="M2.5 6.5h11M5.5 2v3M10.5 2v3" '+SW+'/></svg>',
   symbol:'<svg viewBox="0 0 16 16"><text x="8" y="12" text-anchor="middle" font-size="12" font-weight="700" fill="currentColor">Ω</text></svg>',
-  chev:'<svg viewBox="0 0 16 16"><path d="M3 10l5-5 5 5" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/></svg>'
+  chev:'<svg viewBox="0 0 16 16"><path d="M3 10l5-5 5 5" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/></svg>',
+  docx:'<svg viewBox="0 0 16 16"><path d="M4 1.5h5.5L13 5v9.5H4z" '+SW+'/><path d="M9 1.5V5h4" '+SW+'/><text x="8" y="12" text-anchor="middle" font-size="6.5" font-weight="700" fill="currentColor">W</text></svg>'
 };
 function showRibbon(page){
   // 折叠状态下点击标签=展开功能区
@@ -2069,6 +2147,169 @@ function insertTableGrid(){
   setSrc(lines.join('\n'));
 }
 
+// ═══ 图片属性面板(E2-5):点击图片→改宽度/对齐→写回源码行 ═══
+var btn_anchor=null;
+function openImagePanel(bid){
+  var b=nodeByBid(bid);
+  if(!b||b.kind!=='obj')return;
+  var first=(b.text||'').split('\n')[0];
+  var m=first.match(/^@\[(image|figure|图片)(?:\s+([^\]]*))?\]/);
+  if(!m){ document.getElementById('findmsg').textContent='该对象暂不支持属性编辑'; return }
+  var params=m[2]||'';
+  var wm=params.match(/width:?\s*(\d+(?:\.\d+)?)\s*%/);
+  var am=params.match(/align:?\s*(\w+)/);
+  var old=document.getElementById('image-pop');
+  if(old)old.remove();
+  var pop=document.createElement('div');
+  pop.id='image-pop';
+  pop.style.cssText='position:fixed;z-index:210;background:#fff;border:1px solid #c9cbce;border-radius:6px;box-shadow:0 4px 16px rgba(0,0,0,.18);padding:12px;width:230px';
+  var el=document.querySelector('#display-pane [data-bid="'+bid+'"]');
+  var r=el?el.getBoundingClientRect():{left:100,bottom:100};
+  pop.style.left=Math.min(r.left,window.innerWidth-260)+'px';
+  pop.style.top=(r.bottom+8)+'px';
+  pop.innerHTML='<div style="font-weight:600;font-size:12px;margin-bottom:8px">图片属性</div>'
+    +'<div style="display:flex;align-items:center;gap:6px;margin-bottom:8px">'
+    +'<label style="font-size:12px;flex:none">宽度</label>'
+    +'<input type="number" id="img-w" min="5" max="100" step="5" value="'+(wm?wm[1]:'100')+'" style="width:70px;height:24px;border:1px solid #c9cbce;border-radius:4px;font-size:12px">'
+    +'<span style="font-size:12px">%</span></div>'
+    +'<div style="display:flex;align-items:center;gap:6px;margin-bottom:10px">'
+    +'<label style="font-size:12px;flex:none">对齐</label>'
+    +'<select id="img-a" style="height:24px;font-size:12px;border:1px solid #c9cbce;border-radius:4px">'
+    +'<option value="center">居中</option><option value="left">左对齐</option><option value="right">右对齐</option>'
+    +'</select></div>'
+    +'<div style="display:flex;gap:8px;justify-content:flex-end">'
+    +'<button class="sbtn" id="img-cancel">取消</button>'
+    +'<button class="sbtn" id="img-ok" style="background:#d7e2ec;border-color:#4b6f8d">应用</button></div>';
+  document.body.appendChild(pop);
+  var aSel=pop.querySelector('#img-a');
+  aSel.value=(am?am[1].toLowerCase():'center');
+  if(['center','left','right'].indexOf(aSel.value)<0)aSel.value='center';
+  btn_anchor=el||document.body;
+  pop.querySelector('#img-cancel').onclick=function(){ pop.remove() };
+  pop.querySelector('#img-ok').onclick=function(){
+    var w=parseFloat(pop.querySelector('#img-w').value);
+    if(!(w>=5&&w<=100)){ document.getElementById('findmsg').textContent='宽度需在 5-100 之间'; return }
+    var al=aSel.value;
+    var np=params;
+    if(wm)np=np.replace(/width:?\s*\d+(?:\.\d+)?\s*%/,'width '+w+'%');
+    else np=(np+' width '+w+'%').trim();
+    if(am)np=np.replace(/align:?\s*\w+/,'align '+al);
+    else np=(np+' align '+al).trim();
+    var newLine='@['+m[1]+' '+np.trim()+']';
+    var lines=gSrc.split('\n');
+    for(var i=0;i<lines.length;i++){
+      if(lines[i].indexOf(first)===0){ lines[i]=newLine; setSrc(lines.join('\n')); break }
+    }
+    pop.remove();
+  };
+  setTimeout(function(){
+    document.addEventListener('click',function hider(ev){
+      if(!pop.contains(ev.target)&&!btn_anchor.contains(ev.target)){pop.remove();document.removeEventListener('click',hider)}
+    });
+  },0);
+}
+// ═══ DOCX 导入(mammoth 本地分发,离线可用;HTML → Awen 语法转换)═══
+function importDocx(){
+  if(typeof mammoth==='undefined'){ alert('转换库未加载(vendor/mammoth.browser.min.js 缺失)'); return }
+  var inp=document.createElement('input');
+  inp.type='file'; inp.accept='.docx';
+  inp.style.display='none';
+  document.body.appendChild(inp);
+  inp.onchange=function(){
+    var f=inp.files[0];
+    if(!f){ inp.remove(); return }
+    var rd=new FileReader();
+    rd.onload=function(){
+      mammoth.convertToHtml({arrayBuffer:rd.result}).then(function(res){
+        var src=htmlToAwen(res.value);
+        var name=f.name.replace(/\.docx$/i,'');
+        inp.remove();
+        var reuse=false;
+        if(activeFile>=0){
+          applySyncNow();
+          var cur=openFiles[activeFile];
+          reuse=(cur.name==='未命名文档'&&!docDirty);
+          if(!reuse){ cur.src=gSrc; cur.dirty=docDirty }
+        }
+        document.getElementById('docname').value=name;
+        setSrc(src);
+        if(reuse){ openFiles[activeFile]={name:name,src:gSrc,dirty:false,path:null}; renderFileTabs() }
+        else addFileTab(name,null);
+        currentFilePath=null;
+        updateTitle(); markClean();
+      }).catch(function(e){ inp.remove(); alert('DOCX 解析失败:'+e.message) });
+    };
+    rd.readAsArrayBuffer(f);
+  };
+  inp.click();
+}
+// 导出的 HTML → Awen 源码
+function htmlToAwen(html){
+  var doc=new DOMParser().parseFromString(html,'text/html');
+  var out=[];
+  function inline(node){
+    var t='';
+    node.childNodes.forEach(function(n){
+      if(n.nodeType===3){ t+=n.textContent; return }
+      if(n.nodeType!==1)return;
+      if(n.tagName==='BR'){ t+=' '; return }
+      var inner=inline(n);
+      var tag=n.tagName;
+      if(tag==='STRONG'||tag==='B')t+='**'+inner+'**';
+      else if(tag==='EM'||tag==='I')t+='_'+inner+'_';
+      else if(tag==='U')t+='@[u]'+inner+'@[/u]';
+      else if(tag==='DEL'||tag==='S')t+='~~'+inner+'~~';
+      else if(tag==='CODE')t+='`'+inner+'`';
+      else if(tag==='A'){ var href=n.getAttribute('href')||''; t+='@[link '+inner+' url: '+href+']' }
+      else t+=inner;
+    });
+    return t;
+  }
+  function walk(node){
+    node.childNodes.forEach(function(n){
+      if(n.nodeType!==1)return;
+      var tag=n.tagName;
+      if(/^H[1-6]$/.test(tag)){ out.push('#'.repeat(+tag.charAt(1))+' '+inline(n).trim()); out.push('') }
+      else if(tag==='P'){ var t=inline(n).trim(); if(t){ out.push(t); out.push('') } }
+      else if(tag==='BLOCKQUOTE'){
+        var qs=n.querySelectorAll('p');
+        if(qs.length)qs.forEach(function(q){ var t=inline(q).trim(); if(t)out.push('> '+t) });
+        else{ var t0=inline(n).trim(); if(t0)out.push('> '+t0) }
+      }
+      else if(tag==='UL'||tag==='OL'){
+        var idx=0;
+        n.querySelectorAll(':scope > li').forEach(function(li){
+          idx++;
+          var t=inline(li).replace(/\s+/g,' ').trim();
+          if(t)out.push((tag==='UL'?'- ':idx+'. ')+t);
+        });
+        out.push('');
+      }
+      else if(tag==='TABLE'){
+        out.push('@[table imported]');
+        var first=true;
+        n.querySelectorAll('tr').forEach(function(tr){
+          var cells=[];
+          tr.querySelectorAll('th,td').forEach(function(c){ cells.push(inline(c).replace(/\|/g,'/').trim()) });
+          out.push('| '+cells.join(' | ')+' |');
+          if(first){ var sep='|'; for(var i=0;i<cells.length;i++)sep+=' --- |'; out.push(sep); first=false }
+        });
+        out.push('@[/table]');
+        out.push('');
+      }
+      else if(tag==='IMG'){ out.push('@[image imported-image]'); out.push('') }
+      else if(tag==='HR'){ out.push('---') }
+      else walk(n);
+    });
+  }
+  walk(doc.body);
+  var res=[],blank=0;
+  out.forEach(function(l){
+    if(l===''){ blank++; if(blank<=1)res.push(l) }
+    else{ blank=0; res.push(l) }
+  });
+  return res.join('\n');
+}
 // ═══ 真实图片:选本地文件,嵌入 data URI ═══
 function pickImageInsert(){
   var inp=document.createElement('input');
@@ -2343,7 +2584,22 @@ renderOutline=function(){
     el.innerHTML=ICONS[el.dataset.icon]||'';
   });
   var src=DEFAULT_SRC;
-  if(DOC_DATA&&DOC_DATA.source)src=DOC_DATA.source;
+  // 崩溃恢复:存在自动保存草稿则直接恢复
+  var auto=loadAutosave();
+  if(auto&&typeof auto.src==='string'&&auto.src.trim()!==''){
+    src=auto.src;
+    if(auto.name)document.getElementById('docname').value=auto.name;
+    setTimeout(function(){
+      var d=document.getElementById('diagpop');
+      if(!d)return;
+      d.innerHTML='<div style="display:flex;gap:8px;align-items:center"><span style="color:#8a6d1a">检测到未保存的草稿已恢复</span>'
+        +'<button class="sbtn" style="height:22px" onclick="discardAutosaveDraft();document.getElementById(\'diagpop\').style.display=\'none\'">放弃草稿</button>'
+        +'<button class="sbtn" style="height:22px" onclick="document.getElementById(\'diagpop\').style.display=\'none\'">继续</button></div>';
+      d.style.display='block';
+      setTimeout(function(){ if(d.dataset.kind!=='labels')d.style.display='none' },8000);
+    },600);
+  }
+  if(DOC_DATA&&DOC_DATA.source&&!auto)src=DOC_DATA.source;
   buildSyntaxPane();
   setSrc(src);
   // 多文件模型:启动即有一个空白(或注入)文档标签
