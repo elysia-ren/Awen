@@ -31,6 +31,8 @@ if os.path.isdir(js_src):
         dst_root = js_dst if rel == '.' else os.path.join(js_dst, rel)
         os.makedirs(dst_root, exist_ok=True)
         for fn in files:
+            if fn.startswith('_'):
+                continue  # 内部辅助文件(如 _load_order.json)不进交付目录
             shutil.copyfile(os.path.join(root, fn), os.path.join(dst_root, fn))
 vendor_src = os.path.join(pre, 'vendor')
 vendor_dst = os.path.join(dist, 'vendor')

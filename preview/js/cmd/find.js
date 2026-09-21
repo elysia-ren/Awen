@@ -1,31 +1,24 @@
-function gotoLine(n){
-  var ta=document.getElementById('syntax-src');
-  if(!ta)return;
-  setMode('syntax');
-  var pos=0,lines=gSrc.split('\n');
-  for(var i=0;i<Math.min(n-1,lines.length);i++)pos+=lines[i].length+1;
-  ta.focus();
-  ta.setSelectionRange(pos,pos+(lines[n-1]?lines[n-1].length:0));
-  setGutterCur(n);
+// 查找替换(含语法视图源内查找)(自单文件版拆出;传统 script,全局变量直接共享)
+function replaceEntry(){ toggleFind(); setTimeout(function(){ document.getElementById('replacebox').focus() },60) }
+function selectAllDoc(){
+  var p=document.querySelector('#display-pane .paper');
+  if(p&&currentMode!=='syntax'){ p.focus(); document.execCommand('selectAll') }
+  else{ var ta=document.getElementById('syntax-src'); if(ta){ta.focus();ta.select()} }
 }
 
-function replaceEntry(){ toggleFind(); setTimeout(function(){ document.getElementById('replacebox').focus() },60) }
-
+// ═══ 查找替换 ═══
 function toggleFind(){
   var bar=document.getElementById('findbar');
   var open=bar.style.display==='none'||!bar.style.display;
   bar.style.display=open?'block':'none';
   if(open){document.getElementById('findbox').focus();findCount()}
 }
-
 function closeFind(){
   document.getElementById('findbar').style.display='none';
 }
-
 function cs0(){return document.getElementById('cb-case')&&document.getElementById('cb-case').checked}
-
 function cw0(){return document.getElementById('cb-whole')&&document.getElementById('cb-whole').checked}
-
+// 统一匹配引擎:区分大小写 + 全字匹配(\b 边界);返回所有命中起点
 function matchStarts(hay,q,cs,whole){
   var starts=[];
   if(whole){
@@ -40,13 +33,11 @@ function matchStarts(hay,q,cs,whole){
   while((pos=h.indexOf(needle,pos))>=0){ starts.push(pos); pos+=needle.length }
   return starts;
 }
-
 function findIdxOf(src,q,from){
   var starts=matchStarts(src,q,cs0(),cw0());
   for(var i=0;i<starts.length;i++){ if(starts[i]>=from)return starts[i] }
   return starts.length?starts[0]:-1;
 }
-
 function findCount(){
   var q=document.getElementById('findbox').value;
   var msg=document.getElementById('findmsg');
@@ -55,7 +46,6 @@ function findCount(){
   var n=matchStarts(gSrc,q,cs0(),cw0()).length;
   msg.textContent=n?('找到 '+n+' 处'):'未找到';
 }
-
 function highlightAll(q){
   if(!(window.CSS&&CSS.highlights))return;
   CSS.highlights.delete('findhit');
@@ -80,9 +70,9 @@ function highlightAll(q){
       if(r1&&r2){var rg=document.createRange();rg.setStart(r1.n,r1.o);rg.setEnd(r2.n,r2.o);ranges.push(rg)}
     });
   });
-  if(ranges.length){try{CSS.highlights.set('findhit',new Highlight(ranges))}catch(e){}}
+  // Highlight 构造器是变参:必须展开 ranges,传数组会被当 Range 校验抛 TypeError,高亮静默失效
+  if(ranges.length){try{CSS.highlights.set('findhit',new Highlight(...ranges))}catch(e){}}
 }
-
 function findNext(){
   var q=document.getElementById('findbox').value;
   if(!q)return;
@@ -96,7 +86,6 @@ function findNext(){
     if(i>=0){ta.focus();ta.setSelectionRange(i,i+q.length)}
   }
 }
-
 function findPrev(){
   var q=document.getElementById('findbox').value;
   if(!q)return;
@@ -109,7 +98,6 @@ function findPrev(){
     else document.getElementById('findmsg').textContent='已到开头';
   }
 }
-
 function replaceOne(){
   var q=document.getElementById('findbox').value;
   var r=document.getElementById('replacebox').value;
@@ -129,7 +117,6 @@ function replaceOne(){
   setSrc(src.substring(0,i)+r+src.substring(i+q.length));
   document.getElementById('findmsg').textContent='已替换 1 处';
 }
-
 function replaceAll(){
   var q=document.getElementById('findbox').value;
   var r=document.getElementById('replacebox').value;
@@ -150,9 +137,4 @@ function replaceAll(){
   setSrc(out);
   highlightAll(q);
   document.getElementById('findmsg').textContent='已替换 '+starts.length+' 处';
-}
-
-function findKey(e){
-  if(e.key==='Enter'){e.preventDefault();findNext()}
-  if(e.key==='Escape')closeFind();
 }

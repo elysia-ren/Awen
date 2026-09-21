@@ -1,3 +1,4 @@
+// 行号栏 / 光标存取与定位(自单文件版拆出;传统 script,全局变量直接共享)
 function updateGutter(){
   var g=document.getElementById('gutter');
   var ta=document.getElementById('syntax-src');
@@ -8,7 +9,7 @@ function updateGutter(){
   if(g.dataset.count!==String(n)){ g.innerHTML=out; g.dataset.count=String(n) }
   g.scrollTop=ta.scrollTop;
 }
-
+// 当前行高亮:光标所在行(语法视图)
 function setGutterCur(line){
   var g=document.getElementById('gutter');
   if(!g)return;
@@ -22,13 +23,50 @@ function setGutterCur(line){
     if(top<gTop||top+h>gTop+gH)g.scrollTop=Math.max(0,top-gH/2);
   }
 }
-
 function caretLineNumber(){
   var ta=document.getElementById('syntax-src');
   if(!ta)return 1;
   return ta.value.substring(0,ta.selectionStart).split('\n').length;
 }
-
+function applySyncNow(){
+  if(repagTimer){clearTimeout(repagTimer);repagTimer=null}
+  if(lastEditSource==='syntax'||currentMode==='syntax'){
+    // 语法视图/语法侧编辑:输入框即源码权威(§85),不再从纸面 DOM 反写
+    var ta=document.getElementById('syntax-src');
+    var taVal=ta?ta.value:'';
+    if(taVal===gSrc)return;
+    gSrc=taVal;
+    if(currentMode==='split')render(gSrc);
+    updateDiagBar();
+      return;
+  }
+  // 纸面编辑:DOM 序列化回写源码(纸面即真实,不立即重建 DOM);
+  // 节流后交 Aine 权威解析,返回后按需重排并恢复光标
+  // 权威渲染在途时 DOM 还是旧结构:推迟 flush,防止旧内容覆盖 gSrc
+  if(renderPending){ setTimeout(applySyncNow,300); return }
+  var newSrc=Engine.serializeAll();
+  // 尾随空行无语义:undo 恢复的源码常带尾 \n,serializeAll 不产出——视为同一内容,
+  // 否则 doUndo/doRedo 开头的 flush 会把规范化差异当新编辑,截断撤销链
+  if(newSrc===gSrc||newSrc===gSrc.replace(/\s+$/,''))return;
+  gSrc=newSrc;
+  var ta=document.getElementById('syntax-src');
+  if(ta)ta.value=gSrc;
+  recordHist(gSrc,true);
+  var caret=saveCaret();
+  scheduleNativeRefresh(caret);
+  updateDiagBar();
+}
+// 节流的权威重排:输入暂停后交 native 解析
+var refreshTimer=null,refreshCaret=null;
+function scheduleNativeRefresh(caret){
+  refreshCaret=caret||refreshCaret||null;
+  if(refreshTimer)clearTimeout(refreshTimer);
+  refreshTimer=setTimeout(function(){
+    refreshTimer=null;
+    var c=refreshCaret; refreshCaret=null;
+    render(gSrc,c);
+  },500);
+}
 function saveCaret(){
   var s=window.getSelection();
   if(!s.rangeCount)return null;
@@ -40,7 +78,6 @@ function saveCaret(){
   r.setEnd(s.getRangeAt(0).endContainer,s.getRangeAt(0).endOffset);
   return{bid:blk.dataset.bid,off:r.toString().length};
 }
-
 function restoreCaret(c){
   if(!c)return;
   var el=document.querySelector('#display-pane [data-bid="'+c.bid+'"]');
@@ -50,62 +87,12 @@ function restoreCaret(c){
   if(last){ setSel(last,last.length) } else if(first){ setSel(first,0) }
   focusPaper(el);
 }
-
 function setSel(node,off){
   var r=document.createRange(); r.setStart(node,off); r.collapse(true);
   var s=window.getSelection(); s.removeAllRanges(); s.addRange(r);
 }
-
 function focusPaper(el){
   var p=el.closest?el.closest('.paper'):null;
   if(p&&p.focus)p.focus({preventScroll:true});
 }
-
-function textLen(el){ return (el.textContent||'').length }
-
-document.addEventListener('selectionchange',function(){
-  if(posTimer)clearTimeout(posTimer);
-  posTimer=setTimeout(function(){ updateCaretPos(); updateAlignState() },150);
-});
-
-function updateCaretPos(){
-  var el=document.getElementById('st-pos');
-  if(!el)return;
-  var c=saveCaret();
-  if(!c){el.textContent='第 1 页 · 行 1, 列 1';return}
-  var blk=document.querySelector('#display-pane [data-bid="'+c.bid+'"]');
-  var page=1;
-  if(blk){
-    var sheets=document.querySelectorAll('#display-pane .sheet');
-    for(var i=0;i<sheets.length;i++){
-      if(sheets[i].contains(blk)){page=i+1;break}
-    }
-  }
-  var line=c.bid, col=c.off+1;
-  for(var j=0;j<gNodes.length;j++){ if(gNodes[j].bid==c.bid){line=gNodes[j].srcStart+1;break} }
-  el.textContent='第 '+page+' 页 · 行 '+line+', 列 '+col;
-}
-
-function insertAtSelection(text){
-  var sel=window.getSelection();
-  if(!sel.rangeCount)return;
-  var r=sel.getRangeAt(0);
-  r.deleteContents();
-  var tn=document.createTextNode(text);
-  r.insertNode(tn);
-  r.setStartAfter(tn); r.collapse(true);
-  sel.removeAllRanges(); sel.addRange(r);
-}
-
-function selectAllDoc(){
-  var p=document.querySelector('#display-pane .paper');
-  if(p&&currentMode!=='syntax'){ p.focus(); document.execCommand('selectAll') }
-  else{ var ta=document.getElementById('syntax-src'); if(ta){ta.focus();ta.select()} }
-}
-
-function caretBlock(){
-  var s=window.getSelection();
-  if(!s.rangeCount)return null;
-  var node=s.getRangeAt(0).startContainer;
-  return node.nodeType===1?(node.closest?node.closest('[data-bid]'):null):(node.parentElement&&node.parentElement.closest('[data-bid]'));
-}
+// 跨页合并:Backspace 在页首块起点 / Delete 在页尾块终点

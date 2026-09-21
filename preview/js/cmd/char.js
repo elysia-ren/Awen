@@ -1,5 +1,6 @@
+// 字符格式命令:粗斜下划/上下标/颜色/字号/字体/样式/列表(自单文件版拆出;传统 script,全局变量直接共享)
+// ═══ 工具栏命令 ═══
 function inDisplayMode(){ return currentMode!=='syntax' }
-
 function fmtCmd(cmd){
   if(inDisplayMode()){
     document.execCommand(cmd,false,null);
@@ -9,7 +10,6 @@ function fmtCmd(cmd){
     if(map[cmd])wrapSyntax(map[cmd][0],map[cmd][1]);
   }
 }
-
 function fmtCmdInline(){
   if(inDisplayMode()){
     var s=window.getSelection();
@@ -25,7 +25,7 @@ function fmtCmdInline(){
   }
   else wrapSyntax('`','`');
 }
-
+// 保格式包裹:保留选区内嵌套标记,跨段落拒绝
 function wrapSpan(open, close, style, native){
   var s=window.getSelection();
   if(!s.rangeCount||s.isCollapsed)return false;
@@ -49,7 +49,6 @@ function applyColor(v){
   if(inDisplayMode()){ document.execCommand('foreColor',false,v); onPaperInput() }
   else wrapSyntax('@[color '+v+']','@[/color]');
 }
-
 function applyMark(v){
   if(inDisplayMode()){
     var s=window.getSelection();
@@ -58,7 +57,6 @@ function applyMark(v){
   }
   else wrapSyntax('@[mark '+v+']','@[/mark]');
 }
-
 function applySize(v){
   if(!v)return;
   if(inDisplayMode()){
@@ -68,7 +66,6 @@ function applySize(v){
   }
   else wrapSyntax('@[size '+v+']','@[/size]');
 }
-
 function applyFont(v){
   if(!v)return;
   if(inDisplayMode()){
@@ -79,79 +76,35 @@ function applyFont(v){
   else wrapSyntax('@[font "'+v+'"]','@[/font]');
   document.getElementById('sel-font').selectedIndex=0;
 }
-
-function toggleCase(){
-  var sel=window.getSelection();
-  if(!sel.rangeCount||sel.isCollapsed){ document.getElementById('findmsg').textContent='请先选中英文文字'; return }
-  var t=sel.toString();
-  if(!/[a-zA-Z]/.test(t)){ document.getElementById('findmsg').textContent='选中内容不含英文字母'; return }
-  var allUp=t===t.toUpperCase(), allLow=t===t.toLowerCase();
-  var next;
-  if(!allUp&&!allLow)next=t.toUpperCase();
-  else if(allLow)next=t.charAt(0).toUpperCase()+t.slice(1).toLowerCase();
-  else if(allUp)next=t.toLowerCase();
-  else next=t.toLowerCase();
-  // 记录选区,替换后重设——保持选中以便连续点击循环
-  var rng=sel.getRangeAt(0);
-  document.execCommand('insertText',false,next);
-  var sel2=window.getSelection();
-  if(sel2.rangeCount){
-    var r2=sel2.getRangeAt(0);
-    try{ r2.setStart(r2.endContainer,r2.endOffset-t.length); r2.setEnd(r2.endContainer,r2.endOffset); sel2.removeAllRanges(); sel2.addRange(r2) }catch(e){}
+function applyStyle(lv){
+  if(lv==='')return;
+  var bel=caretBlock();
+  var bid;
+  if(bel)bid=+bel.dataset.bid;
+  else{
+    var ta=document.getElementById('syntax-src');
+    if(!ta)return;
+    var pos=ta.value.substring(0,ta.selectionStart).split('\n').length-1;
+    for(var i=0;i<gNodes.length;i++){ if(pos>=gNodes[i].srcStart&&pos<gNodes[i].srcEnd){ bid=gNodes[i].bid; break } }
+    if(bid===undefined)return;
   }
-  onPaperInput();
+  var b=nodeByBid(bid);
+  if(!b)return;
+  var el=document.querySelector('#display-pane [data-bid="'+bid+'"]');
+  var body=el?Engine.inlineSource(el).replace(/^#+\s*/,'').trim():Engine.displayText(b.text);
+  var lines=gSrc.split('\n');
+  lines.splice(b.srcStart,b.srcEnd-b.srcStart,'#'.repeat(+lv)+' '+body);
+  setSrc(lines.join('\n'));
+  restoreCaret({bid:bid,off:0});
+}
+function listCmd(kind){
+  if(inDisplayMode()){
+    document.execCommand(kind==='ul'?'insertUnorderedList':'insertOrderedList',false,null);
+    onPaperInput();
+  }else insertSyntax(kind==='ul'?'\n- 列表项\n':'\n1. 列表项\n');
 }
 
-function brushDouble(){
-  brushClick();
-  if(brushCmd){ brushSticky=true; document.getElementById('findmsg').textContent='连续格式刷:逐段选中文字应用;Esc 退出' }
-}
-
-function brushClick(){
-  if(brushCmd){ stopBrush(); return }   // 再点取消刷模式
-  var sel=window.getSelection();
-  var node=sel.rangeCount?sel.getRangeAt(0).startContainer:null;
-  var el=node&&(node.nodeType===1?node:node.parentElement);
-  var src=el&&el.closest?el.closest('[data-cmd],b,strong,i,em,u,del,s,strike,code'):null;
-  if(!src){ document.getElementById('findmsg').textContent='光标处无可吸取的格式'; return }
-  if(src.dataset&&src.dataset.cmd){
-    brushCmd={cmd:src.getAttribute('data-cmd'),close:src.getAttribute('data-close')||'',native:false};
-  }else{
-    var tag=src.tagName;
-    if(tag==='B'||tag==='STRONG')brushCmd={cmd:'**',close:'**',native:false};
-    else if(tag==='I'||tag==='EM')brushCmd={cmd:'_',close:'_',native:false};
-    else if(tag==='U')brushCmd={cmd:'@[u]',close:'@[/u]',native:false};
-    else if(tag==='DEL'||tag==='S'||tag==='STRIKE')brushCmd={cmd:'~~',close:'~~',native:false};
-    else if(tag==='CODE')brushCmd={cmd:'`',close:'`',native:true};
-    else{ document.getElementById('findmsg').textContent='光标处无可吸取的格式'; return }
-  }
-  document.getElementById('btn-brush').classList.add('on');
-  document.getElementById('findmsg').textContent='格式刷已吸取:选中要应用的文字即可';
-  document.body.style.cursor='crosshair';
-}
-
-function stopBrush(){
-  brushCmd=null;
-  brushSticky=false;
-  var b=document.getElementById('btn-brush');
-  if(b)b.classList.remove('on');
-  document.body.style.cursor='';
-}
-
-document.addEventListener('selectionchange',function(){
-  if(!brushCmd)return;
-  var sel=window.getSelection();
-  if(!sel.rangeCount||sel.isCollapsed)return;
-  var node=sel.getRangeAt(0).startContainer;
-  var el=node&&(node.nodeType===1?node:node.parentElement);
-  if(!el||!el.closest||!el.closest('.paper'))return;
-  var cmd=brushCmd, sticky=brushSticky;
-  if(!sticky)stopBrush();
-  if(wrapSpan(cmd.cmd,cmd.close,null,cmd.native))onPaperInput();
-});
-
-document.getElementById('display-pane').addEventListener('keydown',onPaperKey);
-
+var SIZE_LADDER=[9,10.5,11,12,14,16,18,20,22,26,36,48,72];
 function stepSize(d){
   var sel=document.getElementById('sel-size');
   var cur=parseFloat(sel.value)||10.5;

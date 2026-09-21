@@ -1,16 +1,26 @@
+// 色板:功能区/迷你栏共用浮动面板,最近使用持久化(自单文件版拆出;传统 script,全局变量直接共享)
+// ═══ 色板:单一浮动面板,功能区/迷你栏四箭头共用,每次打开重建 ═══
+var curFore='#c0392b', curMark='#fff176';
+var PAL_MAIN=['#000000','#404040','#808080','#bfbfbf','#ffffff','#c00000','#ff0000','#ffc000','#ffff00','#92d050',
+              '#00b050','#00b0f0','#0070c0','#002060','#7030a0','#7f6000','#e36c09','#4bacc6','#8064a2','#948a54'];
+var _palOpenKind=null;
+// ═══ 色板最近使用(localStorage 持久化)═══
+var recentColors=[];
+try{
+  var _rc=JSON.parse(localStorage.getItem('awen-recent-colors')||'[]');
+  if(Array.isArray(_rc))recentColors=_rc;
+}catch(e){}
 function pushRecent(c){
   recentColors=recentColors.filter(function(x){return x!==c});
   recentColors.unshift(c);
   if(recentColors.length>8)recentColors.pop();
   try{localStorage.setItem('awen-recent-colors',JSON.stringify(recentColors))}catch(e){}
 }
-
 function applyPal(kind,c){
   if(kind==='fore'){curFore=c;applyColor(c)}
   else{curMark=c;applyMark(c)}
   pushRecent(c);
 }
-
 function palSwatch(parent,c){
   var sw=document.createElement('div');
   sw.className='sw'; sw.style.background=c; sw.title=c;
@@ -18,7 +28,7 @@ function palSwatch(parent,c){
   sw.onclick=function(){applyPal(kindOfPal,c);closePal()};
   parent.appendChild(sw);
 }
-
+var kindOfPal=null;
 function togglePal(e,kind){
   e.stopPropagation();
   var pal=document.getElementById('float-pal');
@@ -75,13 +85,11 @@ function togglePal(e,kind){
   pal.classList.add('open');
   _palOpenKind=kind;
 }
-
 function closePal(){
   _palOpenKind=null;
   var fp=document.getElementById('float-pal');
   if(fp){fp.classList.remove('open');fp.style.display='none'}
 }
-
 document.addEventListener('click',function(e){
   if(_palOpenKind&&!e.target.closest('#float-pal')&&!e.target.closest('.half-caret')&&!e.target.closest('.splitbtn .rbtn')){
     closePal();

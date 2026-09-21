@@ -1,17 +1,40 @@
-function render(src){
+// 渲染:每张 A4 纸一个整体可编辑区(render 走 Bridge.parse 权威解析)(自单文件版拆出;传统 script,全局变量直接共享)
+// ═══ 渲染:每张 A4 纸一个整体可编辑区(原生 Enter/Delete)═══
+var gSrc='', gPages=[], gNodes=[];
+// 渲染入口(异步):源码 → Aine 权威解析 → ingest → 分页 → DOM
+// seq 防过期:新请求发出后,旧响应丢弃
+var renderSeq=0;
+// renderPending=true 表示权威渲染在途,纸面 DOM 还是旧结构——
+// 期间 serializeAll 只会拿到旧内容,applySyncNow 必须推迟而不是覆盖 gSrc
+var renderPending=false;
+function render(src,caret,done){
   gSrc=src;
-  gNodes=Engine.parse(src);
-  Engine.applyDocsets(gNodes);   // 文档级 @[page/margin/...] 设置生效(源码即权威)
-  CFG=Engine.getConfig();
-  gPages=Engine.layoutPages(gNodes);
-  renderNodes();
+  renderPending=true;
+  var seq=++renderSeq;
+  Bridge.parse(src).then(function(res){
+    if(seq!==renderSeq)return;
+    renderPending=false;
+    gNodes=Engine.ingestNative(res.blocks||[],gSrc);
+    Engine.applyDocsets(gNodes);   // 文档级 @[page/margin/...] 设置生效(源码即权威)
+    CFG=Engine.getConfig();
+    gPages=Engine.layoutPages(gNodes);
+    renderNodes();
+    nativeDiags={src:gSrc,ds:res.diags||[]};
+    updateDiagBar();
+    if(caret)restoreCaret(caret);
+    if(done)done();
+  }).catch(function(e){
+    renderPending=false;
+    document.getElementById('st-diag').textContent='解析失败';
+    console.error(e);
+  });
 }
-
+// 只重排+重渲(不重新解析/不重应用文档设置)——横向等会话级覆盖用
 function renderKeep(){
   gPages=Engine.layoutPages(gNodes);
   renderNodes();
 }
-
+// 用现有 gNodes/gPages 重建纸面 DOM(本地解析与原生权威解析共用出口)
 function renderNodes(){
   var pane=document.getElementById('display-pane');
   pane.innerHTML='';
@@ -126,9 +149,7 @@ function renderNodes(){
   var ta=document.getElementById('syntax-src');
   if(ta&&ta.value!==gSrc)ta.value=gSrc;
 }
-
 function gapEl(){ var g=document.createElement('div'); g.className='gap'; g.contentEditable='false'; return g }
-
 function makeBlock(b,item){
   var html;
   if(item.whole||item.l0===undefined){
@@ -150,7 +171,6 @@ function makeBlock(b,item){
   if(item.l0>0)el.style.textIndent='0';  el.innerHTML=Engine.fmtH(text);
   return el;
 }
-
 function renderOutline(){
   var ol=document.getElementById('outline');
   ol.innerHTML='';
@@ -169,7 +189,6 @@ function renderOutline(){
     })(n);
   }
 }
-
 function renderStatus(){
   var chars=0, labels=0;
   for(var i=0;i<gNodes.length;i++){
@@ -180,9 +199,4 @@ function renderStatus(){
   document.getElementById('st-words').textContent=chars+' 字';
   document.getElementById('st-labels').textContent='标签 '+labels;
   document.getElementById('st-page').textContent='共 '+gPages.length+' 页';
-}
-
-function nodeByBid(bid){
-  for(var i=0;i<gNodes.length;i++){ if(gNodes[i].bid==bid)return gNodes[i] }
-  return null;
 }

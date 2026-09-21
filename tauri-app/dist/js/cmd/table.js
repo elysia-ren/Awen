@@ -1,5 +1,6 @@
+// 表格行列操作与插入网格弹窗(自单文件版拆出;传统 script,全局变量直接共享)
+// ═══ 表格行列操作 ═══
 function inTable(){ var b=caretBlock(); return b&&b.closest?b.closest('table'):null }
-
 function selTr(){
   var s=window.getSelection();
   if(!s.rangeCount)return null;
@@ -7,7 +8,6 @@ function selTr(){
   var el=n.nodeType===1?n:n.parentElement;
   return el?el.closest('tr'):null;
 }
-
 function selCell(){
   var s=window.getSelection();
   if(!s.rangeCount)return null;
@@ -15,7 +15,6 @@ function selCell(){
   var el=n.nodeType===1?n:n.parentElement;
   return el?el.closest('th,td'):null;
 }
-
 function tblInsRow(){
   var tbl=inTable(); if(!tbl)return;
   var tr=selTr();
@@ -24,7 +23,6 @@ function tblInsRow(){
   tr.parentNode.insertBefore(nr,tr.nextSibling);
   onPaperInput();
 }
-
 function tblDelRow(){
   var tbl=inTable(); if(!tbl)return;
   var body=tbl.querySelector('tbody')||tbl;
@@ -33,7 +31,6 @@ function tblDelRow(){
   if(tr)tr.parentNode.removeChild(tr);
   onPaperInput();
 }
-
 function tblInsCol(){
   var tbl=inTable(); if(!tbl)return;
   var ref=selCell();
@@ -44,7 +41,6 @@ function tblInsCol(){
   });
   onPaperInput();
 }
-
 function tblDelCol(){
   var tbl=inTable(); if(!tbl)return;
   var ref=selCell();
@@ -56,6 +52,8 @@ function tblDelCol(){
   onPaperInput();
 }
 
+// ═══ 表格行列选择 ═══
+var tblPopAnchor=null;
 function toggleTblPop(btn){
   var pop=document.getElementById('tblpop');
   var open=pop.style.display!=='flex';
@@ -67,12 +65,10 @@ function toggleTblPop(btn){
   pop.style.display=open?'flex':'none';
   tblPopAnchor=caretBlock();
 }
-
 document.addEventListener('click',function(e){
   var pop=document.getElementById('tblpop');
   if(pop&&pop.style.display==='flex'&&!e.target.closest('#tblpop')&&!e.target.closest('[onclick^="toggleTblPop"]'))pop.style.display='none';
 });
-
 function insertTableGrid(){
   var rows=parseInt(document.getElementById('tbl-rows').value)||3;
   var cols=parseInt(document.getElementById('tbl-cols').value)||3;

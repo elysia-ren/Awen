@@ -204,3 +204,5 @@ body.show-marks .paper p::after{content:' b6';color:#d5d8dc;margin-left:2px}
 .paper .math-content{font-family:Georgia,serif;font-style:italic;font-size:12pt;color:#2a4a66}
 .paper .lblref-block{background:#eef4f8;color:#2a4a66;font-size:9pt;font-family:var(--sans);border-radius:3px;padding:2px 8px;display:inline-block}
 .paper .ref-block{background:#f0f4f0;color:#3a6a3a;font-size:9pt;font-family:var(--sans);border-radius:3px;padding:2px 8px;display:inline-block}
+
+::highlight(findhit){background-color:#ffe27a}

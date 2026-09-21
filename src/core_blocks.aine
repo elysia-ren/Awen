@@ -87,6 +87,10 @@ fn blocks_to_json(state: DocState, src: String) -> String {
                     if starts_with_at(f, 0, "@[m]") || starts_with_at(f, 0, "@[math]") {
                         bkind = "math"
                     }
+                    // 裸开 @[comment] 的 RawBlk:块类型是注释而非代码
+                    if f == "@[comment]" {
+                        bkind = "comment"
+                    }
                 }
                 recs = recs.push(block_rec(bkind, 0, s, e, join_span_lines(lines, s, e), lang))
             } else {

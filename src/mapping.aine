@@ -115,12 +115,17 @@ fn find_node_end(lines: Vec<String>, start: i32, node: SemNode) -> i32 {
         return start
     }
     if node.kind == "comment" {
-        var i = start
-        if lines[i].trim().contains("@[/comment]") { return i }
-        var j = start + 1
-        while j < lines.len() {
-            if lines[j].trim().contains("@[/comment]") { return j }
-            j += 1
+        // 单行式(@[comment 内容]):本行即闭,不向后扫描——
+        // 否则会吞掉后续块直到出现某个 @[/comment],撑大 span 使
+        // compute_spans 的 line_idx 错位、后续节点全部找不到起点
+        let open = lines[start].trim()
+        if open == "@[comment]" || open == "@[comment ]" {
+            // 裸开式:向后找闭合行
+            var j = start + 1
+            while j < lines.len() {
+                if lines[j].trim().contains("@[/comment]") { return j }
+                j += 1
+            }
         }
         return start
     }

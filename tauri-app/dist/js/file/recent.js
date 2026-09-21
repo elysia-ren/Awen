@@ -1,3 +1,5 @@
+// 最近文件(localStorage;桌面版带路径可直开)(自单文件版拆出;传统 script,全局变量直接共享)
+// ═══ 最近文件(localStorage;桌面版带路径可直开,浏览器版仅记录名称)═══
 function getRecent(){
   try{
     var l=JSON.parse(localStorage.getItem('awen-recent-files')||'[]');
@@ -5,14 +7,12 @@ function getRecent(){
   }catch(e){}
   return [];
 }
-
 function pushRecentFile(name,path){
   var list=getRecent().filter(function(x){return x.path?x.path!==path:x.name!==name});
   list.unshift({name:name,path:path||null,time:Date.now()});
   if(list.length>10)list=list.slice(0,10);
   try{localStorage.setItem('awen-recent-files',JSON.stringify(list))}catch(e){}
 }
-
 function renderRecentList(){
   var el=document.getElementById('recent-list');
   if(!el)return;

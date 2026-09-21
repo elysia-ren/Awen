@@ -1,3 +1,6 @@
+// 编辑同步入口:纸面输入 → 序列化 → 节流权威解析;键盘块级操作(自单文件版拆出;传统 script,全局变量直接共享)
+// ═══ 编辑同步:输入 → 序列化 → 必要时重排 ═══
+var repagTimer=null,lastEditSource=null;
 function onPaperInput(e){
   if(repagTimer)clearTimeout(repagTimer);
   // 标点成步:句末标点立即落一步,且下一笔必开新语义步
@@ -5,38 +8,60 @@ function onPaperInput(e){
   if(punct){ applySyncNow(); histTime=0; return }
   repagTimer=setTimeout(applySyncNow,300);
 }
-
-function applySyncNow(){
-  if(repagTimer){clearTimeout(repagTimer);repagTimer=null}
-  if(lastEditSource==='syntax'||currentMode==='syntax'){
-    // 语法视图/语法侧编辑:输入框即源码权威(§85),不再从纸面 DOM 反写
-    var ta=document.getElementById('syntax-src');
-    var taVal=ta?ta.value:'';
-    if(taVal===gSrc)return;
-    gSrc=taVal;
-    if(currentMode==='split')render(gSrc);
-    updateDiagBar();
-    scheduleNativeDiags();
-    return;
-  }
-  // 纸面编辑:DOM 序列化回写(含跨页片段合并)
-  var newSrc=Engine.serializeAll();
-  if(newSrc===gSrc)return;
-  gSrc=newSrc;
-  var ta=document.getElementById('syntax-src');
-  if(ta)ta.value=gSrc;
-  recordHist(gSrc,true);
-  var caret=saveCaret();
-  var before=gPages.length+'|'+gPages.map(function(p){return p.length?p[0].b.bid:-1}).join(',');
-  gNodes=Engine.parse(gSrc);
-  Engine.applyDocsets(gNodes);
-  CFG=Engine.getConfig();
-  gPages=Engine.layoutPages(gNodes);
-  var after=gPages.length+'|'+gPages.map(function(p){return p.length?p[0].b.bid:-1}).join(',');
-  if(before!==after){ renderNodes(); restoreCaret(caret) }
-  else { renderOutline(); renderStatus() }
+function swapSplit(){
+  var ws=document.querySelector('.workspace');
+  var dp=document.getElementById('display-pane');
+  var sp=document.getElementById('syntax-pane');
+  var st=document.getElementById('splitter');
+  if(!dp||!sp)return;
+  if(dp.nextElementSibling===sp){ ws.insertBefore(sp,dp); }
+  else{ ws.insertBefore(dp,sp); }
+  // 分隔条保持在两窗格之间
+  if(st){ ws.insertBefore(st,sp); }
 }
 
+function onPaperKey(e){
+  if((e.ctrlKey||e.metaKey)&&!e.shiftKey&&e.key==='b'){ e.preventDefault(); fmtCmd('bold'); return }
+  if((e.ctrlKey||e.metaKey)&&!e.shiftKey&&e.key==='i'){ e.preventDefault(); fmtCmd('italic'); return }
+  if((e.ctrlKey||e.metaKey)&&!e.shiftKey&&e.key==='u'){ e.preventDefault(); fmtCmd('underline'); return }
+  if((e.ctrlKey||e.metaKey)&&e.key==='s'){ e.preventDefault(); doSave(); return }
+  if(e.key==='Enter'&&e.target.closest&&e.target.closest('table')){ e.preventDefault(); return }
+  if(e.key==='Backspace'){
+    var c=saveCaret();
+    if(c&&c.off===0){
+      var el=document.querySelector('#display-pane [data-bid="'+c.bid+'"]');
+      var paper=el&&el.closest('.paper');
+      if(paper){
+        var first=paper.querySelector('[data-bid]');
+        if(first===el&&+c.bid>0){
+          var prev=nodeByBid(+c.bid-1);
+          if(prev&&prev.kind!=='table'&&prev.kind!=='obj'){ e.preventDefault(); mergeBlocks(+c.bid-1,+c.bid) }
+        }
+      }
+    }
+  }
+  else if(e.key==='Delete'){
+    var c2=saveCaret();
+    if(c2){
+      var el2=document.querySelector('#display-pane [data-bid="'+c2.bid+'"]');
+      var paper2=el2&&el2.closest('.paper');
+      if(paper2){
+        var blocks=paper2.querySelectorAll('[data-bid]');
+        var lastEl=blocks[blocks.length-1];
+        var len=textLen(lastEl);
+        if(lastEl===el2&&c2.off>=len){
+          var next=nodeByBid(+c2.bid+1);
+          if(next&&next.kind!=='table'&&next.kind!=='obj'){ e.preventDefault(); mergeBlocks(+c2.bid,+c2.bid+1) }
+        }
+      }
+    }
+  }
+}
+function textLen(el){ return (el.textContent||'').length }
+function nodeByBid(bid){
+  for(var i=0;i<gNodes.length;i++){ if(gNodes[i].bid==bid)return gNodes[i] }
+  return null;
+}
 function mergeBlocks(keepBid,goneBid){
   var keep=nodeByBid(keepBid), gone=nodeByBid(goneBid);
   if(!keep||!gone)return;
@@ -49,12 +74,7 @@ function mergeBlocks(keepBid,goneBid){
   var mergedLine=Engine.blockPrefix(keep.kind,keep.level)+(keepText+' '+goneText).replace(/\s+/g,' ').trim();
   lines.splice(keep.srcStart,gone.srcEnd-keep.srcStart,mergedLine);
   var caret={bid:keepBid,off:junction+1};
-  render(lines.join('\n'));
-  restoreCaret(caret);
+  // render 异步:光标经 caret 参数在权威解析回调里恢复(同步 restoreCaret 会扑空)
+  render(lines.join('\n'),caret);
   recordHist(gSrc,false);
 }
-
-document.getElementById('display-pane').addEventListener('input',function(e){
-  lastEditSource='paper';
-  onPaperInput(e);
-});
