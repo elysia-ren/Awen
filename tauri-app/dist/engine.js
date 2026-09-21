@@ -334,9 +334,10 @@ function ingestNative(blocks,src){
     }else if(k==='para'){
       b.text=raw.map(function(l){return l.trim()}).filter(function(l){return l!==''}).join(' ');
     }else if(k==='ul'||k==='ol'){
-      var items=raw.map(function(l){return l.trim()}).filter(function(l){return l!==''});
+      // 层级必须从【原始行】的前导空格计算(trim 后信息即丢失)
+      var items=raw.filter(function(l){return l.trim()!==''});
       b.level=items.length?Math.floor((items[0].length-items[0].replace(/^\s+/,'').length)/2):0;
-      b.text=items.map(function(l){return l.replace(k==='ul'?/^[-*] /:/^\d+\. /,'')}).join(' ');
+      b.text=items.map(function(l){return l.trim().replace(k==='ul'?/^[-*] /:/^\d+\. /,'')}).join(' ');
     }else if(k==='quote'){
       b.text=raw.map(function(l){return l.trim()}).filter(function(l){return l!==''})
         .map(function(l){return l.replace(/^>\s*/,'')}).join(' ');
