@@ -1,15 +1,5 @@
-function swapSplit(){
-  var ws=document.querySelector('.workspace');
-  var dp=document.getElementById('display-pane');
-  var sp=document.getElementById('syntax-pane');
-  var st=document.getElementById('splitter');
-  if(!dp||!sp)return;
-  if(dp.nextElementSibling===sp){ ws.insertBefore(sp,dp); }
-  else{ ws.insertBefore(dp,sp); }
-  // 分隔条保持在两窗格之间
-  if(st){ ws.insertBefore(st,sp); }
-}
-
+// 视图:语法视图 / 模式与缩放 / 专注模式 / 全局快捷键 / 大纲跟随(自单文件版拆出;传统 script,全局变量直接共享)
+// ═══ 语法视图(同一 A4 纸张几何)═══
 function buildSyntaxPane(){
   if(document.getElementById('syntax-src'))return;
   var pane=document.getElementById('syntax-pane');
@@ -77,7 +67,6 @@ function buildSyntaxPane(){
     ta.addEventListener(ev,function(){ setGutterCur(caretLineNumber()) });
   });
 }
-
 function insertSyntax(text){
   var ta=document.getElementById('syntax-src');
   if(!ta)return;
@@ -87,7 +76,6 @@ function insertSyntax(text){
   ta.focus();
   setSrc(ta.value);
 }
-
 function wrapSyntax(open,close){
   var ta=document.getElementById('syntax-src');
   if(!ta)return;
@@ -100,6 +88,12 @@ function wrapSyntax(open,close){
   setSrc(ta.value);
 }
 
+// ═══ 视图切换 ═══
+var modeBtns=document.querySelectorAll('.view-tabs button');
+var currentMode='display';
+for(var i=0;i<modeBtns.length;i++){
+  (function(b){b.addEventListener('click',function(){setMode(b.dataset.mode)})})(modeBtns[i]);
+}
 function setMode(mode){
   currentMode=mode;
   for(var i=0;i<modeBtns.length;i++)modeBtns[i].classList.toggle('active',modeBtns[i].dataset.mode===mode);
@@ -122,7 +116,6 @@ function setMode(mode){
   if(mode!=='syntax')render(gSrc);
   applyZoom(document.getElementById('sel-zoom').value);
 }
-
 function fitZoom(base){
   var v=parseFloat(base)||1;
   if(currentMode==='split'){
@@ -131,7 +124,7 @@ function fitZoom(base){
   }
   return v;
 }
-
+// 双缩放控件(状态栏+视图页)同步;自定义动态档位两边都补
 function syncZoomSelects(v){
   ['sel-zoom','sel-zoom-view'].forEach(function(id){
     var sel=document.getElementById(id);
@@ -145,7 +138,6 @@ function syncZoomSelects(v){
     sel.value=v;
   });
 }
-
 function applyZoom(v){
   if(v==='custom'){
     var inp=document.getElementById('zoom-custom');
@@ -161,7 +153,7 @@ function applyZoom(v){
   document.getElementById('syntax-pane').style.zoom=z;
   syncZoomSelects(v);
 }
-
+// 自定义缩放百分比:30-300;which=发起控件(其自定义输入框收起,另一控件联动)
 function applyZoomCustom(v,which){
   var x=parseFloat(v);
   if(!(x>=30&&x<=300))return;
@@ -170,37 +162,21 @@ function applyZoomCustom(v,which){
   if(otherInp)otherInp.style.display='none';
   applyZoom(val);
 }
-
 window.addEventListener('resize',function(){ applyZoom(document.getElementById('sel-zoom').value) });
 
-function showRibbon(page){
-  // 折叠状态下点击标签=展开功能区
-  if(ribbonCollapsed)toggleRibbonCollapse();
-  document.querySelectorAll('.tab').forEach(function(t){t.classList.toggle('active',t.dataset.page===page)});
-  document.querySelectorAll('.ribbon-page').forEach(function(p){p.classList.toggle('active',p.dataset.page===page)});
-  if(page==='file')renderRecentList();
-}
+document.getElementById('display-pane').addEventListener('input',function(e){
+  lastEditSource='paper';
+  onPaperInput(e);
+});
+document.getElementById('display-pane').addEventListener('keydown',onPaperKey);
 
-function toggleSidebar(){
-  var sb=document.getElementById('sidebar');
-  var ob=document.getElementById('sb-open');
-  sb.classList.toggle('collapsed');
-  ob.style.display=sb.classList.contains('collapsed')?'block':'none';
-}
-
-function toggleRibbonCollapse(){
-  ribbonCollapsed=!ribbonCollapsed;
-  var r=document.querySelector('.ribbon');
-  r.style.display=ribbonCollapsed?'none':'block';
-  document.getElementById('btn-collapse').style.transform=ribbonCollapsed?'rotate(180deg)':'';
-}
-
+// ═══ 编辑标记显示开关 ═══
 function toggleMarks(){
   var on=document.body.classList.toggle('show-marks');
   var b=document.getElementById('btn-marks');
   if(b)b.classList.toggle('on',on);
 }
-
+// ═══ 专注模式:隐藏功能区/侧栏/状态栏,Esc 或按钮退出 ═══
 function toggleFocus(){
   var app=document.querySelector('.app');
   app.classList.toggle('focus');
@@ -209,7 +185,36 @@ function toggleFocus(){
     if(sb.classList.contains('collapsed'))toggleSidebar();
   }
 }
-
+// ═══ 全局快捷键(对照 Word)═══
+document.addEventListener('keydown',function(e){
+  var mod=e.ctrlKey||e.metaKey;
+  if(e.key==='Escape'){
+    var app=document.querySelector('.app');
+    if(app.classList.contains('focus')){ app.classList.remove('focus'); toggleSidebar(); }
+    if(brushSticky||brushCmd)stopBrush();
+    return;
+  }
+  if(e.altKey&&mod&&!e.shiftKey){
+    var k2=(e.key||'');
+    if(/^[0-6]$/.test(k2)){ e.preventDefault(); applyStyle(k2==='0'?'':k2); return }
+  }
+  if(mod&&e.shiftKey){
+    var k3=(e.key||'');
+    if(k3==='.'||k3==='<'){ e.preventDefault(); stepSize(1); return }
+    if(k3===','||k3==='>'){ e.preventDefault(); stepSize(-1); return }
+  }
+  if(!mod)return;
+  var k=(e.key||'').toLowerCase();
+  if(k==='f'){e.preventDefault();toggleFind();return}
+  if(k==='h'){e.preventDefault();toggleFind();var rb=document.getElementById('replacebox');if(rb)rb.focus();return}
+  if(k==='p'){e.preventDefault();doPrint();return}
+  if(k==='s'){e.preventDefault();doSave();return}
+  if(k==='e'){e.preventDefault();if(inDisplayMode()){document.execCommand('justifyCenter');onPaperInput()}return}
+  if(k==='l'){e.preventDefault();if(inDisplayMode()){document.execCommand('justifyLeft');onPaperInput()}return}
+  if(k==='r'&&!e.shiftKey){e.preventDefault();if(inDisplayMode()){document.execCommand('justifyRight');onPaperInput()}return}
+  if(k==='j'){e.preventDefault();if(inDisplayMode()){document.execCommand('justifyFull');onPaperInput()}return}
+});
+// 缩放入口:发起控件选'自定义'时展开它自己的输入框
 function zoomEntry(v,which){
   if(v==='custom'){
     var inp=document.getElementById(which==='sel-zoom-view'?'zoom-view-custom':'zoom-custom');
@@ -218,13 +223,15 @@ function zoomEntry(v,which){
   }
   applyZoom(v);
 }
+// 选区字号步进:同步字号下拉显示
 
+// ═══ 大纲滚动高亮跟随 ═══
+var spyTimer=null;
 document.getElementById('display-pane').addEventListener('scroll',function(){
   document.getElementById('minibar').style.display='none';
   if(spyTimer)clearTimeout(spyTimer);
   spyTimer=setTimeout(spyOutline,160);
 });
-
 function spyOutline(){
   var heads=document.querySelectorAll('#display-pane [data-kind="heading"]');
   var pane=document.getElementById('display-pane');
@@ -243,3 +250,13 @@ function spyOutline(){
     });
   }
 }
+// 大纲条目记录对应 bid(渲染时)
+var _oldRenderOutline=renderOutline;
+renderOutline=function(){
+  _oldRenderOutline();
+  document.querySelectorAll('.outline-item').forEach(function(o,i){
+    var heads=gNodes.filter(function(n){return n.kind==='heading'});
+    if(heads[i])o.dataset.bid=heads[i].bid;
+  });
+  spyOutline();
+};

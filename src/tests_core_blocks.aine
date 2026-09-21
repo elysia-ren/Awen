@@ -95,3 +95,27 @@ fn core_blocks_nested_list_levels() -> Result<i32, String> {
     assert(json.contains("\"kind\":\"ul\",\"level\":0,\"srcStart\":3,\"srcEnd\":4"), "同级回到 level 0")
     Ok(0)
 }
+
+@test
+fn core_blocks_single_line_comment_no_swallow() -> Result<i32, String> {
+    // 回归:单行式 @[comment 内容](本行已闭)不得向后扫 @[/comment]——
+    // 曾把区间撑到后续多行注释的闭合行,吞掉中间块并使后续节点 span 错位
+    let src = "@[comment 提示一。]\n\n@[image \"a.png\" width 50%]\n\n@[comment]\n块级注释\n@[/comment]\n\n> 引用测试\n\n@[table tt]\n| a |\n| --- |\n| 1 |\n@[/table]\n"
+    let state = build_document(parse(lex(src)), src)
+    let json = blocks_to_json(state, src)
+    assert(json.contains("\"kind\":\"obj\""), "image 应为 obj")
+    assert(json.contains("\"kind\":\"quote\""), "引用不得被吞")
+    assert(json.contains("\"kind\":\"table\""), "表格不得被吞")
+    assert(json.contains("\"srcStart\":8"), "引用行区间应正确")
+    Ok(0)
+}
+
+@test
+fn core_blocks_multiline_comment_kind() -> Result<i32, String> {
+    // 裸开 @[comment] 的 RawBlk 应输出 comment 而非 code
+    let src = "@[comment]\n块级注释内容\n@[/comment]\n"
+    let state = build_document(parse(lex(src)), src)
+    let json = blocks_to_json(state, src)
+    assert(json.contains("\"kind\":\"comment\""), "多行注释应为 comment")
+    Ok(0)
+}

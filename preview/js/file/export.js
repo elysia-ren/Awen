@@ -1,3 +1,5 @@
+// 导出(txt/html/awen)与打印(自单文件版拆出;传统 script,全局变量直接共享)
+// ═══ 导出与打印 ═══
 function exportFile(kind){
   if(kind==='txt'){saveWithPicker(fname('txt'),gSrc);return}
   if(kind==='md'){
@@ -34,5 +36,10 @@ function exportFile(kind){
     saveWithPicker(fname(kind==='html'?'html':'doc'),html);
   }
 }
-
 function doPrint(){window.print()}
+
+// 查找:高亮计数 + 跳转
+function findKey(e){
+  if(e.key==='Enter'){e.preventDefault();findNext()}
+  if(e.key==='Escape')closeFind();
+}

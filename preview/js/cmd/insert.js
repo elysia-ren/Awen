@@ -1,3 +1,4 @@
+// 块级插入 + 本地图片与原始行(自单文件版拆出;传统 script,全局变量直接共享)
 function insertBlock(kind){
   var snippets={
     quote:['> 引用内容'],
@@ -67,7 +68,6 @@ function pickImageInsert(){
   };
   inp.click();
 }
-
 function insertRawLine(line){
   var bel=inDisplayMode()?caretBlock():null;
   var lines=gSrc.split('\n');
@@ -78,3 +78,5 @@ function insertRawLine(line){
   lines.splice(at,0,line);
   setSrc(lines.join('\n'));
 }
+
+// 工具栏按钮按下不清除文字选区(Word 式行为)

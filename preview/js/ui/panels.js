@@ -1,3 +1,15 @@
+// 浮动面板:诊断/标签/符号/功能区显隐/图片属性/折叠(自单文件版拆出;传统 script,全局变量直接共享)
+// ═══ 诊断(原生优先 → 核心 JSON 注入 → 本地快速检查)═══
+function updateDiagBar(){
+  var ds=allDiags();
+  var errs=ds.filter(function(d){return d.sev==='err'}).length;
+  var warns=ds.length-errs;
+  var el=document.getElementById('st-diag');
+  if(!el)return;
+  if(!ds.length){el.textContent='诊断 ✓';el.style.background='transparent'}
+  else{el.textContent='诊断 '+errs+' 错误 '+warns+' 警告';el.style.background=errs?'#a33d2f':'#8a6d1a'}
+  window._diagList=ds;
+}
 function toggleDiagPop(){
   var pop=document.getElementById('diagpop');
   if(!pop)return;
@@ -9,7 +21,7 @@ function toggleDiagPop(){
   }).join(''):'<div style="color:#4a8a4a">没有诊断问题</div>';
   pop.style.display='block';
 }
-
+// 标签清单弹层:列出全部标签块,点击跳转
 function toggleLabelPop(){
   var pop=document.getElementById('diagpop');
   if(!pop)return;
@@ -17,7 +29,6 @@ function toggleLabelPop(){
   renderLabelList();
   pop.style.display='block';
 }
-
 function renderLabelList(){
   var pop=document.getElementById('diagpop');
   var labels=gNodes.filter(function(n){return n.kind==='label'});
@@ -30,9 +41,7 @@ function renderLabelList(){
   }).join(''):'<div style="color:#4a8a4a">文档中没有标签</div>')
   +'<div style="margin-top:6px;font-size:11px;color:#8a8c90">点击名称跳转;「改名」同步更新全部引用</div>';
 }
-
 function renamelabel_esc(s){return String(s||'').replace(/</g,'&lt;')}
-
 function renameLabelStart(bid,btn){
   var b=nodeByBid(bid);
   if(!b)return;
@@ -44,7 +53,6 @@ function renameLabelStart(bid,btn){
   inp.focus(); inp.select();
   inp.onkeydown=function(e){ if(e.key==='Enter')renameLabelApply(bid); if(e.key==='Escape')renderLabelList() };
 }
-
 function renameLabelApply(bid){
   var b=nodeByBid(bid);
   var inp=document.getElementById('rl-input');
@@ -63,7 +71,19 @@ function renameLabelApply(bid){
   if(repagTimer){clearTimeout(repagTimer);repagTimer=null}
   renderLabelList();
 }
+function gotoLine(n){
+  var ta=document.getElementById('syntax-src');
+  if(!ta)return;
+  setMode('syntax');
+  var pos=0,lines=gSrc.split('\n');
+  for(var i=0;i<Math.min(n-1,lines.length);i++)pos+=lines[i].length+1;
+  ta.focus();
+  ta.setSelectionRange(pos,pos+(lines[n-1]?lines[n-1].length:0));
+  setGutterCur(n);
+}
 
+// ═══ 特殊符号面板 ═══
+var SYMBOLS='©®™±×÷≈≠≤≥℃㎡①②③④⑤⑥⑦⑧⑨⑩→←↑↓↔⇒∴∵§¶†‡•…°′″¥€£'.split('');
 function toggleSymbolPanel(btn){
   var old=document.getElementById('symbol-pop');
   if(old){old.remove();return}
@@ -90,6 +110,24 @@ function toggleSymbolPanel(btn){
   },0);
 }
 
+function showRibbon(page){
+  // 折叠状态下点击标签=展开功能区
+  if(ribbonCollapsed)toggleRibbonCollapse();
+  document.querySelectorAll('.tab').forEach(function(t){t.classList.toggle('active',t.dataset.page===page)});
+  document.querySelectorAll('.ribbon-page').forEach(function(p){p.classList.toggle('active',p.dataset.page===page)});
+  if(page==='file')renderRecentList();
+}
+
+// ═══ 侧栏收起/展开 ═══
+function toggleSidebar(){
+  var sb=document.getElementById('sidebar');
+  var ob=document.getElementById('sb-open');
+  sb.classList.toggle('collapsed');
+  ob.style.display=sb.classList.contains('collapsed')?'block':'none';
+}
+
+// ═══ 图片属性面板(E2-5):点击图片→改宽度/对齐→写回源码行 ═══
+var btn_anchor=null;
 function openImagePanel(bid){
   var b=nodeByBid(bid);
   if(!b||b.kind!=='obj')return;
@@ -150,21 +188,18 @@ function openImagePanel(bid){
   },0);
 }
 
-function showWordCount(){
-  var chars=0, charsSp=0, paras=0, words=0;
-  var paper=document.querySelector('#display-pane .paper');
-  if(paper){
-    var txt=paper.textContent;
-    charsSp=txt.replace(/\s{2,}/g,' ').trim().length;
-    chars=txt.replace(/\s/g,'').length;
-    paras=gNodes.filter(function(n){return n.kind==='para'||n.kind==='heading'}).length;
-  }
-  var pop=document.getElementById('diagpop');
-  pop.innerHTML='<div style="font-weight:600;margin-bottom:6px">字数统计</div>'
-    +'<div>字数(不计空格): <b>'+chars+'</b></div>'
-    +'<div>字符数(计空格): <b>'+charsSp+'</b></div>'
-    +'<div>段落数: <b>'+paras+'</b></div>'
-    +'<div>页数: <b>'+gPages.length+'</b></div>';
-  pop.style.display='block';
-  setTimeout(function(){pop.style.display='none'},4000);
+document.querySelectorAll('.ribbon,.tabbar,#minibar,#float-pal').forEach(function(root){
+  if(!root)return;
+  root.addEventListener('mousedown',function(e){
+    if(e.target.closest('button,label,.sw'))e.preventDefault();
+  });
+});
+
+// ═══ 功能区折叠 ═══
+var ribbonCollapsed=false;
+function toggleRibbonCollapse(){
+  ribbonCollapsed=!ribbonCollapsed;
+  var r=document.querySelector('.ribbon');
+  r.style.display=ribbonCollapsed?'none':'block';
+  document.getElementById('btn-collapse').style.transform=ribbonCollapsed?'rotate(180deg)':'';
 }

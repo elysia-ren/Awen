@@ -1,3 +1,5 @@
+// DOCX 导入(mammoth 本地分发;HTML → Awen 语法)(自单文件版拆出;传统 script,全局变量直接共享)
+// ═══ DOCX 导入(mammoth 本地分发,离线可用;HTML → Awen 语法转换)═══
 function importDocx(){
   if(typeof mammoth==='undefined'){ alert('转换库未加载(vendor/mammoth.browser.min.js 缺失)'); return }
   var inp=document.createElement('input');
@@ -32,7 +34,7 @@ function importDocx(){
   };
   inp.click();
 }
-
+// 导出的 HTML → Awen 源码
 function htmlToAwen(html){
   var doc=new DOMParser().parseFromString(html,'text/html');
   var out=[];
@@ -99,3 +101,4 @@ function htmlToAwen(html){
   });
   return res.join('\n');
 }
+// ═══ 真实图片:选本地文件,嵌入 data URI ═══

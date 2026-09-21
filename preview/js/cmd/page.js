@@ -1,3 +1,5 @@
+// 页面设置:纸型/页边距/行距/方向/首行缩进(写回文档级设置行)(自单文件版拆出;传统 script,全局变量直接共享)
+var LSP=[1.15,1.5,1.9,2,2.5];
 function cycleLineSpacing(){
   var cur=Engine.getConfig().LINE_H;
   var idx=0;
@@ -8,6 +10,7 @@ function cycleLineSpacing(){
   if(btn)btn.title='行距(当前 '+v+' 倍,点击切换)';
 }
 
+// ═══ 页面设置(写回文档级设置行,源码即权威)═══
 function setDocsetLine(matchRe,newLine){
   var lines=gSrc.split('\n');
   for(var i=0;i<lines.length;i++){
@@ -23,26 +26,23 @@ function setDocsetLine(matchRe,newLine){
   lines.splice(at,0,newLine);
   setSrc(lines.join('\n'));
 }
-
 function applyPaper(v){
   var sz=Engine.PAPER_SIZES[v]; if(!sz)return;
   setDocsetLine(/^@\[page\s/,'@[page '+v+']');
 }
-
 function applyMargin(v){
   if(v==='custom'){
     var inp=document.getElementById('margin-custom');
     inp.style.display='block'; inp.focus();
     return;
   }
-  setDocsetLine(/^@\[margin\s/,'@[margin '+v+'mm]');
+  var x=parseFloat(v);
+  if(x>0) setDocsetLine(/^@\[margin\s/,'@[margin '+x+'mm]');
 }
-
 function applyMarginCustom(v){
   var x=parseFloat(v);
   if(x>=5&&x<=60) setDocsetLine(/^@\[margin\s/,'@[margin '+x+'mm]');
 }
-
 function applyLineSpacing(v){
   if(v==='custom'){
     var inp=document.getElementById('linesp-custom');
@@ -51,12 +51,10 @@ function applyLineSpacing(v){
   }
   setDocsetLine(/^@\[line-spacing\s/,'@[line-spacing '+v+']');
 }
-
 function applyLineSpacingCustom(v){
   var x=parseFloat(v);
   if(x>=1&&x<=4) setDocsetLine(/^@\[line-spacing\s/,'@[line-spacing '+x+']');
 }
-
 function toggleOrientation(){
   // 横向为会话级覆盖(规范暂无横向语法):只重排,不写回源码
   Engine.setPage({PAGE_W:CFG.PAGE_H,PAGE_H:CFG.PAGE_W});
@@ -64,6 +62,7 @@ function toggleOrientation(){
   document.getElementById('btn-orient').textContent=CFG.PAGE_W>CFG.PAGE_H?'横向':'纵向';
 }
 
+// ═══ 首行缩进开关(@[first-line 2em] 文档级)═══
 function toggleFirstLine(){
   var lines=gSrc.split('\n');
   var idx=-1;

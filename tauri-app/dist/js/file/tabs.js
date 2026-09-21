@@ -1,3 +1,7 @@
+// 多文件标签管理(自单文件版拆出;传统 script,全局变量直接共享)
+// ═══ 多文件管理 ═══
+var openFiles=[];
+var activeFile=-1;
 function renderFileTabs(){
   var bar=document.getElementById('filetabs');
   bar.innerHTML='';
@@ -14,9 +18,8 @@ function renderFileTabs(){
     bar.appendChild(t);
   });
 }
-
 function switchFile(i){
-  if(i===activeFile)return;
+  if(i===activeFile||!openFiles[i])return;
   applySyncNow();
   if(activeFile>=0){
     openFiles[activeFile].src=gSrc;
@@ -34,7 +37,6 @@ function switchFile(i){
   updateTitle();
   renderFileTabs();
 }
-
 function closeFile(i){
   if(openFiles[i].dirty&&!window.confirm('「'+openFiles[i].name+'」未保存,确定关闭?'))return;
   openFiles.splice(i,1);
@@ -50,7 +52,6 @@ function closeFile(i){
   updateTitle();
   renderFileTabs();
 }
-
 function addFileTab(name,path){
   openFiles.push({name:name,src:gSrc,dirty:docDirty,path:path||null});
   activeFile=openFiles.length-1;
