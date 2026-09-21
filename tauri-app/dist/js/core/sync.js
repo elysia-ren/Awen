@@ -13,11 +13,15 @@ function swapSplit(){
   var dp=document.getElementById('display-pane');
   var sp=document.getElementById('syntax-pane');
   var st=document.getElementById('splitter');
-  if(!dp||!sp)return;
-  if(dp.nextElementSibling===sp){ ws.insertBefore(sp,dp); }
-  else{ ws.insertBefore(dp,sp); }
-  // 分隔条保持在两窗格之间
-  if(st){ ws.insertBefore(st,sp); }
+  if(!dp||!sp||!ws)return;
+  // 语法窗格当前在显示窗格之前 → 换回显示在前;否则换语法在前
+  if(sp.compareDocumentPosition(dp)&Node.DOCUMENT_POSITION_FOLLOWING){
+    ws.insertBefore(dp,sp);
+    if(st)ws.insertBefore(st,sp);
+  }else{
+    ws.insertBefore(sp,dp);
+    if(st)ws.insertBefore(st,dp);
+  }
 }
 
 function onPaperKey(e){

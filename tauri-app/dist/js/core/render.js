@@ -148,6 +148,22 @@ function renderNodes(){
   updateGutter();
   var ta=document.getElementById('syntax-src');
   if(ta&&ta.value!==gSrc)ta.value=gSrc;
+  // 同步文档级设置控件(每次渲染后,切文档/改源码均保持一致)
+  var fl=document.getElementById('btn-firstline');
+  if(fl)fl.classList.toggle('on',gSrc.indexOf('@[first-line')>=0);
+  var ps=document.getElementById('sel-parasp');
+  if(ps){
+    var m=gSrc.match(/^@\[para-spacing\s+([^\]]+)\]/m);
+    var v=m?m[1].trim():'0';
+    var has=false;
+    [].forEach.call(ps.options,function(o){ if(o.value===v)has=true });
+    if(!has){
+      var o=document.createElement('option');
+      o.value=v; o.textContent=v;
+      ps.insertBefore(o,ps.options[ps.options.length-1]);
+    }
+    ps.value=v;
+  }
 }
 function gapEl(){ var g=document.createElement('div'); g.className='gap'; g.contentEditable='false'; return g }
 function makeBlock(b,item){

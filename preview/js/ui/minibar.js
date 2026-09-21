@@ -3,7 +3,7 @@
 var mbTimer=null;
 document.addEventListener('selectionchange',function(){
   if(mbTimer)clearTimeout(mbTimer);
-  mbTimer=setTimeout(updateMinibar,140);
+  mbTimer=setTimeout(function(){ updateMinibar(); updateCtxTabs(); },140);
 });
 function updateMinibar(){
   var mb=document.getElementById('minibar');

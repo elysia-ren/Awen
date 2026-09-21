@@ -55,6 +55,42 @@ function applyLineSpacingCustom(v){
   var x=parseFloat(v);
   if(x>=1&&x<=4) setDocsetLine(/^@\[line-spacing\s/,'@[line-spacing '+x+']');
 }
+// 段间距(段后 @[para-spacing];0 = 移除该设置行)
+function applyParaSpacing(v){
+  var inp=document.getElementById('parasp-custom');
+  if(inp)inp.style.display=(v==='custom')?'block':'none';
+  if(v==='custom')return;
+  var lines=gSrc.split('\n');
+  for(var i=0;i<lines.length;i++){
+    if(lines[i].indexOf('@[para-spacing')===0){
+      if(v==='0')lines.splice(i,1); else lines[i]='@[para-spacing '+v+']';
+      setSrc(lines.join('\n'));
+      return;
+    }
+  }
+  if(v!=='0'){
+    var at=0;
+    for(var j=0;j<lines.length;j++){ if(lines[j].indexOf('@[')===0)at=j+1; else break }
+    lines.splice(at,0,'@[para-spacing '+v+']');
+    setSrc(lines.join('\n'));
+  }
+}
+function applyParaSpacingCustom(v){
+  var t=(v||'').trim();
+  if(!t)return;
+  if(/^\d/.test(t)&&t.indexOf('em')<0&&t.indexOf('mm')<0)t=t+'em';
+  applyParaSpacing(t);
+  var sel=document.getElementById('sel-parasp');
+  if(sel){
+    var has=[].some.call(sel.options,function(o){return o.value===t});
+    if(!has){
+      var o=document.createElement('option');
+      o.value=t; o.textContent=t;
+      sel.insertBefore(o,sel.options[sel.options.length-1]);
+    }
+    sel.value=t;
+  }
+}
 function toggleOrientation(){
   // 横向为会话级覆盖(规范暂无横向语法):只重排,不写回源码
   Engine.setPage({PAGE_W:CFG.PAGE_H,PAGE_H:CFG.PAGE_W});
