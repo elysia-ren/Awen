@@ -12,17 +12,33 @@ pre = os.path.join(base, 'preview')
 dist = os.path.join(base, 'tauri-app', 'dist')
 runtime = os.path.join(base, 'tauri-app', 'src-tauri', 'resources', 'aine-runtime')
 
-# 1) tauri-app/dist 前端三件套 + vendor
+# 1) tauri-app/dist 前端 + css + js + vendor
 os.makedirs(dist, exist_ok=True)
 for name, dst_name in [('template.html', 'index.html'), ('engine.js', 'engine.js'), ('bridge.js', 'bridge.js')]:
     shutil.copyfile(os.path.join(pre, name), os.path.join(dist, dst_name))
+css_src = os.path.join(pre, 'css')
+css_dst = os.path.join(dist, 'css')
+if os.path.isdir(css_src):
+    os.makedirs(css_dst, exist_ok=True)
+    for fn in os.listdir(css_src):
+        if fn.endswith('.css'):
+            shutil.copyfile(os.path.join(css_src, fn), os.path.join(css_dst, fn))
+js_src = os.path.join(pre, 'js')
+js_dst = os.path.join(dist, 'js')
+if os.path.isdir(js_src):
+    for root, dirs, files in os.walk(js_src):
+        rel = os.path.relpath(root, js_src)
+        dst_root = js_dst if rel == '.' else os.path.join(js_dst, rel)
+        os.makedirs(dst_root, exist_ok=True)
+        for fn in files:
+            shutil.copyfile(os.path.join(root, fn), os.path.join(dst_root, fn))
 vendor_src = os.path.join(pre, 'vendor')
 vendor_dst = os.path.join(dist, 'vendor')
 if os.path.isdir(vendor_src):
     os.makedirs(vendor_dst, exist_ok=True)
     for fn in os.listdir(vendor_src):
         shutil.copyfile(os.path.join(vendor_src, fn), os.path.join(vendor_dst, fn))
-print('已同步 tauri-app/dist/{index.html,engine.js,bridge.js,vendor/}')
+print('已同步 tauri-app/dist/{index.html,engine.js,bridge.js,css/,js/,vendor/}')
 
 # 3) aine-runtime 暂存
 aine_exe = os.environ.get('AWEN_AINE_EXE') or r'E:\个人项目\Flow\flowc\target\release\aine.exe'
