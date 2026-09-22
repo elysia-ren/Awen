@@ -212,3 +212,9 @@ body.show-marks .paper p::after{content:' b6';color:#d5d8dc;margin-left:2px}
 .rbtn.ph::after,.sbtn.ph::after,.tbtn.ph::after{content:'';position:absolute;top:2px;right:2px;width:6px;height:6px;border-radius:50%;background:#d5493a;box-shadow:0 0 0 1.5px #fff}
 /* 占位功能点击提示 */
 #todo-toast{position:fixed;bottom:52px;left:50%;transform:translateX(-50%);background:#2a2c30;color:#fff;font-size:12px;font-family:var(--sans);padding:8px 14px;border-radius:6px;box-shadow:0 4px 14px rgba(0,0,0,.25);display:none;z-index:400;max-width:70vw;text-align:center}
+
+/* 细滚动条(功能区横向滚动/文本域,避免粗灰带压住界面) */
+.ribbon-page::-webkit-scrollbar,.src-wrap::-webkit-scrollbar,#display-pane::-webkit-scrollbar,#syntax-pane::-webkit-scrollbar,.sidebar::-webkit-scrollbar,#recent-list::-webkit-scrollbar{height:8px;width:8px}
+.ribbon-page::-webkit-scrollbar-thumb,.src-wrap::-webkit-scrollbar-thumb,#display-pane::-webkit-scrollbar-thumb,#syntax-pane::-webkit-scrollbar-thumb,.sidebar::-webkit-scrollbar-thumb,#recent-list::-webkit-scrollbar-thumb{background:#c6c9cd;border-radius:4px}
+.ribbon-page::-webkit-scrollbar-thumb:hover,.src-wrap::-webkit-scrollbar-thumb:hover,#display-pane::-webkit-scrollbar-thumb:hover,#syntax-pane::-webkit-scrollbar-thumb:hover{background:#aeb2b7}
+.ribbon-page::-webkit-scrollbar-track,.src-wrap::-webkit-scrollbar-track,#display-pane::-webkit-scrollbar-track,#syntax-pane::-webkit-scrollbar-track{background:transparent}

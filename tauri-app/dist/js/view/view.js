@@ -215,6 +215,17 @@ document.addEventListener('keydown',function(e){
   }
   if(!mod)return;
   var k=(e.key||'').toLowerCase();
+  // 撤销/重做走应用历史栈(语义步撤销)——编辑区内拦掉浏览器原生 undo,
+  // 原生 undo 只拆 DOM,会与权威渲染冲突;输入控件(查找/文件名)保持原生
+  if(k==='z'||k==='y'){
+    var ae=document.activeElement;
+    var inEditor=ae&&(ae.id==='syntax-src'||(ae.closest&&ae.closest('#display-pane')));
+    if(inEditor){
+      e.preventDefault();
+      if(k==='y'||e.shiftKey)doRedo(); else doUndo();
+      return;
+    }
+  }
   if(k==='f'){e.preventDefault();toggleFind();return}
   if(k==='h'){e.preventDefault();toggleFind();var rb=document.getElementById('replacebox');if(rb)rb.focus();return}
   if(k==='p'){e.preventDefault();doPrint();return}
