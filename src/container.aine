@@ -100,3 +100,237 @@ fn roundtrip_verify(state: DocState, path: String) -> Result<bool, String> {
     // 比较 User Syntax
     return Ok(loaded.state.source == state.source)
 }
+
+// ═══ v0.5 单文件 chunk 容器(用户定稿设计 2026-09-23)═══
+//
+// 物理布局(源码永远在最前,Git/AI/脚本直读明文 User Syntax):
+//   [User Syntax 明文 UTF-8]
+//   "#<awen:container format=0.5>" + 换行
+//   [Manifest JSON 一行]
+//   [chunk 数据连续排列(图片按设计原样保存)]
+//   [u64 LE manifest_offset][8B magic "AWENBIN" + 0x0A]
+//
+// 依赖编译器内置:read_bytes/write_bytes、base64_encode/base64_decode、
+// json_decode、to_bytes(String→Vec<i32>)、bytes_to_string(反向)、
+// Vec.concat、Vec 切片 v[a..b]。
+//
+// codec:本阶段全部 none(图片按设计原样保存);zstd 字段预留,
+// 后续对 SVG/文本资源启用。
+
+struct ChunkOut {
+    name: String
+    mime: String
+    b64: String
+}
+
+struct PackOut {
+    syntax: String
+    names: Vec<String>
+    mimes: Vec<String>
+    chunks: Vec<String>
+}
+
+fn mime_ext(mime: String) -> String {
+    if mime == "image/png" { return "png" }
+    if mime == "image/jpeg" { return "jpg" }
+    if mime == "image/gif" { return "gif" }
+    if mime == "image/webp" { return "webp" }
+    if mime == "image/svg+xml" { return "svg" }
+    return "bin"
+}
+
+fn pow2(n: i32) -> i32 {
+    var r: i32 = 1
+    var i: i32 = 0
+    while i < n {
+        r = r * 2
+        i += 1
+    }
+    return r
+}
+
+// 滚动哈希(乘加,素数模)→ 8 位 hex,资源内容短名(同图不重名)
+fn content_hash8(data: Vec<i32>) -> String {
+    var h: i32 = 7
+    var i: i32 = 0
+    while i < data.len() {
+        h = (h * 31 + data.get(i)) % 2147483647
+        i += 1
+    }
+    var hex = ""
+    let digits = "0123456789abcdef"
+    var d: i32 = 7
+    while d >= 0 {
+        let nib = (h / pow2(d * 4)) % 16
+        hex = hex + digits[nib..(nib + 1)]
+        d -= 1
+    }
+    return hex
+}
+
+fn json_escape_q(s: String) -> String {
+    return s.replace("\\", "\\\\").replace("\"", "\\\"")
+}
+
+fn bytes_eq(a: Vec<i32>, b: Vec<i32>) -> bool {
+    if a.len() != b.len() { return false }
+    var i: i32 = 0
+    while i < a.len() {
+        if a.get(i) != b.get(i) { return false }
+        i += 1
+    }
+    return true
+}
+
+// 子串查找(aine 无内置 find):从 from 起找 needle,返回字符索引,未找到 -1
+fn find_str(hay: String, needle: String, from: i32) -> i32 {
+    let hn = hay.len()
+    let nn = needle.len()
+    if nn == 0 { return from }
+    var i: i32 = from
+    while i + nn <= hn {
+        if hay[i..(i + nn)] == needle { return i }
+        i += 1
+    }
+    return -1
+}
+
+// 从源码抽取 data URI 图片为资源,源码引用替换为 media/<名>
+fn extract_data_uris(syntax: String) -> PackOut {
+    var out = ""
+    var names: Vec<String> = []
+    var mimes: Vec<String> = []
+    var chunks: Vec<String> = []
+    var rest = syntax
+    var guard: i32 = 0
+    while true {
+        guard += 1
+        if guard > 512 { break }
+        let pos = find_str(rest, "data:image/", 0)
+        if pos < 0 { break }
+        let tail = rest[pos..rest.len()]
+        var end = tail.len()
+        var k: i32 = 0
+        while k < tail.len() {
+            let c = tail[k]
+            if c == "\"" || c == "]" || c == "\n" || c == " " {
+                end = k
+                break
+            }
+            k += 1
+        }
+        let uri = tail[0..end]
+        let semi = find_str(uri, ";base64,", 0)
+        if semi < 0 {
+            out = out + rest[0..pos + 5]
+            rest = tail[5..tail.len()]
+        } else {
+            let b64 = uri[(semi + 8)..uri.len()]
+            let data = base64_decode(b64)
+            let short = content_hash8(data)
+            let mime = uri[5..semi]
+            let name = "img-" + short + "." + mime_ext(mime)
+            names = names.push(name)
+            mimes = mimes.push(mime)
+            chunks = chunks.push(b64)
+            out = out + rest[0..pos] + "media/" + name
+            rest = tail[end..tail.len()]
+        }
+    }
+    out = out + rest
+    return PackOut { syntax: out, names: names, mimes: mimes, chunks: chunks }
+}
+
+// 打包:syntax + 资源(data URI 抽取)→ 写 target(.awen 容器);
+// 资源同时落盘 media_base(内容寻址),供当前会话经 asset 协议渲染
+// 返回资源化后的源码(调用方以此为新的 gSrc)
+fn pack_awen(syntax: String, target: String, doc_id: String, media_base: String) -> String {
+    let po = extract_data_uris(syntax)
+    let sep = "#<awen:container format=0.5>\n"
+    // 源码不以换行结尾时补一个,保证容器内 sep 行独立成行;
+    // manifest 记录"原始源码"字节数,解包精确还原(packed 即原源码)
+    var body = po.syntax
+    if !body.ends_with("\n") { body = body + "\n" }
+    let head = body + sep
+    let head_bytes = to_bytes(head)
+    let syntax_bytes = to_bytes(po.syntax).len()
+    var full = head_bytes
+    var offsets = ""
+    var cur: i32 = full.len()
+    var i: i32 = 0
+    while i < po.chunks.len() {
+        let data = base64_decode(po.chunks.get(i))
+        let name = po.names.get(i)
+        let piece = "{\"id\":\"" + json_escape_q(name) + "\",\"type\":\"" + po.mimes.get(i)
+            + "\",\"name\":\"" + json_escape_q(name) + "\",\"codec\":\"none\",\"offset\":" + f"{cur}"
+            + ",\"length\":" + f"{data.len()}" + ",\"original_size\":" + f"{data.len()}"
+            + ",\"hash\":\"h-" + content_hash8(data) + "\"}"
+        if i > 0 { offsets = offsets + "," }
+        offsets = offsets + piece
+        full = full.concat(data)
+        write_bytes(media_base + "/" + po.names.get(i), data)
+        cur = full.len()
+        i += 1
+    }
+    var m = "{\"format_version\":\"0.5\",\"document_id\":\"" + json_escape_q(doc_id)
+        + "\",\"syntax_version\":\"0.4\",\"syntax_language\":\"awen\",\"syntax_style\":\"user\""
+        + ",\"resource_revision\":" + f"{po.chunks.len()}"
+        + ",\"canonical_revision\":0,\"compiler_compatibility\":\">=0.4\""
+        + ",\"syntax_codec\":\"none\",\"syntax_bytes\":" + f"{syntax_bytes}"
+        + ",\"chunks\":[" + offsets + "]}"
+    let moff = cur
+    full = full.concat(to_bytes(m + "\n"))
+    var tail: Vec<i32> = []
+    var b: i32 = 0
+    while b < 8 {
+        tail = tail.push((moff / pow2(b * 8)) % 256)
+        b += 1
+    }
+    full = full.concat(tail)
+    full = full.concat(to_bytes("AWENBIN\n"))
+    write_bytes(target, full)
+    return po.syntax
+}
+
+// 解包:读 .awen 容器 → 资源落盘 media_base(内容寻址)→ 源码写 source_out(明文)
+// 返回状态 JSON(壳转发给前端)
+fn unpack_awen(path: String, media_base: String, source_out: String) -> String {
+    let v = read_bytes(path)
+    let n = v.len()
+    if n < 24 { return "{\"error\":\"file too small\"}" }
+    let magic = to_bytes("AWENBIN\n")
+    if !bytes_eq(v[(n - 8)..n], magic) {
+        return "{\"error\":\"not container(legacy text)\"}"
+    }
+    var moff: i32 = 0
+    var j: i32 = 0
+    while j < 8 {
+        moff = moff + v.get(n - 16 + j) * pow2(j * 8)
+        j += 1
+    }
+    if moff <= 0 || moff >= n - 16 { return "{\"error\":\"corrupt manifest offset\"}" }
+    let manifest_json = bytes_to_string(v[moff..(n - 16)])
+    let m = json_decode(manifest_json)
+    let syntax_bytes = match m.get("syntax_bytes") { Some(x) { x } None { 0 } }
+    let doc_id = match m.get("document_id") { Some(x) { x } None { "" } }
+    let chunks = match m.get("chunks") { Some(x) { x } None { [] } }
+    // 源码(syntax_bytes 界定头部之后的明文区)→ 写出
+    let syntax = bytes_to_string(v[0..syntax_bytes])
+    write_file(source_out, syntax)
+    // 资源落盘
+    var i: i32 = 0
+    var count: i32 = 0
+    while i < chunks.len() {
+        let c = chunks.get(i)
+        let name = match c.get("name") { Some(x) { x } None { "" } }
+        let off = match c.get("offset") { Some(x) { x } None { 0 } }
+        let len = match c.get("length") { Some(x) { x } None { 0 } }
+        if len > 0 {
+            write_bytes(media_base + "/" + name, v[off..(off + len)])
+            count += 1
+        }
+        i += 1
+    }
+    return "{\"ok\":true,\"chunks\":" + f"{count}" + ",\"document_id\":\"" + json_escape_q(doc_id)
+        + "\",\"media_dir\":\"" + json_escape_q(media_base) + "\",\"source_out\":\"" + json_escape_q(source_out) + "\"}"
+}

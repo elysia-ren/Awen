@@ -30,6 +30,28 @@ function updateTitle(src){
   }
 }
 function doSave(){
+  // .awen 走 v0.5 容器:引擎抽 data URI 资源化(源码回写为 media/ 引用)
+  if(currentFilePath && /\.awen$/i.test(currentFilePath) && Bridge.native){
+    var docId='';
+    try{
+      var k='awen-docid-'+currentFilePath;
+      docId=localStorage.getItem(k)||'';
+      if(!docId){
+        docId='awen-'+Date.now()+'-'+Math.floor(Math.random()*1000000);
+        localStorage.setItem(k,docId);
+      }
+    }catch(e){}
+    Bridge.awenContainerSave(currentFilePath,gSrc,docId).then(function(res){
+      if(res&&res.source!==undefined){
+        gSrc=res.source;
+        var ta=document.getElementById('syntax-src');
+        if(ta)ta.value=gSrc;
+        render(gSrc);
+        markClean();
+      } else doSaveDialog();
+    }).catch(function(){ doSaveDialog() });
+    return;
+  }
   var content=buildAwenHeader()+gSrc;
   if(currentFilePath){
     Bridge.savePath(currentFilePath,content).then(function(ok){ if(ok)markClean(); else doSaveDialog(); });
@@ -37,7 +59,12 @@ function doSave(){
 }
 function doSaveDialog(){
   Bridge.saveDialog(fname('awen'),buildAwenHeader()+gSrc).then(function(r){
-    if(r.saved){ if(r.path)currentFilePath=r.path; markClean() }
+    if(r.saved){
+      if(r.path)currentFilePath=r.path;
+      markClean();
+      // 首次落盘后立即升级为 v0.5 容器格式(资源抽包)
+      if(currentFilePath && /\.awen$/i.test(currentFilePath) && Bridge.native)doSave();
+    }
   });
 }
 function doSaveAs(){ currentFilePath=null; doSaveDialog(); }
@@ -69,6 +96,8 @@ function newDoc(){
 // 打开文档统一入口:对话框/命令行/最近文件共用;当前是干净空白文档则复用标签
 function openDocument(res){
   var name=res.name.replace(/\.(awen(\.txt)?|txt|md|markdown)$/i,'');
+  var media_dir=res.media_dir||null;
+  if(media_dir)window.awenMediaDir=media_dir;
   var reuse=false;
   if(activeFile>=0){
     applySyncNow();
@@ -79,10 +108,11 @@ function openDocument(res){
   document.getElementById('docname').value=name;
   setSrc(res.src);
   if(reuse){
-    openFiles[activeFile]={name:name,src:gSrc,dirty:false,path:res.path||null};
+    openFiles[activeFile]={name:name,src:gSrc,dirty:false,path:res.path||null,media_dir:media_dir};
     renderFileTabs();
   }else{
     addFileTab(name,res.path||null);
+    openFiles[activeFile].media_dir=media_dir;
   }
   currentFilePath=res.path||null;
   updateTitle();

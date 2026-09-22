@@ -119,3 +119,18 @@ fn core_blocks_multiline_comment_kind() -> Result<i32, String> {
     assert(json.contains("\"kind\":\"comment\""), "多行注释应为 comment")
     Ok(0)
 }
+
+@test
+fn container_pack_roundtrip() -> Result<i32, String> {
+    let syntax = "# 标题\n\n正文段落,含图。\n\n@[image \"data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7\"]\n"
+    let packed = pack_awen(syntax, "build/_ctest.awen", "awen-test-1", "build")
+    assert(!packed.contains("data:image"), "data URI 应被替换")
+    assert(packed.contains("media/img-"), "应含 media 引用")
+    let st = unpack_awen("build/_ctest.awen", "build", "build/_ctest_src.awen")
+    assert(st.contains("\"ok\":true"), st)
+    let back = read_file("build/_ctest_src.awen")
+    assert(back == packed, "往返源码应一致")
+    let img = read_bytes("build/img-5c12defa.gif")
+    assert(img.len() == 42, "GIF 字节数应为 42")
+    Ok(0)
+}

@@ -41,6 +41,27 @@ module incremental_update;
 module core_blocks;
 
 fn main() {
+    // 容器模式(参数经全局 args 传入,见 aine run [args]):
+    //   pack   <src_file> <target_awen> <doc_id> <media_base>  抽 data URI 资源化并打容器,
+    //                                              资源化源码回写 build/cli_container_src.awen
+    //   unpack <awen_file> <media_dir> <source_out> 解包:资源落盘,源码写 source_out
+    // 无参数时走默认解析管线(源码在 build/cli_in.awen)
+    if cli_args.len() > 0 {
+        let mode = cli_args.get(0)
+        if mode == "pack" {
+            var src = read_file(cli_args.get(1))
+            if src.contains("[read_file error") { src = "" }
+            let packed = pack_awen(src, cli_args.get(2), cli_args.get(3), cli_args.get(4))
+            write_file("build/cli_container_src.awen", packed)
+            write_file("build/cli_out.json", "{\"ok\":true}")
+            return
+        }
+        if mode == "unpack" {
+            let st = unpack_awen(cli_args.get(1), cli_args.get(2), cli_args.get(3))
+            write_file("build/cli_out.json", st)
+            return
+        }
+    }
     var src = read_file("build/cli_in.awen")
     if src.contains("[read_file error") { src = "" }
     var json = ""

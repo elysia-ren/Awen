@@ -14,7 +14,7 @@
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 
 use std::fs;
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 use std::process::Command;
 use std::sync::{Arc, Mutex};
 
@@ -86,7 +86,20 @@ async fn core_parse(app: AppHandle, lock: State<'_, AineLock>, src: String) -> R
         .map_err(|e| format!("任务调度失败:{e}"))?
 }
 
-/// .awen 容器(v0.4)解包:取 "# ---" 分隔行之后的明文源码
+/// .awen 容器(v0.5)检测:文件尾 8 字节为 magic "AWENBIN"+0x0A
+fn is_container_file(path: &str) -> bool {
+    if let Ok(mut f) = std::fs::File::open(path) {
+        use std::io::{Read, Seek, SeekFrom};
+        if f.seek(SeekFrom::End(-8)).is_ok() {
+            let mut m = [0u8; 8];
+            if f.read_exact(&mut m).is_ok() {
+                return &m == b"AWENBIN\n";
+            }
+        }
+    }
+    false
+}
+
 fn unwrap_container(content: String) -> String {
     if !content.starts_with("# awen v") {
         return content;
@@ -104,6 +117,7 @@ struct OpenedDoc {
     name: String,
     src: String,
     path: Option<String>,
+    media_dir: Option<String>,
 }
 
 fn read_doc_path(path: &str) -> Result<OpenedDoc, String> {
@@ -117,10 +131,11 @@ fn read_doc_path(path: &str) -> Result<OpenedDoc, String> {
         name,
         src: unwrap_container(content),
         path: Some(path.to_string()),
+        media_dir: None,
     })
 }
 
-fn pick_and_read(app: &AppHandle) -> Result<Option<OpenedDoc>, String> {
+fn pick_and_read(app: &AppHandle, lock: &Mutex<()>) -> Result<Option<OpenedDoc>, String> {
     let file = app
         .dialog()
         .file()
@@ -131,16 +146,7 @@ fn pick_and_read(app: &AppHandle) -> Result<Option<OpenedDoc>, String> {
         None => return Ok(None),
     };
     let path = file.into_path().map_err(|e| e.to_string())?;
-    let name = path
-        .file_name()
-        .map(|n| n.to_string_lossy().to_string())
-        .unwrap_or_else(|| "未命名文档".into());
-    let content = fs::read_to_string(&path).map_err(|e| format!("读取失败:{e}"))?;
-    Ok(Some(OpenedDoc {
-        name,
-        src: unwrap_container(content),
-        path: Some(path.to_string_lossy().to_string()),
-    }))
+    read_doc_any(app, lock, &path.to_string_lossy().to_string()).map(Some)
 }
 
 #[derive(serde::Serialize)]
@@ -148,34 +154,99 @@ struct OpenedDocPayload {
     name: String,
     src: String,
     path: Option<String>,
+    media_dir: Option<String>,
 }
 
 #[tauri::command]
-async fn core_open_dialog(app: AppHandle) -> Result<Option<OpenedDocPayload>, String> {
-    tauri::async_runtime::spawn_blocking(move || pick_and_read(&app))
-        .await
-        .map_err(|e| format!("任务调度失败:{e}"))?
-        .map(|opt| {
-            opt.map(|d| OpenedDocPayload {
-                name: d.name,
-                src: d.src,
-                path: d.path,
-            })
-        })
+async fn core_open_dialog(app: AppHandle, lock: State<'_, AineLock>) -> Result<Option<OpenedDocPayload>, String> {
+    let lock = lock.0.clone();
+    tauri::async_runtime::spawn_blocking(move || {
+        pick_and_read(&app, &lock).map(|opt| opt.map(read_doc_payload))
+    })
+    .await
+    .map_err(|e| format!("任务调度失败:{e}"))?
 }
 
 /// 按已知路径直接读取(单实例/最近文件)
 #[tauri::command]
-async fn core_read_file(path: String) -> Result<OpenedDocPayload, String> {
+async fn core_read_file(app: AppHandle, lock: State<'_, AineLock>, path: String) -> Result<OpenedDocPayload, String> {
+    let lock = lock.0.clone();
     tauri::async_runtime::spawn_blocking(move || {
-        read_doc_path(&path).map(|d| OpenedDocPayload {
-            name: d.name,
-            src: d.src,
-            path: d.path,
-        })
+        read_doc_any(&app, &lock, &path).map(read_doc_payload)
     })
     .await
     .map_err(|e| format!("任务调度失败:{e}"))?
+}
+
+// 统一出口:容器文件走引擎解包(拿 media_dir),文本文件走旧剥离逻辑
+fn read_doc_payload(d: OpenedDoc) -> OpenedDocPayload {
+    OpenedDocPayload {
+        name: d.name,
+        src: d.src,
+        path: d.path,
+        media_dir: d.media_dir,
+    }
+}
+
+// 打开任意路径:.awen 容器 → 引擎解包;文本 → 旧逻辑
+fn read_doc_any(app: &AppHandle, lock: &Mutex<()>, path: &str) -> Result<OpenedDoc, String> {
+    if is_container_file(path) {
+        return open_container_doc(app, lock, path);
+    }
+    read_doc_path(path)
+}
+
+// 容器打开:引擎 unpack(资源落盘 media_dir,源码写明文),壳读回
+fn open_container_doc(app: &AppHandle, lock: &Mutex<()>, path: &str) -> Result<OpenedDoc, String> {
+    let dir = aine_dir(app)?;
+    let exe = dir.join("aine.exe");
+    if !exe.is_file() {
+        return Err(format!("aine.exe 不存在:{}", exe.display()));
+    }
+    let build = dir.join("build");
+    fs::create_dir_all(&build).map_err(|e| format!("创建 build/ 失败:{e}"))?;
+    let pb = PathBuf::from(path);
+    let stem = pb
+        .file_stem()
+        .map(|s| s.to_string_lossy().to_string())
+        .unwrap_or_else(|| "doc".into());
+    let safe_stem: String = stem
+        .chars()
+        .map(|c| if c.is_alphanumeric() || c == '-' || c == '_' { c } else { '_' })
+        .collect();
+    let media = local_app_dir().join("media").join(safe_stem);
+    fs::create_dir_all(&media).map_err(|e| format!("创建媒体目录失败:{e}"))?;
+    let media_dir = media.to_string_lossy().to_string();
+    let source_out = build.join("cli_container_src.awen");
+    let source_out_s = source_out.to_string_lossy().to_string();
+    let _g = lock.lock().map_err(|_| "内部锁中毒".to_string())?;
+    let mut cmd = Command::new(&exe);
+    cmd.args(["run", "src/tauri_cli.aine", "unpack", path, &media_dir, &source_out_s])
+        .current_dir(&dir);
+    #[cfg(windows)]
+    cmd.creation_flags(CREATE_NO_WINDOW);
+    let out = cmd.output().map_err(|e| format!("启动 aine.exe 失败:{e}"))?;
+    if !out.status.success() {
+        let stderr = String::from_utf8_lossy(&out.stderr);
+        let stdout = String::from_utf8_lossy(&out.stdout);
+        return Err(format!("容器解包失败:{}{}", stderr.trim(), stdout.trim()));
+    }
+    let status = fs::read_to_string(build.join("cli_out.json"))
+        .map_err(|e| format!("读取 cli_out.json 失败:{e}"))?;
+    if !status.contains("\"ok\":true") {
+        return Err(format!("容器打开失败:{status}"));
+    }
+    let source = fs::read_to_string(&source_out).map_err(|e| format!("读取解包源码失败:{e}"))?;
+    let name = pb
+        .file_name()
+        .map(|n| n.to_string_lossy().to_string())
+        .unwrap_or_else(|| "未命名文档".into());
+    Ok(OpenedDoc {
+        name,
+        src: source,
+        path: Some(path.to_string()),
+        media_dir: Some(media_dir),
+    })
 }
 
 #[derive(serde::Serialize)]
@@ -256,6 +327,136 @@ fn core_take_pending_paths(state: State<'_, PendingPaths>) -> Vec<String> {
     std::mem::take(&mut *g)
 }
 
+// ── .awen v0.5 单文件容器(引擎侧编解码:aine 容器模式;壳只做文件 IO/进程)──
+
+// 保存:.awen 容器(引擎抽 data URI 资源化→拼 chunk 容器→write_bytes 原子写)
+// 返回资源化后的源码(前端以此为新的 gSrc)与文档 ID
+#[tauri::command]
+async fn awen_container_save(
+    app: AppHandle,
+    lock: State<'_, AineLock>,
+    path: String,
+    syntax: String,
+    doc_id: String,
+) -> Result<String, String> {
+    let lock = lock.0.clone();
+    tauri::async_runtime::spawn_blocking(move || {
+        let dir = aine_dir(&app)?;
+        let exe = dir.join("aine.exe");
+        if !exe.is_file() {
+            return Err(format!("aine.exe 不存在:{}", exe.display()));
+        }
+        let build = dir.join("build");
+        fs::create_dir_all(&build).map_err(|e| format!("创建 build/ 失败:{e}"))?;
+        fs::write(build.join("cli_in.awen"), &syntax).map_err(|e| format!("写入 cli_in.awen 失败:{e}"))?;
+        let media_base = local_app_dir().join("media");
+        fs::create_dir_all(&media_base).map_err(|e| format!("创建媒体目录失败:{e}"))?;
+        let media_base_s = media_base.to_string_lossy().to_string();
+        let _g = lock.lock().map_err(|_| "内部锁中毒".to_string())?;
+        let mut cmd = Command::new(&exe);
+        cmd.args(["run", "src/tauri_cli.aine", "pack", "build/cli_in.awen", &path, &doc_id, &media_base_s])
+            .current_dir(&dir);
+        #[cfg(windows)]
+        cmd.creation_flags(CREATE_NO_WINDOW);
+        let out = cmd.output().map_err(|e| format!("启动 aine.exe 失败:{e}"))?;
+        if !out.status.success() {
+            let stderr = String::from_utf8_lossy(&out.stderr);
+            let stdout = String::from_utf8_lossy(&out.stdout);
+            return Err(format!("容器打包失败:{}{}", stderr.trim(), stdout.trim()));
+        }
+        let packed = fs::read_to_string(build.join("cli_container_src.awen"))
+            .map_err(|e| format!("读取资源化源码失败:{e}"))?;
+        let media_dir = media_base.to_string_lossy().to_string();
+        let source_json = serde_json::to_string(&packed).unwrap_or_else(|_| "\"\"".into());
+        let md_json = serde_json::to_string(&media_dir).unwrap_or_else(|_| "\"\"".into());
+        Ok(format!("{{\"source\":{source_json},\"media_dir\":{md_json}}}"))
+    })
+    .await
+    .map_err(|e| format!("任务调度失败:{e}"))?
+}
+
+// 打开:.awen 容器(引擎解包:资源落盘 media 目录,源码写明文文件)
+// 返回 {source, media_dir, chunks, document_id}
+#[tauri::command]
+async fn awen_container_open(
+    app: AppHandle,
+    lock: State<'_, AineLock>,
+    path: String,
+) -> Result<String, String> {
+    let lock = lock.0.clone();
+    tauri::async_runtime::spawn_blocking(move || {
+        let dir = aine_dir(&app)?;
+        let exe = dir.join("aine.exe");
+        if !exe.is_file() {
+            return Err(format!("aine.exe 不存在:{}", exe.display()));
+        }
+        let build = dir.join("build");
+        fs::create_dir_all(&build).map_err(|e| format!("创建 build/ 失败:{e}"))?;
+        // 媒体目录:按文件名派生,预先创建(write_bytes 不建父目录)
+        let stem = Path::new(&path)
+            .file_stem()
+            .map(|s| s.to_string_lossy().to_string())
+            .unwrap_or_else(|| "doc".into());
+        let safe_stem: String = stem
+            .chars()
+            .map(|c| if c.is_alphanumeric() || c == '-' || c == '_' { c } else { '_' })
+            .collect();
+        let media = local_app_dir().join("media");
+        fs::create_dir_all(&media).map_err(|e| format!("创建媒体目录失败:{e}"))?;
+        let media_dir = media.to_string_lossy().to_string();
+        let source_out = build.join("cli_container_src.awen");
+        let source_out_s = source_out.to_string_lossy().to_string();
+        let _g = lock.lock().map_err(|_| "内部锁中毒".to_string())?;
+        let mut cmd = Command::new(&exe);
+        cmd.args(["run", "src/tauri_cli.aine", "unpack", &path, &media_dir, &source_out_s])
+            .current_dir(&dir);
+        #[cfg(windows)]
+        cmd.creation_flags(CREATE_NO_WINDOW);
+        let out = cmd.output().map_err(|e| format!("启动 aine.exe 失败:{e}"))?;
+        if !out.status.success() {
+            let stderr = String::from_utf8_lossy(&out.stderr);
+            let stdout = String::from_utf8_lossy(&out.stdout);
+            return Err(format!("容器解包失败:{}{}", stderr.trim(), stdout.trim()));
+        }
+        let status = fs::read_to_string(build.join("cli_out.json"))
+            .map_err(|e| format!("读取 cli_out.json 失败:{e}"))?;
+        if !status.contains("\"ok\":true") {
+            return Err(format!("容器打开失败:{status}"));
+        }
+        let source = fs::read_to_string(&source_out).map_err(|e| format!("读取解包源码失败:{e}"))?;
+        // document_id 从状态 JSON 里粗提取(前端仅用于媒体目录标识)
+        let doc_id = status
+            .split("\"document_id\":\"")
+            .nth(1)
+            .and_then(|s| s.split('"').next())
+            .unwrap_or("")
+            .to_string();
+        let chunks_n = status
+            .split("\"chunks\":")
+            .nth(1)
+            .and_then(|s| s.split(',').next())
+            .unwrap_or("0")
+            .to_string();
+        let media_json = serde_json::to_string(&media_dir).unwrap_or_else(|_| "\"\"".into());
+        let source_json = serde_json::to_string(&source).unwrap_or_else(|_| "\"\"".into());
+        let doc_json = serde_json::to_string(&doc_id).unwrap_or_else(|_| "\"\"".into());
+        Ok(format!(
+            "{{\"source\":{source_json},\"media_dir\":{media_json},\"chunks\":{chunks_n},\"document_id\":{doc_json}}}"
+        ))
+    })
+    .await
+    .map_err(|e| format!("任务调度失败:{e}"))?
+}
+
+fn local_app_dir() -> PathBuf {
+    if let Ok(la) = std::env::var("LOCALAPPDATA") {
+        if !la.trim().is_empty() {
+            return PathBuf::from(la).join("AwenEditor");
+        }
+    }
+    PathBuf::from("awen-data")
+}
+
 fn main() {
     tauri::Builder::default()
         .plugin(tauri_plugin_dialog::init())
@@ -271,7 +472,9 @@ fn main() {
             core_save_dialog,
             core_read_file,
             core_save_file,
-            core_take_pending_paths
+            core_take_pending_paths,
+            awen_container_save,
+            awen_container_open
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

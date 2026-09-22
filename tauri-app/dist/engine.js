@@ -332,7 +332,7 @@ function objHtml(b){
   var m=first.match(/^@\[(image|figure|图片)(?:\s+([^\]]*))?\]/);
   if(m){
     var params=m[2]||'';
-    var um=params.match(/"([^"]+)"/)||params.match(/(data:[^\s\]]+|https?:\/\/[^\s\]]+)/);
+    var um=params.match(/"([^"]+)"/)||params.match(/(media\/[^\s\]]+)/)||params.match(/(data:[^\s\]]+|https?:\/\/[^\s\]]+)/);
     var url=um?um[1]:'';
     var wm=params.match(/width:?\s*(\d+(?:\.\d+)?)\s*%/);
     var hm=params.match(/height:?\s*(\d+(?:\.\d+)?)\s*(mm|cm|%|px)?/);
@@ -345,8 +345,13 @@ function objHtml(b){
       else if(am[1]==='right')style+='margin-left:auto;margin-right:0;';
       else if(am[1]==='left')style+='margin-right:auto;margin-left:0;';
     }
-    if(url&&/^(data:|https?:)/.test(url)){
-      return'<img src="'+escAttr(url)+'" alt="图片" style="max-width:100%;display:block;margin:8px auto;'+style+'">';
+    if(url&&/^(data:|https?:|media\/)/.test(url)){
+      // 包内 media/ 引用 → asset 协议 URL(容器解包后的媒体目录)
+      var src=url;
+      if(src.indexOf('media/')===0&&window.awenMediaDir&&window.Bridge&&Bridge.mediaSrc){
+        src=Bridge.mediaSrc(src);
+      }
+      return'<img src="'+escAttr(src)+'" alt="图片" style="max-width:100%;display:block;margin:8px auto;'+style+'">';
     }
     // 文件路径图片:占位框,但 width/align 依然可视化
     return'<div class="img-ph" contenteditable="false" style="'+style+'">'+escHtml(url||first)+'</div>';
