@@ -7,7 +7,6 @@ var renderSeq=0;
 // renderPending=true 表示权威渲染在途,纸面 DOM 还是旧结构——
 // 期间 serializeAll 只会拿到旧内容,applySyncNow 必须推迟而不是覆盖 gSrc
 var renderPending=false;
-var renderRetryTimer=null;
 function render(src,caret,done){
   gSrc=src;
   renderPending=true;
@@ -17,16 +16,10 @@ function render(src,caret,done){
     // 纸面有未落盘的编辑(节流定时器挂着):放弃本次重建,避免权威结果
     // 把 DOM 里的新编辑抹掉——待处理编辑落盘后会自行再触发渲染。
     // pending 标志必须清掉:本次请求已结束,否则后续 flush 永远误判"在途"
-    if(repagTimer||refreshTimer){
+    // 打字会话进行中(800ms 内有纸面输入):绝不重建——重建会把光标恢复到
+    // 旧快照位置,后续输入错位(用户看到的"输入回退")
+    if(repagTimer||refreshTimer||Date.now()-(window.lastPaperInputAt||0)<800){
       renderPending=false;
-      // 兜底补跑:若落盘后的编辑恰好幂等(无新 render),确保纸面最终
-      // 与 gSrc 一致,不残留过期 DOM
-      if(!renderRetryTimer){
-        renderRetryTimer=setTimeout(function(){
-          renderRetryTimer=null;
-          if(!renderPending&&!repagTimer&&!refreshTimer)render(gSrc);
-        },900);
-      }
       return;
     }
     renderPending=false;

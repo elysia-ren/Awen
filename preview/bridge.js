@@ -91,10 +91,16 @@ window.Bridge={
     return u;
   },
 
-  // 选择本地图片(原生对话框),返回 data URI;取消返回 null
+  // 选择本地图片(前端 dialog.open 选路径 → 壳读文件),返回 data URI;取消 null
   pickImage:function(){
-    if(!tauri)return Promise.resolve(null);
-    return tauri.core.invoke('pick_image_data_uri');
+    if(!tauri||!tauri.dialog||!tauri.dialog.open)return Promise.resolve(null);
+    return tauri.dialog.open({
+      multiple:false,
+      filters:[{name:'图片',extensions:['png','jpg','jpeg','gif','webp']}]
+    }).then(function(path){
+      if(!path)return null;
+      return tauri.core.invoke('read_image_data_uri',{path:path});
+    });
   },
 
   // 监听单实例/命令行转发的文件路径

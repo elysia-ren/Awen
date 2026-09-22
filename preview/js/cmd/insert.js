@@ -54,8 +54,7 @@ function insertBlock(kind){
 }
 
 function pickImageInsert(){
-  // WebView 的 <input type=file> 不弹窗:走 Tauri 原生对话框 + data URI
-  // (保存 .awen 容器时自动资源化为 media/ 引用)
+  // 原生对话框选图(Tauri)→ data URI 插入;保存 .awen 时自动资源化为 media/ 引用
   if(!(Bridge.native&&Bridge.pickImage))return;
   Bridge.pickImage().then(function(uri){
     if(uri)insertRawLine('@[image "'+uri+'"]');
