@@ -2,6 +2,7 @@
 // ═══ 编辑同步:输入 → 序列化 → 必要时重排 ═══
 var repagTimer=null,lastEditSource=null;
 function onPaperInput(e){
+  window.lastPaperInputAt=Date.now();
   if(repagTimer)clearTimeout(repagTimer);
   // 标点成步:句末标点立即落一步,且下一笔必开新语义步
   var punct=e&&e.data&&/[。？！，、；：.?!]/.test(e.data.slice(-1));

@@ -51,7 +51,12 @@ function applySyncNow(){
   var newSrc=Engine.serializeAll();
   // 尾随空行无语义:undo 恢复的源码常带尾 \n,serializeAll 不产出——视为同一内容,
   // 否则 doUndo/doRedo 开头的 flush 会把规范化差异当新编辑,截断撤销链
-  if(newSrc===gSrc||newSrc===gSrc.replace(/\s+$/,''))return;
+  if(newSrc===gSrc||newSrc===gSrc.replace(/\s+$/,'')){
+    // 幂等:但分屏下语法框可能落后于 gSrc(如撤销后的恢复),补齐
+    var ta2=document.getElementById('syntax-src');
+    if(ta2&&currentMode!=='display'&&ta2.value!==gSrc)ta2.value=gSrc;
+    return;
+  }
   gSrc=newSrc;
   var ta=document.getElementById('syntax-src');
   if(ta)ta.value=gSrc;
