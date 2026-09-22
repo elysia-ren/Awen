@@ -15,6 +15,11 @@ function renderFileTabs(){
       switchFile(i);
     };
     t.onauxclick=function(ev){ if(ev.button===1)closeFile(i) };   // 中键关闭
+    t.ondblclick=function(ev){
+      if(ev.target.classList.contains('fclose'))return;
+      var n=window.prompt('修改文档名',openFiles[i].name);
+      if(n&&n.trim()){ openFiles[i].name=n.trim(); document.getElementById('docname').value=n.trim(); updateTitle(); renderFileTabs() }
+    };
     bar.appendChild(t);
   });
 }

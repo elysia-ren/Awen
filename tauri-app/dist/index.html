@@ -19,14 +19,15 @@
 <button class="ib" onclick="doRedo()" title="重做 (Ctrl+Y)"><i class="fa-solid fa-rotate-right"></i></button>
 <button class="ib" onclick="doSave()" title="保存 (Ctrl+S)"><i class="fa-solid fa-floppy-disk"></i></button>
 </div>
-<input class="docname" id="docname" value="未命名文档" title="点击修改文档名"><span id="dirty-mark">未保存</span>
+<div class="filetabs" id="filetabs"></div>
+<input class="docname" id="docname" type="hidden" value="未命名文档">
 </div>
 <div class="tb-right">
 <button class="tb-ib" onclick="toggleSettings()" title="设置"><i class="fa-solid fa-gear"></i></button>
 <button class="tb-ib" onclick="todo('帮助','手册制作中')" title="帮助"><i class="fa-regular fa-circle-question"></i></button>
 </div>
 </div>
-<div class="filetabs" id="filetabs"></div>
+<!-- 多文件标签并入标题栏(上方 filetabs 独立行已删) -->
 <div class="tabbar">
 <div class="tab-group">
 <div class="tab active" data-page="start" onclick="showRibbon('start')" ondblclick="toggleRibbonCollapse()">开始</div>

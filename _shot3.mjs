@@ -1,0 +1,17 @@
+const tab = process.argv[2], out = process.argv[3];
+const list = await (await fetch('http://127.0.0.1:9223/json/list')).json();
+const page = list.find(t => t.type === 'page');
+const ws = new WebSocket(page.webSocketDebuggerUrl);
+await new Promise((res,rej)=>{ws.onopen=res;ws.onerror=()=>rej(new Error('ws'))});
+let id=0; const pend={};
+ws.onmessage = ev => { const d=JSON.parse(ev.data); if(d.id&&pend[d.id]){pend[d.id](d);delete pend[d.id]} };
+const send=(m,p={})=>new Promise(res=>{const i=++id;pend[i]=res;ws.send(JSON.stringify({id:i,method:m,params:p}))});
+const ev=(expr)=>send('Runtime.evaluate',{expression:expr,returnByValue:true});
+if(tab!=='_')await ev(`(function(){var t=document.querySelector('.tab[data-page=${JSON.stringify(tab)}]');if(t&&t.style.display!=='none')t.click();})()`);
+if(tab==='_pal')await ev(`document.querySelector('.ribbon-page[data-page=start] .cs-arrow').click()`);
+await new Promise(r=>setTimeout(r,350));
+const shot=await send('Page.captureScreenshot',{format:'png'});
+const fs=await import('fs');
+fs.writeFileSync(out,Buffer.from(shot.result.data,'base64'));
+console.log('saved',out);
+ws.close();setTimeout(()=>process.exit(0),60);

@@ -44,14 +44,28 @@ function buildSyntaxPane(){
     document.addEventListener('mousemove',move);
     document.addEventListener('mouseup',up);
   });
-  // 分屏滚动同步:两侧滚动层都是窗格本体(.pane)
+  // 分屏滚动同步:按 源码行号↔语义块 锚定(两侧内容高度比例不同,
+  // 纯 scrollTop 比例永远错位)——语法行 → gNodes 定位块 → 显示滚动到块
+  var LINE_H=13*1.8;   // 与 .src-wrap 的 font/line-height 保持一致
   var sp=document.getElementById('syntax-pane');
   sp.addEventListener('scroll',function(){
     if(!window.scrollSyncLock&&currentMode==='split'){
       window.scrollSyncLock='sp';
+      var line=Math.max(0,Math.round(sp.scrollTop/LINE_H));
+      var node=null;
+      for(var i=0;i<gNodes.length;i++){
+        var n=gNodes[i];
+        if(n.srcStart==null)continue;
+        var e2=(n.srcEnd!=null?n.srcEnd:n.srcStart);
+        if(n.srcStart<=line&&line<=e2){ node=n; break }
+      }
       var dp2=document.getElementById('display-pane');
-      var ratio=sp.scrollTop/Math.max(1,sp.scrollHeight-sp.clientHeight);
-      dp2.scrollTop=ratio*Math.max(1,dp2.scrollHeight-dp2.clientHeight);
+      if(node){
+        var el=dp2.querySelector('[data-bid="'+node.bid+'"]');
+        if(el)dp2.scrollTop=Math.max(0,el.offsetTop-dp2.offsetTop-24);
+      } else {
+        dp2.scrollTop=sp.scrollTop;
+      }
       setTimeout(function(){window.scrollSyncLock=null},50);
     }
   });
@@ -60,6 +74,21 @@ function buildSyntaxPane(){
     window.scrollSyncLock='dp';
     var sp2=document.getElementById('syntax-pane');
     var dp2=document.getElementById('display-pane');
+    // 顶部可见块 → 其源码起始行 → 语法窗格滚动
+    var best=null,bestTop=1e9;
+    dp2.querySelectorAll('.paper>[data-bid]').forEach(function(el){
+      var t=el.offsetTop-dp2.offsetTop;
+      if(t<=dp2.scrollTop+80&&t<bestTop){bestTop=t;best=el}
+    });
+    if(best&&best.dataset.bid){
+      var n=nodeByBid(+best.dataset.bid);
+      if(n&&n.srcStart!=null){
+        // 块前空行偏移修正:渲染中块间有空行,源码行号差 1~2 可接受
+        sp2.scrollTop=Math.max(0,n.srcStart*LINE_H-40);
+        setTimeout(function(){window.scrollSyncLock=null},50);
+        return;
+      }
+    }
     var ratio=dp2.scrollTop/Math.max(1,dp2.scrollHeight-dp2.clientHeight);
     sp2.scrollTop=ratio*Math.max(1,sp2.scrollHeight-sp2.clientHeight);
     setTimeout(function(){window.scrollSyncLock=null},50);

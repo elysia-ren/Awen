@@ -54,19 +54,12 @@ function insertBlock(kind){
 }
 
 function pickImageInsert(){
-  var inp=document.createElement('input');
-  inp.type='file'; inp.accept='image/*';
-  inp.onchange=function(){
-    var f=inp.files[0];
-    if(!f)return;
-    if(f.size>1024*1024){alert('图片超过 1MB,原型阶段请使用小图');return}
-    var rd=new FileReader();
-    rd.onload=function(){
-      insertRawLine('@[image '+rd.result+']');
-    };
-    rd.readAsDataURL(f);
-  };
-  inp.click();
+  // WebView 的 <input type=file> 不弹窗:走 Tauri 原生对话框 + data URI
+  // (保存 .awen 容器时自动资源化为 media/ 引用)
+  if(!(Bridge.native&&Bridge.pickImage))return;
+  Bridge.pickImage().then(function(uri){
+    if(uri)insertRawLine('@[image "'+uri+'"]');
+  }).catch(function(e){ document.getElementById('findmsg').textContent=String(e) });
 }
 function insertRawLine(line){
   var bel=inDisplayMode()?caretBlock():null;
