@@ -448,6 +448,56 @@ async fn awen_container_open(
     .map_err(|e| format!("任务调度失败:{e}"))?
 }
 
+// 选择本地图片并返回 data URI(前端插入源码;保存容器时资源化进包)
+const B64T: &[u8; 64] = b"ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
+fn b64_encode(data: &[u8]) -> String {
+    let mut out = String::with_capacity((data.len() + 2) / 3 * 4);
+    for ch in data.chunks(3) {
+        let b = [ch[0], *ch.get(1).unwrap_or(&0), *ch.get(2).unwrap_or(&0)];
+        let n = ((b[0] as u32) << 16) | ((b[1] as u32) << 8) | b[2] as u32;
+        out.push(B64T[(n >> 18) as usize & 63] as char);
+        out.push(B64T[(n >> 12) as usize & 63] as char);
+        out.push(if ch.len() > 1 { B64T[(n >> 6) as usize & 63] as char } else { '=' });
+        out.push(if ch.len() > 2 { B64T[n as usize & 63] as char } else { '=' });
+    }
+    out
+}
+
+#[tauri::command]
+async fn pick_image_data_uri(app: AppHandle) -> Result<Option<String>, String> {
+    tauri::async_runtime::spawn_blocking(move || {
+        let file = app
+            .dialog()
+            .file()
+            .add_filter("图片", &["png", "jpg", "jpeg", "gif", "webp"])
+            .blocking_pick_file();
+        let file = match file {
+            Some(f) => f,
+            None => return Ok(None),
+        };
+        let path = file.into_path().map_err(|e| e.to_string())?;
+        let data = fs::read(&path).map_err(|e| format!("读取失败:{e}"))?;
+        if data.len() > 1024 * 1024 {
+            return Err("图片超过 1MB(当前阶段限制)".into());
+        }
+        let mime = match path
+            .extension()
+            .map(|e| e.to_string_lossy().to_lowercase())
+            .unwrap_or_default()
+            .as_str()
+        {
+            "png" => "image/png",
+            "jpg" | "jpeg" => "image/jpeg",
+            "gif" => "image/gif",
+            "webp" => "image/webp",
+            _ => "application/octet-stream",
+        };
+        Ok(Some(format!("data:{};base64,{}", mime, b64_encode(&data))))
+    })
+    .await
+    .map_err(|e| format!("任务调度失败:{e}"))?
+}
+
 fn local_app_dir() -> PathBuf {
     if let Ok(la) = std::env::var("LOCALAPPDATA") {
         if !la.trim().is_empty() {
@@ -474,7 +524,8 @@ fn main() {
             core_save_file,
             core_take_pending_paths,
             awen_container_save,
-            awen_container_open
+            awen_container_open,
+            pick_image_data_uri
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

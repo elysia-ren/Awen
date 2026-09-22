@@ -26,7 +26,8 @@ input.docname:focus{outline:none;border-color:var(--accent);background:#fff}
 .qat .ib{width:26px;height:26px}
 
 /* ====== 多文件标签行 ====== */
-.filetabs{display:flex;align-items:center;gap:2px;flex:none;overflow-x:auto;height:30px;padding:0 6px;background:var(--bg2)}
+.titlebar .filetabs{flex:1;display:flex;align-items:center;gap:2px;overflow-x:auto;height:28px;padding:0 2px;min-width:0}
+.titlebar .filetabs::-webkit-scrollbar{height:0}
 .ftab{display:flex;align-items:center;gap:6px;height:26px;padding:0 8px 0 12px;border-radius:5px;font-size:12px;color:#6b7280;cursor:pointer;flex:none;border:1px solid transparent}
 .ftab:hover{background:#f3f4f6}
 .ftab.active{background:#fff;color:#1f2937;font-weight:600;border-color:var(--border)}
@@ -221,8 +222,8 @@ button:disabled{opacity:.35;pointer-events:none}
 .paper table th{font-weight:600;background:#f5f5f6}
 .paper .img-ph{width:100%;height:32mm;background:#f0f1f3;border:1px dashed #c5c7ca;display:flex;align-items:center;justify-content:center;color:#999;font-size:10pt}
 .paper img{max-width:100%;display:block}
-.paper .docset{font-family:var(--mono);font-size:8pt;color:#c8cad0;user-select:none}
-.paper .comment-src{background:#fffbe8;color:#b09a3e;font-family:var(--mono);font-size:9pt;border-radius:3px;padding:0 4px}
+.paper .docset{height:6px;line-height:0;font-size:0;overflow:hidden;background:#e9ebee;border-radius:2px;margin:4px 0;user-select:none;cursor:default}
+.paper .comment-src{height:6px;line-height:0;font-size:0;overflow:hidden;background:#fdf0c2;border-radius:2px;margin:4px 0;cursor:default}
 .paper .inline-label{background:var(--accent-50);color:var(--accent-h);font-size:.85em;border-radius:3px;padding:0 4px}
 .paper .inline-ref{color:var(--accent-h)}
 .paper [data-kind="scope"]{border-left:2px solid #b9c8d6;padding-left:8px}
@@ -266,7 +267,7 @@ body.show-marks .paper p::after{content:' b6';color:#d5d8dc;margin-left:2px}
 .diag-warn{color:#a16207;font-weight:600}
 ::highlight(findhit){background-color:#ffe27a}
 .cpalette{display:none;position:absolute;top:36px;left:0;z-index:320;background:#fff;border:1px solid #d1d5db;border-radius:8px;box-shadow:0 10px 25px rgba(0,0,0,.12);padding:12px;width:auto}
-.cpalette.open{display:block}
+.cpalette.open{display:block!important}.cpalette .cp-title{white-space:nowrap}.cpalette .cp-grid{display:grid;grid-template-columns:repeat(10,22px);gap:4px}
 .cpalette .cp-grid{display:grid;grid-template-columns:repeat(10,22px);gap:4px}
 .cpalette .sw{width:22px;height:22px;border-radius:3px;border:1px solid rgba(0,0,0,.12);cursor:pointer}
 .cpalette .sw:hover{outline:2px solid var(--accent);outline-offset:1px}
@@ -290,3 +291,18 @@ body.show-marks .paper p::after{content:' b6';color:#d5d8dc;margin-left:2px}
 @media print{.tabbar,.ribbon,.sidebar,.statusbar,.titlebar,.findbar-pop,#minibar,#tblpop,.statuspop,.filetabs,.file-menu,.settings-drawer,.overlay{display:none!important}.app{height:auto}.workspace{overflow:visible;display:block}.pane{overflow:visible;padding:0;background:#fff;gap:0;zoom:1!important}.sheet{box-shadow:none;page-break-after:always;min-height:auto}}
 .app.focus .tabbar,.app.focus .ribbon,.app.focus .sidebar,.app.focus #sb-open,.app.focus .statusbar{display:none!important}
 .app.focus .titlebar{border-bottom-color:transparent}
+
+/* ====== 窄窗适配:功能区自动收窄(照 Word 收缩行为)====== */
+@media (max-width:1500px){
+  .btn-icon .lbl{display:none}
+  .btn-icon{padding:6px 7px}
+  .select-box{max-width:96px}
+  .stylebtn{min-width:40px;padding:6px 5px}
+}
+@media (max-width:1200px){
+  .rgroup{padding:0 8px}
+  .rg-body{gap:1px}
+  .select-box{max-width:76px}
+  .stylebtn .s2,.stylebtn .s3,.stylebtn .s4{font-size:11px}
+  .stylebtn .s1{font-size:11px}
+}

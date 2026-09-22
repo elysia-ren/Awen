@@ -91,6 +91,12 @@ window.Bridge={
     return u;
   },
 
+  // 选择本地图片(原生对话框),返回 data URI;取消返回 null
+  pickImage:function(){
+    if(!tauri)return Promise.resolve(null);
+    return tauri.core.invoke('pick_image_data_uri');
+  },
+
   // 监听单实例/命令行转发的文件路径
   listenOpenPath:function(cb){
     if(!tauri||!tauri.event||!tauri.event.listen)return;

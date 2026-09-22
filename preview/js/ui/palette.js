@@ -81,7 +81,7 @@ function togglePal(e,kind){
   var r=anchor.getBoundingClientRect();
   pal.style.left=Math.max(8,Math.min(r.left,window.innerWidth-260))+'px';
   pal.style.top=(r.bottom+8)+'px';
-  pal.style.display='flex';
+  pal.classList.add('open');
   pal.classList.add('open');
   _palOpenKind=kind;
 }
@@ -91,7 +91,8 @@ function closePal(){
   if(fp){fp.classList.remove('open');fp.style.display='none'}
 }
 document.addEventListener('click',function(e){
-  if(_palOpenKind&&!e.target.closest('#float-pal')&&!e.target.closest('.half-caret')&&!e.target.closest('.splitbtn .rbtn')){
+  // 豁免:色板内部/新颜色分体(.cs-*)/旧分体/粘贴分体箭头
+  if(_palOpenKind&&!e.target.closest('#float-pal')&&!e.target.closest('.cs-arrow')&&!e.target.closest('.cs-main')&&!e.target.closest('.btn-split-arrow')&&!e.target.closest('.half-caret')&&!e.target.closest('.splitbtn .rbtn')){
     closePal();
   }
 });
