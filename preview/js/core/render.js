@@ -13,6 +13,10 @@ function render(src,caret,done){
   var seq=++renderSeq;
   Bridge.parse(src).then(function(res){
     if(seq!==renderSeq)return;
+    // 纸面有未落盘的编辑(节流定时器挂着):放弃本次重建,避免权威结果
+    // 把 DOM 里的新编辑抹掉——待处理编辑落盘后会自行再触发渲染。
+    // pending 标志必须清掉:本次请求已结束,否则后续 flush 永远误判"在途"
+    if(repagTimer||refreshTimer){ renderPending=false; return }
     renderPending=false;
     gNodes=Engine.ingestNative(res.blocks||[],gSrc);
     Engine.applyDocsets(gNodes);   // 文档级 @[page/margin/...] 设置生效(源码即权威)
