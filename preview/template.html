@@ -4,6 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>Awen</title>
+<link rel="stylesheet" href="vendor/fontawesome/css/all.min.css">
 <script src="engine.js"></script>
 <script src="bridge.js"></script>
 <script src="vendor/mammoth.browser.min.js"></script>
@@ -11,340 +12,398 @@
 <body>
 <div class="app">
 <div class="titlebar">
+<div class="tb-left">
+<button class="btn-file" id="file-btn" onclick="toggleFileMenu(event)"><i class="fa-solid fa-file-lines"></i>文件</button>
 <div class="qat">
-<button class="rbtn" onclick="doUndo()" title="撤销 (Ctrl+Z)"><span data-icon="undo"></span></button>
-<button class="rbtn" onclick="doRedo()" title="重做 (Ctrl+Y)"><span data-icon="redo"></span></button>
-<button class="rbtn" onclick="doSave()" title="保存 (Ctrl+S)"><span data-icon="save"></span></button>
+<button class="ib" onclick="doUndo()" title="撤销 (Ctrl+Z)"><i class="fa-solid fa-rotate-left"></i></button>
+<button class="ib" onclick="doRedo()" title="重做 (Ctrl+Y)"><i class="fa-solid fa-rotate-right"></i></button>
+<button class="ib" onclick="doSave()" title="保存 (Ctrl+S)"><i class="fa-solid fa-floppy-disk"></i></button>
 </div>
-<div class="brand">Awen</div>
-<input class="docname" id="docname" value="未命名文档" title="点击修改文档名"><span id="dirty-mark" style="font-size:11px;color:#c0392b;display:none">未保存</span>
+<input class="docname" id="docname" value="未命名文档" title="点击修改文档名"><span id="dirty-mark">未保存</span>
+</div>
+<div class="tb-right">
+<button class="tb-ib" onclick="toggleSettings()" title="设置"><i class="fa-solid fa-gear"></i></button>
+<button class="tb-ib" onclick="todo('帮助','手册制作中')" title="帮助"><i class="fa-regular fa-circle-question"></i></button>
+</div>
 </div>
 <div class="filetabs" id="filetabs"></div>
 <div class="tabbar">
-<div class="tab active" data-page="home" onclick="showRibbon('home')" ondblclick="toggleRibbonCollapse()">开始</div>
+<div class="tab-group">
+<div class="tab active" data-page="start" onclick="showRibbon('start')" ondblclick="toggleRibbonCollapse()">开始</div>
 <div class="tab" data-page="insert" onclick="showRibbon('insert')" ondblclick="toggleRibbonCollapse()">插入</div>
 <div class="tab" data-page="design" onclick="showRibbon('design')" ondblclick="toggleRibbonCollapse()">设计</div>
-<div class="tab" data-page="page" onclick="showRibbon('page')" ondblclick="toggleRibbonCollapse()">页面</div>
-<div class="tab" data-page="refs" onclick="showRibbon('refs')" ondblclick="toggleRibbonCollapse()">引用</div>
+<div class="tab" data-page="layout" onclick="showRibbon('layout')" ondblclick="toggleRibbonCollapse()">页面</div>
+<div class="tab" data-page="reference" onclick="showRibbon('reference')" ondblclick="toggleRibbonCollapse()">引用</div>
 <div class="tab" data-page="review" onclick="showRibbon('review')" ondblclick="toggleRibbonCollapse()">审阅</div>
 <div class="tab" data-page="view" onclick="showRibbon('view')" ondblclick="toggleRibbonCollapse()">视图</div>
-<div class="tab" data-page="tblctx" onclick="showRibbon('tblctx')" style="display:none">表格工具</div>
-<div class="tab" data-page="imgctx" onclick="showRibbon('imgctx')" style="display:none">图片工具</div>
-<div class="tab" data-page="file" onclick="showRibbon('file')" ondblclick="toggleRibbonCollapse()">文件</div>
+</div>
+<div class="tab-group" id="tableToolsTab" style="display:none">
+<span class="ctx-tag tbl">表格工具</span>
+<div class="tab" data-page="table-layout" onclick="showRibbon('table-layout')">布局</div>
+<div class="tab" data-page="table-design" onclick="showRibbon('table-design')">设计</div>
+</div>
+<div class="tab-group" id="imageToolsTab" style="display:none">
+<span class="ctx-tag img">图片工具</span>
+<div class="tab" data-page="image-format" onclick="showRibbon('image-format')">格式</div>
+</div>
 <div style="flex:1"></div>
-<button class="chev" onclick="toggleRibbonCollapse()" id="btn-collapse" title="折叠功能区(双击标签名同效)"><svg viewBox="0 0 16 16" style="width:13px;height:13px"><path d="M3 10l5-5 5 5" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/></svg></button>
+<button class="chev" onclick="toggleRibbonCollapse()" id="btn-collapse" title="折叠功能区(双击标签名同效)"><i class="fa-solid fa-chevron-up"></i></button>
 </div>
 <div class="ribbon">
-<div class="ribbon-page active" data-page="home">
-<div class="rgroup"><div class="rg-body">
-<div class="colordrop splitbtn" style="flex-direction:column;width:36px">
-<button class="rbtn" style="width:34px;height:20px" onclick="doPaste()" title="粘贴"><span data-icon="paste"></span></button>
-<button class="rbtn" style="width:34px;height:12px;font-size:9px" onclick="pasteTextOnly()" title="只保留文本粘贴">T﹁</button>
+
+<!-- ① 开始 -->
+<div class="ribbon-page active" data-page="start">
+<div class="rgroup"><div class="rg-body nw">
+<div class="btn-split colordrop">
+<div class="btn-split-main" onclick="doPaste()" title="粘贴"><i class="fa-solid fa-paste"></i><span class="lbl">粘贴</span></div>
+<div class="btn-split-arrow" onclick="pasteTextOnly()" title="只保留文本粘贴"><i class="fa-solid fa-caret-down"></i></div>
 </div>
-<button class="rbtn" style="width:36px" onclick="doCut()" title="剪切"><span data-icon="cut"></span></button>
-<button class="rbtn" style="width:36px" onclick="doCopy()" title="复制"><span data-icon="copy"></span></button>
-<button class="rbtn" style="width:36px" id="btn-brush" onclick="brushClick()" ondblclick="brushDouble()" title="格式刷:单击吸取后选文字应用一次;双击连续应用"><span data-icon="brush"></span></button>
-<button class="rbtn" onclick="toggleCase()" title="更改大小写(选中英文循环:aA/AA/aa)"><span data-icon="case"></span>Aa</button>
+<div class="rg-vcol">
+<button class="ib" onclick="doCut()" title="剪切"><i class="fa-solid fa-scissors"></i></button>
+<button class="ib" onclick="doCopy()" title="复制"><i class="fa-regular fa-copy"></i></button>
+</div>
+<div class="rg-vcol">
+<button class="ib" id="btn-brush" onclick="brushClick()" ondblclick="brushDouble()" title="格式刷:单击吸取后选文字应用一次;双击连续应用"><i class="fa-solid fa-brush"></i></button>
+<button class="ib txt" onclick="toggleCase()" title="更改大小写(选中英文循环:aA/AA/aa)">Aa</button>
+</div>
 </div><div class="rg-label">剪贴板</div></div>
-<div class="rgroup"><div class="rg-body"><div class="fcol">
-<div class="frow">
-<button class="rbtn" style="width:30px" onclick="stepSize(1)" title="增大字号 (Ctrl+Shift+.)"><span data-icon="fup"></span></button>
-<button class="rbtn" style="width:30px" onclick="stepSize(-1)" title="减小字号 (Ctrl+Shift+,)"><span data-icon="fdown"></span></button>
-<select id="sel-font" title="字体" onchange="applyFont(this.value)">
+<div class="rgroup"><div class="rg-body mxw">
+<button class="ib" onclick="stepSize(1)" title="增大字号 (Ctrl+Shift+.)"><i class="fa-solid fa-font"></i><i class="fa-solid fa-arrow-up" style="font-size:7px;position:absolute;top:5px;right:5px"></i></button>
+<button class="ib" onclick="stepSize(-1)" title="减小字号 (Ctrl+Shift+.,)"><i class="fa-solid fa-font"></i><i class="fa-solid fa-arrow-down" style="font-size:7px;position:absolute;bottom:5px;right:5px"></i></button>
+<div class="select-box" style="width:96px"><select id="sel-font" title="字体" onchange="applyFont(this.value)">
 <optgroup label="中文"><option value="SimSun" selected>宋体</option><option value="SimHei">黑体</option><option value="KaiTi">楷体</option><option value="FangSong">仿宋</option><option value="Microsoft YaHei">微软雅黑</option><option value="DengXian">等线</option><option value="LiSu">隶书</option><option value="YouYuan">幼圆</option><option value="STZhongsong">华文中宋</option><option value="STXihei">华文细黑</option></optgroup>
 <optgroup label="西文"><option value="Times New Roman">Times New Roman</option><option value="Arial">Arial</option><option value="Calibri">Calibri</option><option value="Georgia">Georgia</option><option value="Cambria">Cambria</option><option value="Segoe UI">Segoe UI</option><option value="Courier New">Courier New</option><option value="Consolas">Consolas</option></optgroup>
-</select>
-<select id="sel-size" title="字号" onchange="applySize(this.value)">
+</select><i class="fa-solid fa-caret-down"></i></div>
+<div class="select-box" style="width:64px"><select id="sel-size" title="字号" onchange="applySize(this.value)">
 <option value="10.5" selected>五号</option><option value="9">小五</option><option value="11">11 号</option><option value="12">小四</option><option value="14">四号</option><option value="16">三号</option><option value="18">二号</option><option value="22">一号</option>
-</select>
+</select><i class="fa-solid fa-caret-down"></i></div>
+<div class="rsep"></div>
+<button class="ib txt" onclick="fmtCmd('bold')" title="加粗 (Ctrl+B)">B</button>
+<button class="ib txt it" onclick="fmtCmd('italic')" title="倾斜 (Ctrl+I)">I</button>
+<button class="ib txt ul" onclick="fmtCmd('underline')" title="下划线 (Ctrl+U)"><span>U</span></button>
+<button class="ib txt st" onclick="fmtCmd('strikeThrough')" title="删除线"><span>S</span></button>
+<button class="ib" onclick="fmtCmd('superscript')" title="上标"><span class="sub-in">x<sup>2</sup></span></button>
+<button class="ib" onclick="fmtCmd('subscript')" title="下标"><span class="sub-in">x<sub>2</sub></span></button>
+<div class="rsep"></div>
+<div class="color-split colordrop">
+<button class="cs-main" onclick="togglePal(event,'fore')" title="字体颜色:点击应用当前色,箭头选更多颜色"><i class="fa-solid fa-font"></i><span class="cs-bar"></span></button>
+<button class="cs-arrow" onclick="togglePal(event,'fore')"><i class="fa-solid fa-caret-down"></i></button>
 </div>
-<div class="frow">
-<button class="rbtn b" onclick="fmtCmd('bold')" title="加粗 (Ctrl+B)">B</button>
-<button class="rbtn i" onclick="fmtCmd('italic')" title="倾斜 (Ctrl+I)">I</button>
-<button class="rbtn u" onclick="fmtCmd('underline')" title="下划线 (Ctrl+U)"><span style="text-decoration:underline">U</span></button>
-<button class="rbtn s" onclick="fmtCmd('strikeThrough')" title="删除线"><span style="text-decoration:line-through">S</span></button>
-<button class="rbtn supb" onclick="fmtCmd('superscript')" title="上标"><span>x²</span></button>
-<button class="rbtn subb" onclick="fmtCmd('subscript')" title="下标"><span>x₂</span></button>
-<div class="colordrop splitbtn" onclick="togglePal(event,'fore')">
-<button class="rbtn"><span data-icon="fontcolor"></span></button>
-<button class="half-caret" onclick="togglePal(event,'fore')">▾</button>
+<div class="color-split colordrop">
+<button class="cs-main" onclick="applyMark(curMark)" title="底纹高亮:点击应用,箭头选更多颜色"><i class="fa-solid fa-highlighter" style="color:#eab308"></i></button>
+<button class="cs-arrow" onclick="togglePal(event,'mark')"><i class="fa-solid fa-caret-down"></i></button>
 </div>
-<div class="colordrop splitbtn" onclick="togglePal(event,'mark')">
-<button class="rbtn" onclick="applyMark(curMark)" title="底纹高亮:点击应用,箭头选更多颜色"><span data-icon="mark"></span></button>
-<button class="half-caret" onclick="togglePal(event,'mark')">▾</button>
-</div>
-<button class="rbtn mono" onclick="fmtCmdInline()" title="行内代码">&lt;/&gt;</button>
-<button class="rbtn" onclick="fmtCmd('removeFormat')" title="清除格式"><span data-icon="clear"></span></button>
-<button class="rbtn ph" onclick="todo('字符边框')" title="字符边框(规划中)">Ⓐ┓</button>
-<button class="rbtn ph" onclick="todo('字符底纹')" title="字符底纹(规划中)">▒A</button>
-<button class="rbtn ph" onclick="todo('带圈字符')" title="带圈字符(规划中)">㊤</button>
-<button class="rbtn ph" onclick="todo('首字下沉')" title="首字下沉(规划中)">首↓</button>
-</div>
-</div></div><div class="rg-label">字体</div></div>
-<div class="rgroup"><div class="rg-body" style="gap:6px">
-<div style="display:flex;gap:4px">
-<button class="stylebtn" onclick="applyStyle('')" title="正文样式">正文</button>
-<button class="stylebtn" style="font-weight:700;font-size:15px" onclick="applyStyle('1')" title="标题 1">标题 1</button>
-<button class="stylebtn" style="font-weight:700;font-size:13px" onclick="applyStyle('2')" title="标题 2">标题 2</button>
-<button class="stylebtn" style="font-weight:600;font-size:12px" onclick="applyStyle('3')" title="标题 3">标题 3</button>
-</div>
-<select id="sel-style" title="更多段落样式" onchange="applyStyle(this.value)" style="width:76px;height:32px">
-<option value="" selected>正文</option><option value="1">1 级</option><option value="2">2 级</option><option value="3">3 级</option><option value="4">4 级</option><option value="5">5 级</option><option value="6">6 级</option>
-</select>
+<button class="ib" onclick="fmtCmdInline()" title="行内代码"><i class="fa-solid fa-code"></i></button>
+<button class="ib" onclick="fmtCmd('removeFormat')" title="清除格式"><i class="fa-solid fa-eraser"></i></button>
+<div class="rsep"></div>
+<button class="ib badge" onclick="todo('字符边框')" title="字符边框(规划中)"><i class="fa-regular fa-square"></i></button>
+<button class="ib badge" onclick="todo('字符底纹')" title="字符底纹(规划中)"><i class="fa-solid fa-fill-drip"></i></button>
+<button class="ib badge" onclick="todo('带圈字符')" title="带圈字符(规划中)"><i class="fa-solid fa-circle-notch"></i></button>
+<button class="ib badge txt" onclick="todo('首字下沉')" title="首字下沉(规划中)" style="font-size:12px;font-weight:600">首</button>
+</div><div class="rg-label">字体</div></div>
+<div class="rgroup"><div class="rg-body nw">
+<button class="stylebtn" onclick="applyStyle('')" title="正文样式"><span class="s1">正文</span></button>
+<button class="stylebtn" onclick="applyStyle('1')" title="标题 1"><span class="s2">标题1</span></button>
+<button class="stylebtn" onclick="applyStyle('2')" title="标题 2"><span class="s3">标题2</span></button>
+<button class="stylebtn" onclick="applyStyle('3')" title="标题 3"><span class="s4">标题3</span></button>
+<div class="select-box" style="width:70px"><select id="sel-style" title="更多段落样式" onchange="applyStyle(this.value)">
+<option value="" selected>更多…</option><option value="4">4 级</option><option value="5">5 级</option><option value="6">6 级</option>
+</select><i class="fa-solid fa-caret-down"></i></div>
 </div><div class="rg-label">样式</div></div>
-<div class="rgroup"><div class="rg-body">
-<div class="rgrid3">
-<button class="rbtn" onclick="listCmd('ul')" title="项目符号列表"><span data-icon="ul"></span></button>
-<button class="rbtn" onclick="listCmd('ol')" title="编号列表"><span data-icon="ol"></span></button>
-<button class="rbtn ph" onclick="todo('多级列表')" title="多级列表(规划中)">⇢¹</button>
-<button class="rbtn" id="al" onclick="fmtCmd('justifyLeft')" title="左对齐"><span data-icon="al"></span></button>
-<button class="rbtn" id="ac" onclick="fmtCmd('justifyCenter')" title="居中"><span data-icon="ac"></span></button>
-<button class="rbtn" id="ar" onclick="fmtCmd('justifyRight')" title="右对齐"><span data-icon="ar"></span></button>
-<button class="rbtn" id="aj" onclick="fmtCmd('justifyFull')" title="两端对齐"><span data-icon="aj"></span></button>
-<button class="rbtn ph" onclick="todo('增加缩进')" title="增加缩进(规划中)">→]</button>
-<button class="rbtn ph" onclick="todo('减少缩进')" title="减少缩进(规划中)">[←</button>
-<button class="rbtn" onclick="cycleLineSpacing()" title="行距(循环切换)"><span data-icon="lineh"></span></button>
-<button class="rbtn ph" onclick="todo('排序')" title="段落排序(规划中)">A↓Z</button>
-<button class="rbtn ph" onclick="todo('段落底纹')" title="段落底纹(规划中)">▒¶</button>
-<button class="rbtn ph" onclick="todo('段落边框')" title="段落边框(规划中)">▱¶</button>
-</div>
+<div class="rgroup"><div class="rg-body mxw2">
+<button class="ib" onclick="listCmd('ul')" title="项目符号列表"><i class="fa-solid fa-list-ul"></i></button>
+<button class="ib" onclick="listCmd('ol')" title="编号列表"><i class="fa-solid fa-list-ol"></i></button>
+<button class="ib badge" onclick="todo('多级列表')" title="多级列表(规划中)"><i class="fa-solid fa-list"></i></button>
+<div class="rsep"></div>
+<button class="ib" id="al" onclick="fmtCmd('justifyLeft')" title="左对齐"><i class="fa-solid fa-align-left"></i></button>
+<button class="ib" id="ac" onclick="fmtCmd('justifyCenter')" title="居中"><i class="fa-solid fa-align-center"></i></button>
+<button class="ib" id="ar" onclick="fmtCmd('justifyRight')" title="右对齐"><i class="fa-solid fa-align-right"></i></button>
+<button class="ib" id="aj" onclick="fmtCmd('justifyFull')" title="两端对齐"><i class="fa-solid fa-align-justify"></i></button>
+<div class="rsep"></div>
+<button class="ib badge" onclick="todo('增加缩进')" title="增加缩进(规划中)"><i class="fa-solid fa-indent"></i></button>
+<button class="ib badge" onclick="todo('减少缩进')" title="减少缩进(规划中)"><i class="fa-solid fa-outdent"></i></button>
+<button class="ib" onclick="cycleLineSpacing()" title="行距(循环切换)"><i class="fa-solid fa-text-height"></i></button>
+<div class="rsep"></div>
+<button class="ib badge" onclick="todo('排序')" title="段落排序(规划中)"><i class="fa-solid fa-sort"></i></button>
+<button class="ib badge" onclick="todo('段落底纹')" title="段落底纹(规划中)"><i class="fa-solid fa-paint-roller"></i></button>
+<button class="ib badge" onclick="todo('段落边框')" title="段落边框(规划中)"><i class="fa-solid fa-border-all"></i></button>
 </div><div class="rg-label">段落</div></div>
 <div class="rgroup"><div class="rg-body">
-<button class="rbtn" onclick="toggleFind()" title="查找 (Ctrl+F)"><span data-icon="search"></span></button>
-<button class="rbtn" onclick="replaceEntry()" title="查找和替换 (Ctrl+H)"><span data-icon="replace"></span></button>
-<button class="rbtn" onclick="selectAllDoc()" title="全选当前文档"><span data-icon="selall"></span></button>
+<button class="btn-icon" onclick="toggleFind()" title="查找 (Ctrl+F)"><i class="fa-solid fa-magnifying-glass"></i><span class="lbl">查找</span></button>
+<button class="btn-icon" onclick="replaceEntry()" title="查找和替换 (Ctrl+H)"><i class="fa-solid fa-arrows-rotate"></i><span class="lbl">替换</span></button>
+<button class="btn-icon" onclick="selectAllDoc()" title="全选当前文档"><i class="fa-solid fa-vector-square"></i><span class="lbl">全选</span></button>
 </div><div class="rg-label">编辑</div></div>
 </div>
+
+<!-- ② 插入 -->
+<div class="ribbon-page" data-page="insert">
+<div class="rgroup"><div class="rg-body">
+<button class="btn-icon" onclick="toggleTblPop(this)" title="插入表格"><i class="fa-solid fa-table"></i><span class="lbl">表格</span></button>
+<button class="btn-icon" onclick="insertBlock('image')" title="插入图片"><i class="fa-regular fa-image"></i><span class="lbl">图片</span></button>
+<button class="btn-icon" onclick="insertBlock('link')" title="插入链接"><i class="fa-solid fa-link"></i><span class="lbl">链接</span></button>
+<button class="btn-icon" onclick="insertBlock('hr')" title="插入分隔线"><i class="fa-solid fa-minus"></i><span class="lbl">分隔线</span></button>
+<button class="btn-icon" onclick="insertBlock('footnote')" title="插入脚注"><i class="fa-solid fa-superscript"></i><span class="lbl">脚注</span></button>
+<button class="btn-icon" onclick="insertBlock('toc')" title="插入目录(按标题生成)"><i class="fa-solid fa-list"></i><span class="lbl">目录</span></button>
+</div><div class="rg-label">插入</div></div>
+<div class="rgroup"><div class="rg-body">
+<button class="btn-icon" onclick="insertBlock('math')" title="数学公式"><i class="fa-solid fa-square-root-variable"></i><span class="lbl">数学</span></button>
+<button class="btn-icon" onclick="insertBlock('label')" title="书签(供 @[ref] 引用)"><i class="fa-solid fa-bookmark"></i><span class="lbl">书签</span></button>
+<button class="btn-icon" onclick="insertBlock('date')" title="插入日期"><i class="fa-regular fa-calendar"></i><span class="lbl">日期</span></button>
+<button class="btn-icon" onclick="toggleSymbolPanel(this)" title="特殊符号"><i class="fa-solid fa-omega"></i><span class="lbl">符号</span></button>
+</div><div class="rg-label">公式与符号</div></div>
+<div class="rgroup"><div class="rg-body">
+<button class="btn-icon" onclick="insertBlock('quote')" title="引用块"><i class="fa-solid fa-quote-left"></i><span class="lbl">引用</span></button>
+<button class="btn-icon" onclick="insertBlock('comment')" title="批注(不参与渲染,仅存于源码)"><i class="fa-regular fa-comment"></i><span class="lbl">批注</span></button>
+</div><div class="rg-label">引用与批注</div></div>
+<div class="rgroup"><div class="rg-body">
+<button class="btn-icon badge" onclick="todo('页眉','需引擎按页固定区')" title="页眉(需引擎扩展)"><i class="fa-solid fa-header"></i><span class="lbl">页眉</span></button>
+<button class="btn-icon badge" onclick="todo('页脚','需引擎按页固定区')" title="页脚(需引擎扩展)"><i class="fa-solid fa-header" style="transform:scaleY(-1)"></i><span class="lbl">页脚</span></button>
+<button class="btn-icon badge" onclick="todo('页码','需引擎按页固定区')" title="页码(需引擎扩展)"><i class="fa-solid fa-hashtag"></i><span class="lbl">页码</span></button>
+<button class="btn-icon badge" onclick="todo('分页符','需引擎硬分页')" title="分页符(需引擎扩展)"><i class="fa-solid fa-scissors"></i><span class="lbl">分页符</span></button>
+<button class="btn-icon badge" onclick="todo('分节符','需引擎硬分页')" title="分节符(需引擎扩展)"><i class="fa-solid fa-grip-lines"></i><span class="lbl">分节符</span></button>
+<button class="btn-icon badge" onclick="todo('文本框','需引擎浮动块定位')" title="文本框(需引擎扩展)"><i class="fa-regular fa-square"></i><span class="lbl">文本框</span></button>
+</div><div class="rg-label">页眉页脚与版面</div></div>
+<div class="rgroup"><div class="rg-body">
+<button class="btn-icon badge" onclick="todo('交叉引用','复用 label/ref 机制')" title="交叉引用(规划中)"><i class="fa-solid fa-retweet"></i><span class="lbl">交叉引用</span></button>
+<button class="btn-icon badge" onclick="todo('书签管理','复用 label 机制')" title="书签管理(规划中)"><i class="fa-solid fa-book-bookmark"></i><span class="lbl">书签管理</span></button>
+<button class="btn-icon badge" onclick="todo('日期时间','规划中')" title="日期时间(可选格式)"><i class="fa-regular fa-clock"></i><span class="lbl">日期时间</span></button>
+<button class="btn-icon badge" onclick="todo('文档部件','规划中')" title="文档部件(规划中)"><i class="fa-solid fa-puzzle-piece"></i><span class="lbl">文档部件</span></button>
+<button class="btn-icon badge" onclick="todo('符号扩容','规划中')" title="更多符号集(规划中)"><i class="fa-solid fa-icons"></i><span class="lbl">符号扩容</span></button>
+</div><div class="rg-label">链接与文本</div></div>
+</div>
+
+<!-- ③ 设计 -->
+<div class="ribbon-page" data-page="design">
+<div class="rgroup"><div class="rg-body">
+<button class="btn-icon badge" onclick="todo('主题','主题 token 待规范冻结')" title="文档主题(需规范冻结)"><i class="fa-solid fa-palette"></i><span class="lbl">主题</span></button>
+<button class="btn-icon badge" onclick="todo('样式集','主题 token 待规范冻结')" title="样式集(需规范冻结)"><i class="fa-solid fa-shapes"></i><span class="lbl">样式集</span></button>
+</div><div class="rg-label">文档格式</div></div>
+<div class="rgroup"><div class="rg-body">
+<button class="btn-icon badge" onclick="todo('水印','规划中')" title="水印(规划中)"><i class="fa-solid fa-droplet"></i><span class="lbl">水印</span></button>
+<button class="btn-icon badge" onclick="todo('页面颜色','规划中')" title="页面颜色(规划中)"><i class="fa-solid fa-fill-drip"></i><span class="lbl">页面颜色</span></button>
+<button class="btn-icon badge" onclick="todo('页面边框','规划中')" title="页面边框(规划中)"><i class="fa-solid fa-frame"></i><span class="lbl">页面边框</span></button>
+</div><div class="rg-label">页面背景</div></div>
+</div>
+
+<!-- ④ 页面 -->
+<div class="ribbon-page" data-page="layout">
+<div class="rgroup"><div class="rg-body nw">
+<div class="select-box" style="width:110px"><select id="sel-paper" title="纸张大小" onchange="applyPaper(this.value)">
+<option value="A4" selected>A4 210×297mm</option><option value="Letter">Letter 215.9×279.4mm</option><option value="B5">B5 176×250mm</option><option value="A3">A3 297×420mm</option><option value="A5">A5 148×210mm</option>
+</select><i class="fa-solid fa-caret-down"></i></div>
+<button class="btn-icon" id="btn-orient" onclick="toggleOrientation()" title="纸张方向切换"><i class="fa-solid fa-file"></i><span class="lbl" id="orient-lbl">纵向</span></button>
+<div class="select-box" style="width:96px"><select id="sel-margin" title="页边距" onchange="applyMargin(this.value)">
+<option value="20" selected>正常 20mm</option><option value="12.7">窄 12.7mm</option><option value="25.4">宽 25.4mm</option><option value="30">宽 30mm</option><option value="custom">自定义…</option>
+</select><i class="fa-solid fa-caret-down"></i></div>
+<input type="number" id="margin-custom" min="5" max="60" step="0.5" style="display:none;width:64px" class="sbtn2" title="页边距 mm" onchange="applyMarginCustom(this.value)">
+</div><div class="rg-label">纸张</div></div>
+<div class="rgroup"><div class="rg-body nw">
+<div class="select-box" style="width:104px"><select id="sel-linesp" title="行间距" onchange="applyLineSpacing(this.value)">
+<option value="1.15">单倍行距</option><option value="1.5">1.5 倍行距</option><option value="1.9" selected>默认 (1.9 倍)</option><option value="2">2 倍行距</option><option value="2.5">2.5 倍行距</option><option value="custom">自定义…</option>
+</select><i class="fa-solid fa-caret-down"></i></div>
+<input type="number" id="linesp-custom" min="1" max="4" step="0.05" style="display:none;width:64px" class="sbtn2" title="行距倍数" onchange="applyLineSpacingCustom(this.value)">
+<button class="btn-icon" onclick="toggleFirstLine()" id="btn-firstline" title="切换首行缩进 @[first-line 2em]"><i class="fa-solid fa-indent"></i><span class="lbl">首行缩进</span></button>
+<div class="select-box" style="width:88px"><select id="sel-parasp" title="段间距(段后间距 @[para-spacing])" onchange="applyParaSpacing(this.value)">
+<option value="0" selected>无段间距</option><option value="0.25em">0.25em</option><option value="0.5em">0.5em</option><option value="1em">1em</option><option value="1.5em">1.5em</option><option value="custom">自定义…</option>
+</select><i class="fa-solid fa-caret-down"></i></div>
+<input type="text" id="parasp-custom" placeholder="如 0.75em" style="display:none;width:64px" class="sbtn2" title="段间距(带 em 单位)" onchange="applyParaSpacingCustom(this.value)">
+</div><div class="rg-label">段落设置</div></div>
+<div class="rgroup"><div class="rg-body">
+<button class="btn-icon badge" onclick="todo('分栏','需引擎多栏布局')" title="分栏(需引擎扩展)"><i class="fa-solid fa-columns"></i><span class="lbl">分栏</span></button>
+<button class="btn-icon badge" onclick="todo('行号','规划中')" title="行号(规划中)"><i class="fa-solid fa-list-ol"></i><span class="lbl">行号</span></button>
+<button class="btn-icon badge" onclick="todo('断字','规划中')" title="断字(规划中)"><i class="fa-solid fa-text-slash"></i><span class="lbl">断字</span></button>
+</div><div class="rg-label">页面设置</div></div>
+<div class="rgroup"><div class="rg-body">
+<button class="btn-icon badge" onclick="todo('文档字体','主题 token 待规范冻结')" title="文档默认字体(需规范冻结)"><i class="fa-solid fa-font"></i><span class="lbl">文档字体</span></button>
+<button class="btn-icon badge" onclick="todo('文档字号','主题 token 待规范冻结')" title="文档默认字号(需规范冻结)"><i class="fa-solid fa-text-height"></i><span class="lbl">文档字号</span></button>
+</div><div class="rg-label">主题</div></div>
+</div>
+
+<!-- ⑤ 引用 -->
+<div class="ribbon-page" data-page="reference">
+<div class="rgroup"><div class="rg-body">
+<button class="btn-icon" onclick="insertBlock('toc')" title="插入目录(按标题生成)"><i class="fa-solid fa-list"></i><span class="lbl">目录</span></button>
+<button class="btn-icon badge" onclick="todo('更新目录','规划中')" title="更新目录(规划中)"><i class="fa-solid fa-arrows-rotate"></i><span class="lbl">更新目录</span></button>
+</div><div class="rg-label">目录</div></div>
+<div class="rgroup"><div class="rg-body">
+<button class="btn-icon" onclick="insertBlock('footnote')" title="插入脚注"><i class="fa-solid fa-superscript"></i><span class="lbl">脚注</span></button>
+<button class="btn-icon badge" onclick="todo('脚注管理','规划中')" title="脚注管理(规划中)"><i class="fa-solid fa-gear"></i><span class="lbl">脚注管理</span></button>
+</div><div class="rg-label">脚注</div></div>
+<div class="rgroup"><div class="rg-body">
+<button class="btn-icon badge" onclick="todo('插入题注','规划中')" title="插入题注(规划中)"><i class="fa-solid fa-tag"></i><span class="lbl">插入题注</span></button>
+<button class="btn-icon badge" onclick="todo('交叉引用','规划中')" title="交叉引用(规划中)"><i class="fa-solid fa-retweet"></i><span class="lbl">交叉引用</span></button>
+<button class="btn-icon badge" onclick="todo('表目录','规划中')" title="表目录(规划中)"><i class="fa-solid fa-table-list"></i><span class="lbl">表目录</span></button>
+</div><div class="rg-label">题注</div></div>
+<div class="rgroup"><div class="rg-body">
+<button class="btn-icon badge" onclick="todo('引文与书目','学术向,规范冻结')" title="引文与书目(需规范冻结)"><i class="fa-solid fa-book"></i><span class="lbl">引文书目</span></button>
+<button class="btn-icon badge" onclick="todo('索引','学术向,规范冻结')" title="索引(需规范冻结)"><i class="fa-solid fa-book-open"></i><span class="lbl">索引</span></button>
+</div><div class="rg-label">引文与索引</div></div>
+</div>
+
+<!-- ⑥ 审阅 -->
+<div class="ribbon-page" data-page="review">
+<div class="rgroup"><div class="rg-body">
+<button class="btn-icon badge" onclick="todo('拼写检查','规划中(内置英文词库)')" title="拼写检查(规划中)"><i class="fa-solid fa-spell-check"></i><span class="lbl">拼写检查</span></button>
+<button class="btn-icon" onclick="showWordCount()" title="字数统计"><i class="fa-solid fa-file-word"></i><span class="lbl">字数统计</span></button>
+</div><div class="rg-label">校对</div></div>
+<div class="rgroup"><div class="rg-body">
+<button class="btn-icon" onclick="insertBlock('comment')" title="新建批注"><i class="fa-regular fa-comment-dots"></i><span class="lbl">新建批注</span></button>
+<button class="btn-icon badge" onclick="todo('删除批注','规划中')" title="删除批注(规划中)"><i class="fa-solid fa-trash-can"></i><span class="lbl">删除批注</span></button>
+<button class="btn-icon badge" onclick="todo('上一条批注','规划中')" title="上一条批注(规划中)"><i class="fa-solid fa-chevron-up"></i><span class="lbl">上一条</span></button>
+<button class="btn-icon badge" onclick="todo('下一条批注','规划中')" title="下一条批注(规划中)"><i class="fa-solid fa-chevron-down"></i><span class="lbl">下一条</span></button>
+<button class="btn-icon badge" onclick="todo('批注窗格','规划中')" title="批注窗格(规划中)"><i class="fa-solid fa-table-columns"></i><span class="lbl">批注窗格</span></button>
+</div><div class="rg-label">批注</div></div>
+<div class="rgroup"><div class="rg-body">
+<button class="btn-icon badge" onclick="todo('修订开关','需引擎 change tracking')" title="修订开关(需引擎扩展)"><i class="fa-solid fa-pen-to-square"></i><span class="lbl">修订</span></button>
+<button class="btn-icon badge" onclick="todo('显示标记','需引擎 change tracking')" title="显示标记(需引擎扩展)"><i class="fa-regular fa-eye"></i><span class="lbl">显示标记</span></button>
+<button class="btn-icon badge" onclick="todo('审阅窗格','需引擎 change tracking')" title="审阅窗格(需引擎扩展)"><i class="fa-solid fa-grip"></i><span class="lbl">审阅窗格</span></button>
+</div><div class="rg-label">修订</div></div>
+<div class="rgroup"><div class="rg-body">
+<button class="btn-icon badge" onclick="todo('接受修订','需引擎 change tracking')" title="接受修订(需引擎扩展)"><i class="fa-solid fa-check" style="color:#16a34a"></i><span class="lbl">接受</span></button>
+<button class="btn-icon badge" onclick="todo('拒绝修订','需引擎 change tracking')" title="拒绝修订(需引擎扩展)"><i class="fa-solid fa-xmark" style="color:#dc2626"></i><span class="lbl">拒绝</span></button>
+<button class="btn-icon badge" onclick="todo('比较文档','规划中(diff 两份源码)')" title="比较文档(规划中)"><i class="fa-solid fa-code-compare"></i><span class="lbl">比较</span></button>
+<button class="btn-icon badge" onclick="todo('合并文档','规划中(diff 两份源码)')" title="合并文档(规划中)"><i class="fa-solid fa-code-merge"></i><span class="lbl">合并</span></button>
+<button class="btn-icon badge" onclick="todo('限制编辑','规划中')" title="限制编辑(规划中)"><i class="fa-solid fa-lock"></i><span class="lbl">限制编辑</span></button>
+</div><div class="rg-label">更改与保护</div></div>
+</div>
+
+<!-- ⑦ 视图 -->
+<div class="ribbon-page" data-page="view">
+<div class="rgroup"><div class="rg-body">
+<button class="btn-icon" id="vb-display" onclick="setMode('display')" title="页面视图"><i class="fa-solid fa-file"></i><span class="lbl">页面</span></button>
+<button class="btn-icon" id="vb-syntax" onclick="setMode('syntax')" title="语法视图"><i class="fa-solid fa-spell-check"></i><span class="lbl">语法</span></button>
+<button class="btn-icon" id="vb-split" onclick="setMode('split')" title="分屏"><i class="fa-solid fa-grip-lines-vertical"></i><span class="lbl">分屏</span></button>
+<button class="btn-icon badge" onclick="todo('阅读视图','规划中')" title="阅读视图(规划中)"><i class="fa-solid fa-book-open"></i><span class="lbl">阅读</span></button>
+<button class="btn-icon badge" onclick="todo('大纲视图','规划中')" title="大纲视图(规划中)"><i class="fa-solid fa-list"></i><span class="lbl">大纲</span></button>
+<button class="btn-icon badge" onclick="todo('草稿视图','规划中')" title="草稿视图(规划中)"><i class="fa-solid fa-file-lines"></i><span class="lbl">草稿</span></button>
+</div><div class="rg-label">文档视图</div></div>
+<div class="rgroup"><div class="rg-body">
+<button class="btn-icon" onclick="toggleFocus()" title="隐藏功能区/侧栏/状态栏,Esc 退出"><i class="fa-solid fa-expand"></i><span class="lbl">专注模式</span></button>
+<button class="btn-icon" onclick="toggleSidebar()" title="显示/隐藏文档结构窗格"><i class="fa-solid fa-bars"></i><span class="lbl">导航窗格</span></button>
+<button class="btn-icon" id="btn-marks" onclick="toggleMarks()" title="显示段落标记(¶)"><i class="fa-solid fa-pencil"></i><span class="lbl">编辑标记</span></button>
+<button class="btn-icon badge" onclick="todo('标尺','规划中')" title="标尺(规划中)"><i class="fa-solid fa-ruler"></i><span class="lbl">标尺</span></button>
+<button class="btn-icon badge" onclick="todo('网格线','规划中')" title="网格线(规划中)"><i class="fa-solid fa-table-cells"></i><span class="lbl">网格线</span></button>
+<button class="btn-icon badge" onclick="todo('护眼模式','规划中')" title="护眼模式(规划中)"><i class="fa-solid fa-eye"></i><span class="lbl">护眼</span></button>
+</div><div class="rg-label">显示</div></div>
+<div class="rgroup"><div class="rg-body nw">
+<div class="select-box" style="width:70px"><select id="sel-zoom-view" title="缩放比例" onchange="applyZoom(this.value)">
+<option value="0.7">70%</option><option value="0.85">85%</option><option value="1" selected>100%</option><option value="1.25">125%</option><option value="1.5">150%</option><option value="2">200%</option><option value="custom">自定义…</option>
+</select><i class="fa-solid fa-caret-down"></i></div>
+<input type="number" id="zoom-view-custom" min="30" max="300" step="5" style="display:none;width:58px" class="sbtn2" title="缩放百分比 30-300" onchange="applyZoomCustom(this.value,'sel-zoom-view')">
+<button class="btn-icon badge" onclick="todo('单页显示','规划中')" title="单页(规划中)"><i class="fa-solid fa-file"></i><span class="lbl">单页</span></button>
+<button class="btn-icon badge" onclick="todo('多页显示','规划中')" title="多页(规划中)"><i class="fa-solid fa-files"></i><span class="lbl">多页</span></button>
+<button class="btn-icon badge" onclick="todo('页宽缩放','规划中')" title="按页宽缩放(规划中)"><i class="fa-solid fa-arrows-left-right"></i><span class="lbl">页宽</span></button>
+</div><div class="rg-label">缩放</div></div>
+<div class="rgroup"><div class="rg-body">
+<button class="btn-icon" onclick="setMode('split')" title="拆分窗口(同分屏)"><i class="fa-solid fa-grip-lines"></i><span class="lbl">拆分</span></button>
+<button class="btn-icon" onclick="swapSplit()" title="分屏左右交换"><i class="fa-solid fa-right-left"></i><span class="lbl">左右交换</span></button>
+<button class="btn-icon badge" onclick="todo('并排查看','规划中')" title="并排查看两个文档(规划中)"><i class="fa-solid fa-columns"></i><span class="lbl">并排查看</span></button>
+</div><div class="rg-label">窗口</div></div>
+</div>
+
+<!-- 上下文:表格工具·布局 -->
+<div class="ribbon-page" data-page="table-layout">
+<div class="rgroup"><div class="rg-body">
+<button class="btn-icon" onclick="tblInsRow()" title="在当前行上方插入行"><i class="fa-solid fa-plus"></i><span class="lbl">+行</span></button>
+<button class="btn-icon" onclick="tblDelRow()" title="删除当前行"><i class="fa-solid fa-minus"></i><span class="lbl">−行</span></button>
+<button class="btn-icon" onclick="tblInsCol()" title="在当前列左侧插入列"><i class="fa-solid fa-plus"></i><span class="lbl">+列</span></button>
+<button class="btn-icon" onclick="tblDelCol()" title="删除当前列"><i class="fa-solid fa-minus"></i><span class="lbl">−列</span></button>
+<button class="btn-icon badge" onclick="todo('合并单元格','规划中')" title="合并单元格(规划中)"><i class="fa-solid fa-table-cells-large"></i><span class="lbl">合并</span></button>
+<button class="btn-icon badge" onclick="todo('拆分单元格','规划中')" title="拆分单元格(规划中)"><i class="fa-solid fa-table-cells"></i><span class="lbl">拆分</span></button>
+<button class="btn-icon badge" onclick="todo('单元格对齐','规划中')" title="对齐方式(规划中)"><i class="fa-solid fa-align-center"></i><span class="lbl">对齐</span></button>
+<button class="btn-icon badge" onclick="todo('表格排序','规划中')" title="排序(规划中)"><i class="fa-solid fa-sort"></i><span class="lbl">排序</span></button>
+</div><div class="rg-label">布局</div></div>
+</div>
+<!-- 上下文:表格工具·设计 -->
+<div class="ribbon-page" data-page="table-design">
+<div class="rgroup"><div class="rg-body">
+<button class="btn-icon badge" onclick="todo('表格样式','规划中')" title="表格样式(规划中)"><i class="fa-solid fa-palette"></i><span class="lbl">表格样式</span></button>
+<button class="btn-icon badge" onclick="todo('表格边框','规划中')" title="边框(规划中)"><i class="fa-solid fa-border-all"></i><span class="lbl">边框</span></button>
+<button class="btn-icon badge" onclick="todo('表格底纹','规划中')" title="底纹(规划中)"><i class="fa-solid fa-fill-drip"></i><span class="lbl">底纹</span></button>
+</div><div class="rg-label">设计</div></div>
+</div>
+<!-- 上下文:图片工具·格式 -->
+<div class="ribbon-page" data-page="image-format">
+<div class="rgroup"><div class="rg-body">
+<button class="btn-icon" onclick="openImagePanel()" title="图片尺寸与对齐(点击图片后可调)"><i class="fa-solid fa-crop-simple"></i><span class="lbl">尺寸/对齐</span></button>
+<button class="btn-icon badge" onclick="todo('文字环绕','规划中')" title="文字环绕(规划中)"><i class="fa-solid fa-text-wrap"></i><span class="lbl">环绕</span></button>
+<button class="btn-icon badge" onclick="todo('图片裁剪','规划中')" title="裁剪(规划中)"><i class="fa-solid fa-crop"></i><span class="lbl">裁剪</span></button>
+</div><div class="rg-label">格式</div></div>
+</div>
+</div>
+
 <div class="findbar-pop" id="findbar">
 <div class="fb-head"><span>查找和替换</span><span class="x" onclick="closeFind()">✕</span></div>
 <div class="fb-body">
 <div class="fb-row"><input type="text" id="findbox" placeholder="查找内容" oninput="findCount()" onkeydown="findKey(event)"></div>
 <div class="fb-row"><input type="text" id="replacebox" placeholder="替换为"></div>
 <div class="fb-row" style="justify-content:space-between">
-<label style="display:flex;align-items:center;gap:3px"><input type="checkbox" id="cb-case">区分大小写</label>
-<label style="display:flex;align-items:center;gap:3px"><input type="checkbox" id="cb-whole">全字匹配</label>
-<label style="display:flex;align-items:center;gap:3px"><input type="checkbox" id="cb-down" checked>向下</label>
-<label style="display:flex;align-items:center;gap:3px"><input type="checkbox" id="cb-up">向上</label>
+<label><input type="checkbox" id="cb-case">区分大小写</label>
+<label><input type="checkbox" id="cb-whole">全字匹配</label>
+<label><input type="checkbox" id="cb-down" checked>向下</label>
+<label><input type="checkbox" id="cb-up">向上</label>
 </div>
-<div class="fb-row"><span id="findmsg" style="font-size:12px;color:#6b6d72"></span></div>
+<div class="fb-row"><span id="findmsg" style="font-size:12px;color:#6b7280"></span></div>
 <div class="fb-row" style="justify-content:space-between">
-<button class="sbtn" onclick="findNext()">下一个</button>
-<button class="sbtn" onclick="findPrev()">上一个</button>
-<button class="sbtn" onclick="replaceOne()">替换</button>
-<button class="sbtn" onclick="replaceAll()">全部替换</button>
+<button class="sbtn2" onclick="findNext()">下一个</button>
+<button class="sbtn2" onclick="findPrev()">上一个</button>
+<button class="sbtn2" onclick="replaceOne()">替换</button>
+<button class="sbtn2" onclick="replaceAll()">全部替换</button>
 </div>
 </div>
 </div>
-<div class="ribbon-page" data-page="insert">
-<div class="rgroup"><div class="rg-body">
-<button class="tbtn" onclick="toggleTblPop(this)" title="插入表格"><span data-icon="table"></span>表格</button>
-<button class="tbtn" onclick="insertBlock('image')" title="插入图片"><span data-icon="image"></span>图片</button>
-<button class="tbtn" onclick="insertBlock('link')" title="插入链接"><span data-icon="link"></span>链接</button>
-<button class="tbtn" onclick="insertBlock('hr')" title="插入分隔线"><span data-icon="hr"></span>分隔线</button>
-<button class="tbtn" onclick="insertBlock('footnote')" title="插入脚注"><span data-icon="footnote"></span>脚注</button>
-<button class="tbtn" onclick="insertBlock('toc')" title="插入目录(按标题生成)"><span data-icon="toc"></span>目录</button>
-</div><div class="rg-label">插入</div></div>
-<div class="rgroup"><div class="rg-body">
-<button class="tbtn" onclick="insertBlock('math')" title="数学公式"><span data-icon="math"></span>数学</button>
-<button class="tbtn" onclick="insertBlock('label')" title="书签(供 @[ref] 引用)"><span data-icon="bookmark"></span>书签</button>
-<button class="tbtn" onclick="insertBlock('date')" title="插入日期"><span data-icon="date"></span>日期</button>
-<button class="tbtn" onclick="toggleSymbolPanel(this)" title="特殊符号"><span data-icon="symbol"></span>符号</button>
-</div><div class="rg-label">公式与符号</div></div>
-<div class="rgroup"><div class="rg-body">
-<button class="tbtn" onclick="insertBlock('quote')" title="引用块"><span data-icon="quote"></span>引用</button>
-<button class="tbtn" onclick="insertBlock('comment')" title="批注(不参与渲染,仅存于源码)"><span data-icon="comment"></span>批注</button>
-</div><div class="rg-label">引用与批注</div></div>
-<div class="rgroup"><div class="rg-body">
-<button class="tbtn ph" onclick="todo('页眉','需引擎按页固定区')" title="页眉(需引擎扩展)">页眉</button>
-<button class="tbtn ph" onclick="todo('页脚','需引擎按页固定区')" title="页脚(需引擎扩展)">页脚</button>
-<button class="tbtn ph" onclick="todo('页码','需引擎按页固定区')" title="页码(需引擎扩展)">页码</button>
-<button class="tbtn ph" onclick="todo('分页符','需引擎硬分页')" title="分页符(需引擎扩展)">分页符</button>
-<button class="tbtn ph" onclick="todo('分节符','需引擎硬分页')" title="分节符(需引擎扩展)">分节符</button>
-<button class="tbtn ph" onclick="todo('文本框','需引擎浮动块定位')" title="文本框(需引擎扩展)">文本框</button>
-</div><div class="rg-label">页眉页脚与版面</div></div>
-<div class="rgroup"><div class="rg-body">
-<button class="tbtn ph" onclick="todo('交叉引用','复用 label/ref 机制')" title="交叉引用(规划中)">↔引用</button>
-<button class="tbtn ph" onclick="todo('书签管理','复用 label 机制')" title="书签管理(规划中)">书签表</button>
-<button class="tbtn ph" onclick="todo('日期时间','规划中')" title="日期时间(可选格式)">日期时间</button>
-<button class="tbtn ph" onclick="todo('文档部件','规划中')" title="文档部件(规划中)">部件</button>
-<button class="tbtn ph" onclick="todo('符号扩容','规划中')" title="更多符号集(规划中)">符号+</button>
-</div><div class="rg-label">链接与文本</div></div>
+
+<!-- 文件下拉菜单 -->
+<div class="file-menu" id="file-menu">
+<div class="fm-sec"><div class="fm-grid">
+<button class="fm-item" onclick="toggleFileMenu();newDoc()"><i class="fa-solid fa-file-circle-plus" style="color:var(--accent)"></i>新建</button>
+<button class="fm-item" onclick="toggleFileMenu();openFileClick()"><i class="fa-solid fa-folder-open"></i>打开</button>
+<button class="fm-item" onclick="toggleFileMenu();doSave()"><i class="fa-solid fa-floppy-disk" style="color:var(--accent)"></i>保存</button>
+<button class="fm-item" onclick="toggleFileMenu();doSaveAs()"><i class="fa-solid fa-floppy-disk"></i>另存为</button>
+<button class="fm-item" onclick="toggleFileMenu();importDocx()"><i class="fa-solid fa-file-import"></i>导入 docx</button>
+<button class="fm-item" onclick="toggleFileMenu();doPrint()"><i class="fa-solid fa-print"></i>打印</button>
+</div></div>
+<div class="fm-sec"><div class="fm-title">导出为</div>
+<button class="fm-item" onclick="toggleFileMenu();exportFile('md')"><i class="fa-brands fa-markdown"></i>Markdown (.md)</button>
+<button class="fm-item" onclick="toggleFileMenu();exportFile('html')"><i class="fa-brands fa-html5"></i>网页 (.html)</button>
+<button class="fm-item" onclick="toggleFileMenu();exportFile('doc')"><i class="fa-solid fa-file-word"></i>Word 文档 (.doc)</button>
+<button class="fm-item" onclick="toggleFileMenu();exportFile('txt')"><i class="fa-solid fa-file-lines"></i>纯文本 (.txt)</button>
 </div>
-<div class="ribbon-page" data-page="view">
-<div class="rgroup"><div class="rg-body">
-<button class="sbtn" id="vb-display" onclick="setMode('display')">显示</button>
-<button class="sbtn" id="vb-syntax" onclick="setMode('syntax')">语法</button>
-<button class="sbtn" id="vb-split" onclick="setMode('split')">分屏</button>
-<button class="sbtn ph" onclick="todo('阅读视图','规划中')" title="阅读视图(规划中)">阅读</button>
-<button class="sbtn ph" onclick="todo('大纲视图','规划中')" title="大纲视图(规划中)">大纲</button>
-<button class="sbtn ph" onclick="todo('草稿视图','规划中')" title="草稿视图(规划中)">草稿</button>
-</div><div class="rg-label">文档视图</div></div>
-<div class="rgroup"><div class="rg-body">
-<button class="sbtn" onclick="toggleFocus()" title="隐藏功能区/侧栏/状态栏,Esc 退出">专注模式</button>
-<button class="sbtn" onclick="toggleSidebar()" title="显示/隐藏文档结构窗格">导航窗格</button>
-<button class="sbtn" id="btn-marks" onclick="toggleMarks()" title="显示段落标记(¶)">编辑标记</button>
-<button class="sbtn ph" onclick="todo('标尺','规划中')" title="标尺(规划中)">标尺</button>
-<button class="sbtn ph" onclick="todo('网格线','规划中')" title="网格线(规划中)">网格线</button>
-<button class="sbtn ph" onclick="todo('护眼模式','规划中')" title="护眼模式(规划中)">护眼</button>
-</div><div class="rg-label">显示</div></div>
-<div class="rgroup"><div class="rg-body"><div class="fcol">
-<div class="frow">
-<select id="sel-zoom-view" title="缩放比例" style="width:84px;height:26px" onchange="applyZoom(this.value)">
-<option value="0.7">70%</option><option value="0.85">85%</option><option value="1" selected>100%</option><option value="1.25">125%</option><option value="1.5">150%</option><option value="2">200%</option><option value="custom">自定义…</option>
-</select>
-<input type="number" id="zoom-view-custom" min="30" max="300" step="5" style="display:none;width:60px;height:26px;border:1px solid #c9cbce;border-radius:4px;font-size:12px" title="缩放百分比 30-300" onchange="applyZoomCustom(this.value,'sel-zoom-view')">
+<div class="fm-sec"><div class="fm-title">最近文件</div><div class="fm-recent" id="recent-list"></div></div>
+<div class="fm-sec"><button class="fm-item" onclick="toggleFileMenu();discardAutosaveDraft()" title="清空自动保存的草稿并恢复空白文档"><i class="fa-regular fa-trash-can"></i>放弃自动保存草稿</button></div>
 </div>
-<div class="frow">
-<button class="sbtn ph" onclick="todo('单页显示','规划中')" title="单页(规划中)">单页</button>
-<button class="sbtn ph" onclick="todo('多页显示','规划中')" title="多页(规划中)">多页</button>
-<button class="sbtn ph" onclick="todo('页宽缩放','规划中')" title="按页宽缩放(规划中)">页宽</button>
+
+<!-- 设置抽屉 -->
+<div class="settings-drawer" id="settings-drawer">
+<div class="sd-head"><h3>编辑器设置</h3><button class="tb-ib" onclick="toggleSettings()"><i class="fa-solid fa-xmark"></i></button></div>
+<div class="sd-body">
+<div class="sd-sec"><h4><i class="fa-solid fa-gear"></i>通用设置</h4>
+<div class="sd-rows">
+<div class="sd-row"><span>自动保存</span><label class="tgl"><input type="checkbox" id="set-autosave" checked onchange="setAutosavePref(this.checked)"><span class="tr"></span></label></div>
+<div class="sd-row" onclick="todo('实时拼写检查','规划中(内置英文词库)')" title="规划中"><span>实时拼写检查</span><label class="tgl"><input type="checkbox"><span class="tr"></span></label></div>
+<div class="sd-row"><span>显示编辑标记</span><label class="tgl"><input type="checkbox" id="set-marks" onchange="syncMarks(this.checked)"><span class="tr"></span></label></div>
+</div></div>
+<div class="sd-sec"><h4><i class="fa-solid fa-palette"></i>外观主题</h4>
+<div class="theme-cards">
+<button class="theme-card on" id="tc-light" onclick="setTheme('light')">浅色</button>
+<button class="theme-card dk" onclick="todo('深色主题','规划中')">深色</button>
+<button class="theme-card ey" id="tc-eye" onclick="setTheme('eyecare')">护眼</button>
 </div>
-</div></div><div class="rg-label">缩放</div></div>
-<div class="rgroup"><div class="rg-body">
-<button class="sbtn" onclick="setMode('split')" title="拆分窗口(同分屏)">拆分</button>
-<button class="sbtn" onclick="swapSplit()" title="分屏左右交换">左右交换</button>
-<button class="sbtn ph" onclick="todo('并排查看','规划中')" title="并排查看两个文档(规划中)">并排查看</button>
-</div><div class="rg-label">窗口</div></div>
+<div class="sd-row" style="margin-top:10px" onclick="todo('界面缩放','规划中')" title="规划中"><span>界面缩放</span>
+<div class="select-box" style="width:96px"><select onchange="todo('界面缩放','规划中')"><option>100% (默认)</option><option>125%</option><option>150%</option></select><i class="fa-solid fa-caret-down"></i></div></div>
 </div>
-<div class="ribbon-page" data-page="page">
-<div class="rgroup"><div class="rg-body"><div class="fcol">
-<div class="frow">
-<select id="sel-paper" title="纸张大小" onchange="applyPaper(this.value)">
-<option value="A4" selected>A4 210×297mm</option><option value="Letter">Letter 215.9×279.4mm</option><option value="B5">B5 176×250mm</option><option value="A3">A3 297×420mm</option><option value="A5">A5 148×210mm</option>
-</select>
-<button class="sbtn" id="btn-orient" onclick="toggleOrientation()" title="纸张方向切换">纵向</button>
-</div>
-<div class="frow">
-<select id="sel-margin" title="页边距" onchange="applyMargin(this.value)">
-<option value="20" selected>正常 20mm</option><option value="12.7">窄 12.7mm</option><option value="25.4">宽 25.4mm</option><option value="30">宽 30mm</option><option value="custom">自定义…</option>
-</select>
-<input type="number" id="margin-custom" min="5" max="60" step="0.5" style="display:none;width:64px;height:28px;border:1px solid #c9cbce;border-radius:4px" title="页边距 mm" onchange="applyMarginCustom(this.value)">
-</div>
-</div></div><div class="rg-label">纸张</div></div>
-<div class="rgroup"><div class="rg-body"><div class="fcol">
-<div class="frow">
-<select id="sel-linesp" title="行间距" onchange="applyLineSpacing(this.value)">
-<option value="1.15">单倍行距</option><option value="1.5">1.5 倍行距</option><option value="1.9" selected>默认 (1.9 倍)</option><option value="2">2 倍行距</option><option value="2.5">2.5 倍行距</option><option value="custom">自定义…</option>
-</select>
-<input type="number" id="linesp-custom" min="1" max="4" step="0.05" style="display:none;width:64px;height:28px;border:1px solid #c9cbce;border-radius:4px" title="行距倍数" onchange="applyLineSpacingCustom(this.value)">
-</div>
-<div class="frow">
-<button class="sbtn" onclick="toggleFirstLine()" id="btn-firstline" title="切换首行缩进 @[first-line 2em]">首行缩进</button>
-<select id="sel-parasp" title="段间距(段后间距 @[para-spacing])" onchange="applyParaSpacing(this.value)">
-<option value="0" selected>无段间距</option><option value="0.25em">0.25em</option><option value="0.5em">0.5em</option><option value="1em">1em</option><option value="1.5em">1.5em</option><option value="custom">自定义…</option>
-</select>
-<input type="text" id="parasp-custom" placeholder="如 0.75em" style="display:none;width:64px;height:28px;border:1px solid #c9cbce;border-radius:4px;font-size:12px" title="段间距(带 em 单位)" onchange="applyParaSpacingCustom(this.value)">
-</div>
-</div></div><div class="rg-label">段落设置</div></div>
-<div class="rgroup"><div class="rg-body">
-<button class="sbtn ph" onclick="todo('分栏','需引擎多栏布局')" title="分栏(需引擎扩展)">分栏</button>
-<button class="sbtn ph" onclick="todo('行号','规划中')" title="行号(规划中)">行号</button>
-<button class="sbtn ph" onclick="todo('断字','规划中')" title="断字(规划中)">断字</button>
-</div><div class="rg-label">页面设置</div></div>
-<div class="rgroup"><div class="rg-body">
-<button class="sbtn ph" onclick="todo('文档字体','主题 token 待规范冻结')" title="文档默认字体(需规范冻结)">文档字体</button>
-<button class="sbtn ph" onclick="todo('文档字号','主题 token 待规范冻结')" title="文档默认字号(需规范冻结)">文档字号</button>
-</div><div class="rg-label">主题</div></div>
-</div>
-<div class="ribbon-page" data-page="design">
-<div class="rgroup"><div class="rg-body">
-<button class="tbtn ph" onclick="todo('主题','主题 token 待规范冻结')" title="文档主题(需规范冻结)">主题</button>
-<button class="tbtn ph" onclick="todo('样式集','主题 token 待规范冻结')" title="样式集(需规范冻结)">样式集</button>
-</div><div class="rg-label">文档格式</div></div>
-<div class="rgroup"><div class="rg-body">
-<button class="tbtn ph" onclick="todo('水印','规划中')" title="水印(规划中)">水印</button>
-<button class="tbtn ph" onclick="todo('页面颜色','规划中')" title="页面颜色(规划中)">页面颜色</button>
-<button class="tbtn ph" onclick="todo('页面边框','规划中')" title="页面边框(规划中)">页面边框</button>
-</div><div class="rg-label">页面背景</div></div>
-</div>
-<div class="ribbon-page" data-page="refs">
-<div class="rgroup"><div class="rg-body">
-<button class="tbtn" onclick="insertBlock('toc')" title="插入目录(按标题生成)"><span data-icon="toc"></span>目录</button>
-<button class="tbtn ph" onclick="todo('更新目录','规划中')" title="更新目录(规划中)">更新目录</button>
-</div><div class="rg-label">目录</div></div>
-<div class="rgroup"><div class="rg-body">
-<button class="tbtn" onclick="insertBlock('footnote')" title="插入脚注"><span data-icon="footnote"></span>脚注</button>
-<button class="tbtn ph" onclick="todo('脚注管理','规划中')" title="脚注管理(规划中)">脚注管理</button>
-</div><div class="rg-label">脚注</div></div>
-<div class="rgroup"><div class="rg-body">
-<button class="tbtn ph" onclick="todo('插入题注','规划中')" title="插入题注(规划中)">题注</button>
-<button class="tbtn ph" onclick="todo('交叉引用','规划中')" title="交叉引用(规划中)">交叉引用</button>
-<button class="tbtn ph" onclick="todo('表目录','规划中')" title="表目录(规划中)">表目录</button>
-</div><div class="rg-label">题注</div></div>
-<div class="rgroup"><div class="rg-body">
-<button class="tbtn ph" onclick="todo('引文与书目','学术向,规范冻结')" title="引文与书目(需规范冻结)">引文书目</button>
-<button class="tbtn ph" onclick="todo('索引','学术向,规范冻结')" title="索引(需规范冻结)">索引</button>
-</div><div class="rg-label">引文与索引</div></div>
-</div>
-<div class="ribbon-page" data-page="review">
-<div class="rgroup"><div class="rg-body">
-<button class="sbtn ph" onclick="todo('拼写检查','规划中(内置英文词库)')" title="拼写检查(规划中)">拼写检查</button>
-<button class="sbtn" onclick="showWordCount()" title="字数统计">字数统计</button>
-</div><div class="rg-label">校对</div></div>
-<div class="rgroup"><div class="rg-body">
-<button class="sbtn" onclick="insertBlock('comment')" title="新建批注">新建批注</button>
-<button class="sbtn ph" onclick="todo('删除批注','规划中')" title="删除批注(规划中)">删除批注</button>
-<button class="sbtn ph" onclick="todo('上一条批注','规划中')" title="上一条批注(规划中)">上一条</button>
-<button class="sbtn ph" onclick="todo('下一条批注','规划中')" title="下一条批注(规划中)">下一条</button>
-<button class="sbtn ph" onclick="todo('批注窗格','规划中')" title="批注窗格(规划中)">批注窗格</button>
-</div><div class="rg-label">批注</div></div>
-<div class="rgroup"><div class="rg-body">
-<button class="sbtn ph" onclick="todo('修订开关','需引擎 change tracking')" title="修订开关(需引擎扩展)">修订</button>
-<button class="sbtn ph" onclick="todo('显示标记','需引擎 change tracking')" title="显示标记(需引擎扩展)">显示标记</button>
-<button class="sbtn ph" onclick="todo('审阅窗格','需引擎 change tracking')" title="审阅窗格(需引擎扩展)">审阅窗格</button>
-</div><div class="rg-label">修订</div></div>
-<div class="rgroup"><div class="rg-body">
-<button class="sbtn ph" onclick="todo('接受修订','需引擎 change tracking')" title="接受修订(需引擎扩展)">接受</button>
-<button class="sbtn ph" onclick="todo('拒绝修订','需引擎 change tracking')" title="拒绝修订(需引擎扩展)">拒绝</button>
-<button class="sbtn ph" onclick="todo('比较文档','规划中(diff 两份源码)')" title="比较文档(规划中)">比较</button>
-<button class="sbtn ph" onclick="todo('合并文档','规划中(diff 两份源码)')" title="合并文档(规划中)">合并</button>
-<button class="sbtn ph" onclick="todo('限制编辑','规划中')" title="限制编辑(规划中)">限制编辑</button>
-</div><div class="rg-label">更改与保护</div></div>
-</div>
-<div class="ribbon-page" data-page="tblctx">
-<div class="rgroup"><div class="rg-body">
-<button class="sbtn" onclick="tblInsRow()" title="在当前行上方插入行">+ 行</button>
-<button class="sbtn" onclick="tblDelRow()" title="删除当前行">− 行</button>
-<button class="sbtn" onclick="tblInsCol()" title="在当前列左侧插入列">+ 列</button>
-<button class="sbtn" onclick="tblDelCol()" title="删除当前列">− 列</button>
-<button class="sbtn ph" onclick="todo('合并单元格','规划中')" title="合并单元格(规划中)">合并</button>
-<button class="sbtn ph" onclick="todo('拆分单元格','规划中')" title="拆分单元格(规划中)">拆分</button>
-<button class="sbtn ph" onclick="todo('单元格对齐','规划中')" title="单元格对齐(规划中)">对齐</button>
-<button class="sbtn ph" onclick="todo('表格排序','规划中')" title="排序(规划中)">排序</button>
-</div><div class="rg-label">表格工具·布局</div></div>
-<div class="rgroup"><div class="rg-body">
-<button class="sbtn ph" onclick="todo('表格样式','规划中')" title="表格样式(规划中)">表格样式</button>
-<button class="sbtn ph" onclick="todo('表格边框','规划中')" title="边框(规划中)">边框</button>
-<button class="sbtn ph" onclick="todo('表格底纹','规划中')" title="底纹(规划中)">底纹</button>
-</div><div class="rg-label">表格工具·设计</div></div>
-</div>
-<div class="ribbon-page" data-page="imgctx">
-<div class="rgroup"><div class="rg-body">
-<button class="sbtn" onclick="openImagePanel()" title="图片尺寸/对齐(点击图片后可调)">尺寸/对齐</button>
-<button class="sbtn ph" onclick="todo('文字环绕','规划中')" title="文字环绕(规划中)">环绕</button>
-<button class="sbtn ph" onclick="todo('图片裁剪','规划中')" title="裁剪(规划中)">裁剪</button>
-</div><div class="rg-label">图片工具·格式</div></div>
-</div>
-<div class="ribbon-page" data-page="file">
-<div class="rgroup"><div class="rg-body"><div class="frow">
-<button class="tbtn" onclick="newDoc()" title="新建文档 (Ctrl+N)"><span data-icon="newdoc"></span>新建</button>
-<button class="tbtn" onclick="openFileClick()" title="打开 (.awen / .txt / .md) (Ctrl+O)"><span data-icon="open"></span>打开</button>
-<button class="tbtn" onclick="importDocx()" title="导入 Word 文档 (.docx)"><span data-icon="docx"></span>导入 docx</button>
-<button class="tbtn" onclick="doSave()" title="保存为 Awen 源码 (Ctrl+S)"><span data-icon="save"></span>保存</button>
-<button class="tbtn" onclick="doSaveAs()" title="另存为新文件"><span data-icon="savenew"></span>另存为</button>
-<button class="tbtn" onclick="doPrint()" title="打印 / 另存为 PDF (Ctrl+P)"><span data-icon="print"></span>打印</button>
-</div></div><div class="rg-label">文档</div></div>
-<div class="rgroup"><div class="rg-body"><div class="frow">
-<span style="font-size:12px;color:#5a5c60">文件名</span><input class="findbox" id="export-name" value="文档" style="width:110px">
-<button class="sbtn" onclick="exportFile('md')">导出 Markdown</button>
-<button class="sbtn" onclick="exportFile('html')">导出 HTML</button>
-<button class="sbtn" onclick="exportFile('doc')">导出 Word</button>
-<button class="sbtn" onclick="exportFile('txt')">导出 TXT</button>
-<button class="sbtn" onclick="discardAutosaveDraft()" title="清空自动保存的草稿并恢复空白文档">放弃草稿</button>
-</div></div><div class="rg-label">导出</div></div>
-<div class="rgroup"><div class="rg-body"><div class="fcol" id="recent-list" style="min-width:180px;max-height:60px;overflow:auto"></div></div><div class="rg-label">最近文件</div></div>
+<div class="sd-sec"><h4><i class="fa-solid fa-language"></i>语言设置</h4>
+<div class="sd-rows"><div class="sd-row"><span>界面语言</span>
+<div class="select-box" style="width:110px"><select onchange="todo('界面语言','规划中')"><option>简体中文 (默认)</option><option>繁體中文</option><option>English</option></select><i class="fa-solid fa-caret-down"></i></div></div></div></div>
+<div class="sd-sec"><h4><i class="fa-solid fa-rotate-right"></i>更新与版本</h4>
+<div class="sd-rows"><div class="sd-row" onclick="todo('自动检查更新','规划中')" title="规划中"><span>自动检查更新</span><label class="tgl"><input type="checkbox" checked><span class="tr"></span></label></div>
+<div class="sd-note">当前版本:Awen Editor v1.0.0</div></div></div>
+<div class="sd-sec"><h4><i class="fa-solid fa-circle-info"></i>关于</h4>
+<div class="sd-note" style="margin-top:0">Awen 文档编辑器<br>aine 引擎 + 桌面壳<br>© 2026 Awen Studio</div></div>
 </div>
 </div>
+<div class="overlay" id="overlay" onclick="closeAllPopups()"></div>
+
 <div class="workspace">
 <aside class="sidebar" id="sidebar">
 <div class="side-head">文档结构<button id="sb-close" onclick="toggleSidebar()" title="收起侧栏">◀</button></div>
@@ -352,32 +411,32 @@
 </aside>
 <button id="sb-open" onclick="toggleSidebar()" title="展开侧栏">▶</button>
 <main class="pane" id="display-pane" style="flex:1 1 auto"></main>
-<section class="pane" id="syntax-pane" style="display:none;flex:0 0 50%;border-left:1px solid #d7d9dc;background:#f0f1f2"></section>
+<section class="pane" id="syntax-pane" style="display:none;flex:0 0 50%;border-left:1px solid #e5e7eb;background:#f9fafb"></section>
 </div>
-<div id="tblpop"><span class="lbl">行</span><input id="tbl-rows" type="number" min="1" max="20" value="3"><span class="lbl">列</span><input id="tbl-cols" type="number" min="1" max="8" value="3"><button class="sbtn" onclick="insertTableGrid()">插入</button></div>
-<div id="float-pal" class="cpalette" style="position:fixed;z-index:200"></div>
+<div id="tblpop"><span class="lbl">行</span><input id="tbl-rows" type="number" min="1" max="20" value="3"><span class="lbl">列</span><input id="tbl-cols" type="number" min="1" max="8" value="3"><button class="sbtn2" onclick="insertTableGrid()">插入</button></div>
+<div id="float-pal" class="cpalette" style="position:fixed;z-index:320"></div>
 <div id="minibar">
 <div class="mb-row">
-<button class="rbtn b" onclick="fmtCmd('bold')" title="加粗">B</button>
-<button class="rbtn i" onclick="fmtCmd('italic')" title="倾斜">I</button>
-<button class="rbtn u" onclick="fmtCmd('underline')" title="下划线"><span style="text-decoration:underline">U</span></button>
-<button class="rbtn s" onclick="fmtCmd('strikeThrough')" title="删除线"><span style="text-decoration:line-through">S</span></button>
+<button class="ib txt" onclick="fmtCmd('bold')" title="加粗">B</button>
+<button class="ib txt it" onclick="fmtCmd('italic')" title="倾斜">I</button>
+<button class="ib txt ul" onclick="fmtCmd('underline')" title="下划线"><span>U</span></button>
+<button class="ib txt st" onclick="fmtCmd('strikeThrough')" title="删除线"><span>S</span></button>
 <div class="sep"></div>
-<button class="rbtn" onclick="togglePal(event,'fore')" title="字体颜色:点击选色"><span data-icon="fontcolor"></span></button>
-<button class="rbtn" style="width:14px;font-size:9px" onclick="togglePal(event,'fore')" title="更多字体颜色">▾</button>
-<button class="rbtn" onclick="togglePal(event,'mark')" title="底纹:点击选色"><span data-icon="mark"></span></button>
-<button class="rbtn" style="width:14px;font-size:9px" onclick="togglePal(event,'mark')" title="更多底纹颜色">▾</button>
+<button class="ib" onclick="togglePal(event,'fore')" title="字体颜色:点击选色"><i class="fa-solid fa-font"></i></button>
+<button class="ib" onclick="togglePal(event,'fore')" title="更多字体颜色"><i class="fa-solid fa-caret-down" style="font-size:10px;color:#6b7280"></i></button>
+<button class="ib" onclick="togglePal(event,'mark')" title="底纹:点击选色"><i class="fa-solid fa-highlighter" style="color:#eab308"></i></button>
+<button class="ib" onclick="togglePal(event,'mark')" title="更多底纹颜色"><i class="fa-solid fa-caret-down" style="font-size:10px;color:#6b7280"></i></button>
 <div class="sep"></div>
-<button class="rbtn supb" onclick="fmtCmd('superscript')" title="上标"><span>x²</span></button>
-<button class="rbtn subb" onclick="fmtCmd('subscript')" title="下标"><span>x₂</span></button>
-<button class="rbtn mono" onclick="fmtCmdInline()" title="行内代码">&lt;/&gt;</button>
-<button class="rbtn" onclick="fmtCmd('removeFormat')" title="清除格式"><span data-icon="clear"></span></button>
+<button class="ib" onclick="fmtCmd('superscript')" title="上标"><span class="sub-in">x<sup>2</sup></span></button>
+<button class="ib" onclick="fmtCmd('subscript')" title="下标"><span class="sub-in">x<sub>2</sub></span></button>
+<button class="ib" onclick="fmtCmdInline()" title="行内代码"><i class="fa-solid fa-code"></i></button>
+<button class="ib" onclick="fmtCmd('removeFormat')" title="清除格式"><i class="fa-solid fa-eraser"></i></button>
 </div>
 <div class="mb-row" id="mb-table" style="display:none">
-<button class="sbtn" onclick="tblInsRow()">+ 行</button>
-<button class="sbtn" onclick="tblDelRow()">− 行</button>
-<button class="sbtn" onclick="tblInsCol()">+ 列</button>
-<button class="sbtn" onclick="tblDelCol()">− 列</button>
+<button class="sbtn2" onclick="tblInsRow()">+ 行</button>
+<button class="sbtn2" onclick="tblDelRow()">− 行</button>
+<button class="sbtn2" onclick="tblInsCol()">+ 列</button>
+<button class="sbtn2" onclick="tblDelCol()">− 列</button>
 </div>
 </div>
 <div class="statusbar" style="gap:10px">
@@ -387,11 +446,10 @@
 <span class="item" id="st-find"></span>
 <span class="item" id="st-pos">第 1 页 · 行 1, 列 1</span>
 <span class="spacer"></span>
-<div class="statuspop" id="diagpop"></div>
-<select id="sel-zoom" style="background:#fff;color:#3a3c40;border:1px solid #c9cbce;border-radius:3px;height:20px;padding:0 4px" onchange="zoomEntry(this.value,'sel-zoom')">
+<select id="sel-zoom" style="border-radius:3px;height:20px;padding:0 4px" onchange="zoomEntry(this.value,'sel-zoom')">
 <option value="0.7">70%</option><option value="0.85">85%</option><option value="1" selected>100%</option><option value="1.25">125%</option><option value="1.5">150%</option><option value="2">200%</option><option value="custom">自定义…</option>
 </select>
-<input type="number" id="zoom-custom" min="30" max="300" step="5" style="display:none;width:64px;height:20px;border:1px solid #c9cbce;border-radius:3px;font-size:12px;background:#fff;color:#3a3c40" title="缩放百分比 30-300" onchange="applyZoomCustom(this.value)">
+<input type="number" id="zoom-custom" min="30" max="300" step="5" style="display:none;width:64px;height:20px;border-radius:3px;font-size:12px" title="缩放百分比 30-300" onchange="applyZoomCustom(this.value)">
 <span class="item" id="st-page">共 — 页</span>
 </div>
 </div>

@@ -23,9 +23,10 @@ function renderRecentList(){
     return;
   }
   list.forEach(function(f){
-    var d=document.createElement('div');
-    d.className='recent-item';
-    d.textContent=f.name;
+    var d=document.createElement('button');
+    d.className='fm-item';
+    d.innerHTML='<i class="fa-regular fa-file-lines"></i>';
+    d.appendChild(document.createTextNode(f.name));
     d.title=(f.path||f.name)+(f.path?'':'（浏览器版仅记录名称,点击重新选择文件）');
     if(!f.path){
       d.style.color='#9aa0a6';

@@ -115,7 +115,6 @@ function showRibbon(page){
   if(ribbonCollapsed)toggleRibbonCollapse();
   document.querySelectorAll('.tab').forEach(function(t){t.classList.toggle('active',t.dataset.page===page)});
   document.querySelectorAll('.ribbon-page').forEach(function(p){p.classList.toggle('active',p.dataset.page===page)});
-  if(page==='file')renderRecentList();
 }
 
 // ═══ 占位功能统一提示(功能区规划中未实现项,按钮带红点角标)═══
@@ -140,13 +139,58 @@ function updateCtxTabs(){
   var blk=b&&b.closest?b.closest('[data-bid]'):null;
   // 图片块容器可能就是 IMG 本身(objHtml 返回裸 img,dataset 设在其上)
   var inImg=!!blk&&(!!blk.querySelector('img,.img-ph')||blk.tagName==='IMG'||blk.classList.contains('img-ph'));
-  var tt=document.querySelector('.tab[data-page=tblctx]');
-  var it=document.querySelector('.tab[data-page=imgctx]');
-  if(tt)tt.style.display=inTable?'block':'none';
-  if(it)it.style.display=inImg?'block':'none';
-  // 当前页被隐藏(焦点离开对象)→ 回到开始页
+  var tt=document.getElementById('tableToolsTab');
+  var it=document.getElementById('imageToolsTab');
+  if(tt)tt.style.display=inTable?'flex':'none';
+  if(it)it.style.display=inImg?'flex':'none';
+  // 当前激活的是被隐藏的上下文选项卡(焦点离开对象)→ 回到开始页
   var active=document.querySelector('.tab.active');
-  if(active&&active.style.display==='none'&&active.dataset.page!=='home')showRibbon('home');
+  if(active&&(!active.offsetParent||getComputedStyle(active).display==='none'))showRibbon('start');
+}
+
+// ═══ 文件下拉菜单 / 设置抽屉 / 遮罩 ═══
+function toggleFileMenu(ev){
+  if(ev)ev.stopPropagation();
+  var m=document.getElementById('file-menu');
+  var ov=document.getElementById('overlay');
+  var sd=document.getElementById('settings-drawer');
+  sd.classList.remove('show');
+  var show=!m.classList.contains('show');
+  m.classList.toggle('show',show);
+  ov.classList.toggle('show',show);
+  if(show)renderRecentList();
+}
+function toggleSettings(){
+  var sd=document.getElementById('settings-drawer');
+  var m=document.getElementById('file-menu');
+  var ov=document.getElementById('overlay');
+  m.classList.remove('show');
+  var show=!sd.classList.contains('show');
+  sd.classList.toggle('show',show);
+  ov.classList.toggle('show',show);
+}
+function closeAllPopups(){
+  document.getElementById('file-menu').classList.remove('show');
+  document.getElementById('settings-drawer').classList.remove('show');
+  document.getElementById('overlay').classList.remove('show');
+}
+// ═══ 设置项 ═══
+// 自动保存开关(存 localStorage,autosave.js 落盘前检查)
+function setAutosavePref(on){
+  try{localStorage.setItem('awen-set-autosave',on?'on':'off')}catch(e){}
+}
+// 编辑标记开关与功能区按钮双向同步
+function syncMarks(checked){
+  var on=document.body.classList.contains('show-marks');
+  if(on!==checked)toggleMarks();
+}
+// 主题:浅色 / 护眼(深色待做,入口在 setTheme 外用 todo 提示)
+function setTheme(t){
+  var app=document.querySelector('.app');
+  app.classList.toggle('eyecare',t==='eyecare');
+  var l=document.getElementById('tc-light'),e=document.getElementById('tc-eye');
+  if(l)l.classList.toggle('on',t!=='eyecare');
+  if(e)e.classList.toggle('on',t==='eyecare');
 }
 
 // ═══ 侧栏收起/展开 ═══
