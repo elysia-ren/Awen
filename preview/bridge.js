@@ -53,8 +53,42 @@ window.Bridge={
   openPath:function(path){
     if(!tauri)return Promise.resolve(null);
     return tauri.core.invoke('core_read_file',{path:path}).then(function(res){
-      return {name:res.name,src:res.src,path:res.path||null};
+      if(res&&res.media_dir)window.awenMediaDir=res.media_dir;
+      return {name:res.name,src:res.src,path:res.path||null,media_dir:(res&&res.media_dir)||null};
     });
+  },
+
+  // .awen v0.5 容器:打包保存(引擎抽 data URI 资源化),返回资源化后源码
+  awenContainerSave:function(path,syntax,docId){
+    if(!tauri)return Promise.resolve(null);
+    return tauri.core.invoke('awen_container_save',{path:path,syntax:syntax,docId:docId})
+      .then(function(res){
+        // 壳返回 JSON 文本(引擎容器流程约定:字符串载荷统一 JSON)
+        if(typeof res==='string'){ try{res=JSON.parse(res)}catch(e){ return null } }
+        if(res&&res.media_dir)window.awenMediaDir=res.media_dir;
+        return {source:res.source};
+      });
+  },
+
+  // .awen v0.5 容器:打开(引擎解包资源到媒体目录),返回 {source,media_dir,...}
+  awenContainerOpen:function(path){
+    if(!tauri)return Promise.resolve(null);
+    return tauri.core.invoke('awen_container_open',{path:path}).then(function(res){
+      if(typeof res==='string'){ try{res=JSON.parse(res)}catch(e){ return null } }
+      if(res&&res.media_dir)window.awenMediaDir=res.media_dir;
+      return res;
+    });
+  },
+
+  // 包内 media/ 引用 → 可渲染 URL(asset 协议)
+  mediaSrc:function(u){
+    if(u&&u.indexOf('media/')===0&&window.awenMediaDir&&tauri&&tauri.core&&tauri.core.convertFileSrc){
+      try{
+        var abs=(window.awenMediaDir.replace(/\\/g,'/'))+'/'+u.slice(6);
+        return tauri.core.convertFileSrc(abs);
+      }catch(e){ return u }
+    }
+    return u;
   },
 
   // 监听单实例/命令行转发的文件路径

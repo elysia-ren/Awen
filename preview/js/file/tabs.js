@@ -28,6 +28,8 @@ function switchFile(i){
   activeFile=i;
   var f=openFiles[i];
   currentFilePath=f.path||null;
+  // 每个文档自己的包内媒体目录(media/ 引用按此解析)
+  window.awenMediaDir=f.media_dir||'';
   document.getElementById('docname').value=f.name;
   setSrc(f.src);
   docDirty=f.dirty;
