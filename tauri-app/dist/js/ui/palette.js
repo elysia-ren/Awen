@@ -64,7 +64,7 @@ function togglePal(e,kind){
   var more=document.createElement('div');
   more.className='cp-more';
   var pickSpan=document.createElement('span');
-  pickSpan.setAttribute('data-icon','pick');
+  pickSpan.innerHTML='<i class="fa-solid fa-eye-dropper"></i>';
   more.appendChild(pickSpan);
   more.appendChild(document.createTextNode('其他颜色…'));
   var inp=document.createElement('input');

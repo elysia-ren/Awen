@@ -37,9 +37,14 @@ if os.path.isdir(js_src):
 vendor_src = os.path.join(pre, 'vendor')
 vendor_dst = os.path.join(dist, 'vendor')
 if os.path.isdir(vendor_src):
-    os.makedirs(vendor_dst, exist_ok=True)
-    for fn in os.listdir(vendor_src):
-        shutil.copyfile(os.path.join(vendor_src, fn), os.path.join(vendor_dst, fn))
+    for root, dirs, files in os.walk(vendor_src):
+        rel = os.path.relpath(root, vendor_src)
+        dst_root = vendor_dst if rel == '.' else os.path.join(vendor_dst, rel)
+        os.makedirs(dst_root, exist_ok=True)
+        for fn in files:
+            if fn.startswith('_'):
+                continue
+            shutil.copyfile(os.path.join(root, fn), os.path.join(dst_root, fn))
 print('已同步 tauri-app/dist/{index.html,engine.js,bridge.js,css/,js/,vendor/}')
 
 # 3) aine-runtime 暂存

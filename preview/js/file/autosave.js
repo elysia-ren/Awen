@@ -2,6 +2,7 @@
 // ═══ 自动保存/崩溃恢复(localStorage 快照)═══
 var autosaveTimer=null;
 function scheduleAutosave(){
+  try{ if(localStorage.getItem('awen-set-autosave')==='off')return }catch(e){}
   if(autosaveTimer)clearTimeout(autosaveTimer);
   autosaveTimer=setTimeout(doAutosave,2000);
 }
