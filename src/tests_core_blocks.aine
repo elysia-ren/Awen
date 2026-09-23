@@ -130,7 +130,110 @@ fn container_pack_roundtrip() -> Result<i32, String> {
     assert(st.contains("\"ok\":true"), st)
     let back = read_file("build/_ctest_src.awen")
     assert(back == packed, "往返源码应一致")
-    let img = read_bytes("build/img-5c12defa.gif")
+    let img = read_bytes("build/img-ef1955ae757c8b96.gif")
     assert(img.len() == 42, "GIF 字节数应为 42")
+    Ok(0)
+}
+
+@test
+fn sha256_known_vectors() -> Result<i32, String> {
+    // FIPS 180-4 已知向量(前 64 位)
+    assert(sha256_64hex(to_bytes("abc")) == "ba7816bf8f01cfea", "SHA-256 abc 向量不符")
+    assert(sha256_64hex(to_bytes("")) == "e3b0c44298fc1c14", "SHA-256 空串向量不符")
+    var many: Vec<i32> = []
+    var i: i32 = 0
+    while i < 55 {
+        many = many.push(97)
+        i += 1
+    }
+    // 55 字节:填充恰好跨块,验证多块压缩
+    assert(sha256_64hex(many) == "9f4390f8d30c2dd9", "SHA-256 55 字节向量不符")
+    Ok(0)
+}
+
+// ── 块级增量解析(segment_blocks_json)────────────────────────
+// 关键不变量:段(无空行连续行)独立解析的块记录与全文解析对应记录
+// 完全一致(kind/level/text/lang);srcStart/srcEnd 除外(行基不同)。
+
+// 取 blocks JSON 的块签名(kind|level|text|lang 序列),供对拍
+fn seg_recs_sig(json: String) -> String {
+    let v = json_decode(json)
+    let arr = match v.get("blocks") { Some(x) { x } None { [] } }
+    var out = ""
+    var i: i32 = 0
+    while i < arr.len() {
+        let b = arr.get(i)
+        let kind = match b.get("kind") { Some(x) { x } None { "" } }
+        let level = match b.get("level") { Some(x) { x } None { 0 } }
+        let text = match b.get("text") { Some(x) { x } None { "" } }
+        let lang = match b.get("lang") { Some(x) { x } None { "" } }
+        out = out + kind + "|" + f"{level}" + "|" + text + "|" + lang + "\n"
+        i += 1
+    }
+    return out
+}
+
+// 全文解析后按段切分(以空行分段),返回各段签名拼接
+fn full_doc_segs_sig(src: String) -> String {
+    let state = build_document(parse(lex(src)), src)
+    let json = blocks_to_json(state, src)
+    return seg_recs_sig(json)
+}
+
+@test
+fn segment_parse_empty() -> Result<i32, String> {
+    assert(segment_blocks_json("") == "{\"blocks\":[],\"diags\":[],\"outline\":[]}",
+        "空段应返回空 blocks")
+    Ok(0)
+}
+
+@test
+fn segment_parse_para_matches_full() -> Result<i32, String> {
+    let seg = "这是第二段,含 **加粗** 与 `code` 片段。"
+    let seg_sig = seg_recs_sig(segment_blocks_json(seg))
+    let full_sig = full_doc_segs_sig("# 大标题\n\n第一段占位。\n\n" + seg + "\n\n第三段占位。\n")
+    // 全文 3 段 + 标题:签名应含段签名(段内 rec 与独立解析逐字节一致)
+    assert(full_sig.contains(seg_sig), "段落段独立解析应与全文解析一致:" + seg_sig)
+    Ok(0)
+}
+
+@test
+fn segment_parse_heading_matches_full() -> Result<i32, String> {
+    let seg_sig = seg_recs_sig(segment_blocks_json("## 二级标题甲"))
+    assert(seg_sig.contains("heading|2|## 二级标题甲|"), seg_sig)
+    let full_sig = full_doc_segs_sig("# 一级\n\n" + "## 二级标题甲" + "\n\n正文。\n")
+    assert(full_sig.contains(seg_sig), "标题段独立解析应与全文解析一致")
+    Ok(0)
+}
+
+@test
+fn segment_parse_list_matches_full() -> Result<i32, String> {
+    let seg = "- 甲\n- 乙\n- 丙"
+    let seg_sig = seg_recs_sig(segment_blocks_json(seg))
+    assert(seg_sig.contains("ul|0|- 甲|"), seg_sig)
+    let full_sig = full_doc_segs_sig("引子。\n\n" + seg + "\n\n结尾。\n")
+    assert(full_sig.contains(seg_sig), "列表段独立解析应与全文解析一致")
+    Ok(0)
+}
+
+@test
+fn segment_parse_quote_table_code() -> Result<i32, String> {
+    let q = seg_recs_sig(segment_blocks_json("> 引用一行"))
+    assert(q.contains("quote|0|> 引用一行|"), q)
+    let t = "@[table t]\n| a | b |\n| --- | --- |\n| 1 | 2 |\n@[/table]"
+    let ts = seg_recs_sig(segment_blocks_json(t))
+    assert(ts.contains("\"kind\":\"table\"") || ts.contains("table|0|" + t + "|"), ts)
+    let c = seg_recs_sig(segment_blocks_json("@[c]\n代码行一\n代码行二\n@[/c]"))
+    assert(c.contains("code|0|"), c)
+    Ok(0)
+}
+
+@test
+fn segment_parse_para_merge_in_segment() -> Result<i32, String> {
+    // §14:段内连续物理行合并为一个 Para(与全文行为一致)
+    let seg_sig = seg_recs_sig(segment_blocks_json("行甲延续\n行乙延续"))
+    let full_sig = full_doc_segs_sig("其他。\n\n行甲延续\n行乙延续\n\n尾段。\n")
+    assert(full_sig.contains(seg_sig), "段内多行合并应与全文一致:" + seg_sig)
+    assert(seg_sig.contains("para|0|行甲延续\n行乙延续|"), seg_sig)
     Ok(0)
 }

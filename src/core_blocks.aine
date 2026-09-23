@@ -35,6 +35,19 @@ fn join_span_lines(lines: Vec<String>, s: i32, e: i32) -> String {
     return out
 }
 
+// 块级增量解析:对单个段(无空行的连续行)独立跑权威管线,返回与全文解析
+// 一致的 blocks JSON。段⇄节点 1:1 是引擎不变量(列表组/段落合并/表格都
+// 封闭在段内),daemon op=parse_blocks 对每个脏段调这里。
+fn segment_blocks_json(text: String) -> String {
+    if text == "" {
+        return "{\"blocks\":[],\"diags\":[],\"outline\":[]}"
+    }
+    let o = lex(text)
+    let pr = parse(o)
+    let st = build_document(pr, text)
+    return blocks_to_json(st, text)
+}
+
 fn blocks_to_json(state: DocState, src: String) -> String {
     let spans = compute_spans(state, src)
     let lines = src.split("\n")
@@ -66,7 +79,12 @@ fn blocks_to_json(state: DocState, src: String) -> String {
             } else if kind == "heading" {
                 recs = recs.push(block_rec("heading", node.level, s, e, lines[s], ""))
             } else if kind == "para" {
-                recs = recs.push(block_rec("para", 0, s, e, join_span_lines(lines, s, e), ""))
+                // 空段:inline 为空 → text 直接空串(span 是空行对)
+                if node.inline.len() == 0 {
+                    recs = recs.push(block_rec("para", 0, s, e, "", ""))
+                } else {
+                    recs = recs.push(block_rec("para", 0, s, e, join_span_lines(lines, s, e), ""))
+                }
             } else if kind == "quote" {
                 recs = recs.push(block_rec("quote", 0, s, e, join_span_lines(lines, s, e), ""))
             } else if kind == "hr" {

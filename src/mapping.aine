@@ -64,8 +64,13 @@ fn find_node_start(lines: Vec<String>, from: i32, node: SemNode) -> i32 {
                 return i
             }
         } else if node.kind == "para" {
-            // 段落:非空、非标记行;「@[cmd …] 文字」的行也是段落
-            if t.len() > 0 && t[0] != "#" && t[0] != "-" && t[0] != ">" && !is_pure_obj_line(t) && t != "---" {
+            // 空段(空行规则 v2):inline 为空的 Para 占一对连续空行,
+            // 起点是 from 起第一个空行(节点序保证与 Blank run 对齐)
+            if node.inline.len() == 0 {
+                if t.len() == 0 {
+                    return i
+                }
+            } else if t.len() > 0 && t[0] != "#" && t[0] != "-" && t[0] != ">" && !is_pure_obj_line(t) && t != "---" {
                 if !starts_with_at(t, 0, "- ") && !is_ordered_item(t) {
                     return i
                 }
@@ -153,6 +158,13 @@ fn find_node_end(lines: Vec<String>, start: i32, node: SemNode) -> i32 {
         return i
     }
     if node.kind == "para" {
+        // 空段:span 为一对空行 [start, start+1](serializeAll 以 2 空行/空段配平)
+        if node.inline.len() == 0 {
+            if start + 1 < lines.len() && lines[start + 1].trim().len() == 0 {
+                return start + 1
+            }
+            return start
+        }
         // 段落:延续到空行或块级标记行
         var i = start
         while i + 1 < lines.len() {

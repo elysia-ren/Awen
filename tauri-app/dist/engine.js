@@ -200,61 +200,76 @@ function scanCmdClose(s,from){
 // native 记录:{kind, level, srcStart, srcEnd, text}(text=原始源码行 \n 连接,
 // 含块定界行)。这里按引擎行区间约定规整 text 与行区间,保证下游
 // blockHtml/layoutPages/serializeAll 与本地解析路径零差异。
+// 单条引擎块记录 → 模型节点(字段派生只依赖记录本身;全文/增量共用)
+function recToNode(nb){
+  var raw=(nb.text||'').split('\n');
+  var b={kind:nb.kind,level:nb.level||0,srcStart:nb.srcStart,srcEnd:nb.srcEnd};
+  var k=nb.kind;
+  if(k==='heading'){
+    b.text=raw.join(' ').replace(/^\s*#+\s*/,'');
+  }else if(k==='para'){
+    b.text=raw.map(function(l){return l.trim()}).filter(function(l){return l!==''}).join(' ');
+  }else if(k==='ul'||k==='ol'){
+    // 层级必须从【原始行】的前导空格计算(trim 后信息即丢失)
+    var items=raw.filter(function(l){return l.trim()!==''});
+    b.level=items.length?Math.floor((items[0].length-items[0].replace(/^\s+/,'').length)/2):0;
+    b.text=items.map(function(l){return l.trim().replace(k==='ul'?/^[-*] /:/^\d+\. /,'')}).join(' ');
+  }else if(k==='quote'){
+    b.text=raw.map(function(l){return l.trim()}).filter(function(l){return l!==''})
+      .map(function(l){return l.replace(/^>\s*/,'')}).join(' ');
+  }else if(k==='table'){
+    // 行区间含 @[table]…@[/table] 定界行:只取 | 行;open 行取原生第一行
+    b.rows=raw.map(function(l){return l.trim()}).filter(function(l){return l.charAt(0)==='|'});
+    var openLine='';
+    for(var oi=0;oi<raw.length;oi++){ if(/^@\[table/.test(raw[oi].trim())){openLine=raw[oi].trim();break} }
+    b.open=openLine||'@[table demo]';
+  }else if(k==='code'){
+    b.lang=(raw[0]||'').replace(/^@\[c (\w+)\].*/,'$1');
+    b.text=raw.filter(function(l){return !/^@\[c (\w+)\]/.test(l.trim())&&l.trim()!=='@[/c]'}).join('\n');
+  }else if(k==='math'){
+    b.text=raw.filter(function(l){return l.trim()!=='@[m]'&&l.trim()!=='@[math]'&&l.trim()!=='@[/m]'&&l.trim()!=='@[/math]'}).join('\n');
+  }else{
+    // obj/comment/docset/label/ref/hr/scope:整段原文保真
+    // native 不区分 docset/label/ref/toc(obj 大类),按内容前缀再分类
+    var one=(nb.text||'').split('\n')[0].trim();
+    if(/^@\[toc/.test(one)){
+      b.kind='toc'; b.text=one;
+    }else if(/^@\[(page|margin|font|size|line-spacing|first-line|theme|numbering|para-spacing)\s/.test(one)){
+      b.kind='docset'; b.text=one;
+    }else if(/^@\[label\s/.test(one)){
+      b.kind='label'; b.text=one.replace(/^@\[label\s+/,'').replace(/\]$/,'');
+    }else if(/^@\[ref\s/.test(one)){
+      b.kind='ref'; b.text=one.replace(/^@\[ref\s+/,'').replace(/\]$/,'');
+    }else{
+      b.text=(nb.text||'');
+    }
+  }
+  return b;
+}
+// 行区间修剪:掐掉两端空行(空段除外——空段的 span 本身就是空行对,是
+// 缓存分段的定位依据,修剪会让它塌缩丢失位置)
+function trimSpanB(b,srcLines){
+  if(b.kind==='para'&&b.text==='')return b;
+  var s=b.srcStart,e=b.srcEnd;
+  while(s<e&&(srcLines[s]===undefined||srcLines[s].trim()===''))s++;
+  while(e>s&&(srcLines[e-1]===undefined||srcLines[e-1].trim()===''))e--;
+  b.srcStart=s; b.srcEnd=e; return b;
+}
 function ingestNative(blocks,src){
   var srcLines=src.split('\n'), out=[];
-  function trimSpan(b){
-    var s=b.srcStart,e=b.srcEnd;
-    while(s<e&&(srcLines[s]===undefined||srcLines[s].trim()===''))s++;
-    while(e>s&&(srcLines[e-1]===undefined||srcLines[e-1].trim()===''))e--;
-    b.srcStart=s; b.srcEnd=e; return b;
-  }
   for(var i=0;i<blocks.length;i++){
-    var nb=blocks[i];
-    var raw=(nb.text||'').split('\n');
-    var b={kind:nb.kind,level:nb.level||0,srcStart:nb.srcStart,srcEnd:nb.srcEnd};
-    var k=nb.kind;
-    if(k==='heading'){
-      b.text=raw.join(' ').replace(/^\s*#+\s*/,'');
-    }else if(k==='para'){
-      b.text=raw.map(function(l){return l.trim()}).filter(function(l){return l!==''}).join(' ');
-    }else if(k==='ul'||k==='ol'){
-      // 层级必须从【原始行】的前导空格计算(trim 后信息即丢失)
-      var items=raw.filter(function(l){return l.trim()!==''});
-      b.level=items.length?Math.floor((items[0].length-items[0].replace(/^\s+/,'').length)/2):0;
-      b.text=items.map(function(l){return l.trim().replace(k==='ul'?/^[-*] /:/^\d+\. /,'')}).join(' ');
-    }else if(k==='quote'){
-      b.text=raw.map(function(l){return l.trim()}).filter(function(l){return l!==''})
-        .map(function(l){return l.replace(/^>\s*/,'')}).join(' ');
-    }else if(k==='table'){
-      // 行区间含 @[table]…@[/table] 定界行:只取 | 行;open 行取原生第一行
-      b.rows=raw.map(function(l){return l.trim()}).filter(function(l){return l.charAt(0)==='|'});
-      var openLine='';
-      for(var oi=0;oi<raw.length;oi++){ if(/^@\[table/.test(raw[oi].trim())){openLine=raw[oi].trim();break} }
-      b.open=openLine||'@[table demo]';
-    }else if(k==='code'){
-      b.lang=(raw[0]||'').replace(/^@\[c (\w+)\].*/,'$1');
-      b.text=raw.filter(function(l){return !/^@\[c (\w+)\]/.test(l.trim())&&l.trim()!=='@[/c]'}).join('\n');
-    }else if(k==='math'){
-      b.text=raw.filter(function(l){return l.trim()!=='@[m]'&&l.trim()!=='@[math]'&&l.trim()!=='@[/m]'&&l.trim()!=='@[/math]'}).join('\n');
-    }else{
-      // obj/comment/docset/label/ref/hr/scope:整段原文保真
-      // native 不区分 docset/label/ref/toc(obj 大类),按内容前缀再分类
-      var one=(nb.text||'').split('\n')[0].trim();
-      if(/^@\[toc/.test(one)){
-        b.kind='toc'; b.text=one;
-      }else if(/^@\[(page|margin|font|size|line-spacing|first-line|theme|numbering|para-spacing)\s/.test(one)){
-        b.kind='docset'; b.text=one;
-      }else if(/^@\[label\s/.test(one)){
-        b.kind='label'; b.text=one.replace(/^@\[label\s+/,'').replace(/\]$/,'');
-      }else if(/^@\[ref\s/.test(one)){
-        b.kind='ref'; b.text=one.replace(/^@\[ref\s+/,'').replace(/\]$/,'');
-      }else{
-        b.text=(nb.text||'');
-      }
-    }
-    out.push(trimSpan(b));
+    out.push(trimSpanB(recToNode(blocks[i]),srcLines));
   }
   return out;
+}
+// 增量:脏段的引擎记录 → 节点(span 平移回全文行基)
+function segRecsToNodes(blocks,baseLine){
+  return blocks.map(function(nb){
+    var b=recToNode(nb);
+    b.srcStart=(nb.srcStart||0)+baseLine;
+    b.srcEnd=(nb.srcEnd||0)+baseLine;
+    return b;
+  });
 }
 
 // ── 表格 HTML(对齐 + widths 列宽扩展;open 行经 data-open 保真)──
@@ -584,35 +599,65 @@ function serializeBlockEl(el){
   }
   return lines;
 }
-// 全文序列化:遍历每页纸的顶层块
-function serializeAll(){
-  var out=[];
+// 段级序列化:与 serializeAll 同一遍历,同时产出段元数据。
+// lines:源码行数组(空行规则 P-02 + 空段配平:1 空段=一对空行,文末空段
+//   额外补一行抵消 split 幻影——引擎以「去幻影后的空行数 floor/2」算空段)。
+// segs:[{bid,kind,text,l0,l1}] 增量刷新的脏段对比与提交都用它。
+function serializeSegments(){
+  var lines=[], segs=[];
   var papers=document.querySelectorAll('#display-pane .paper');
   papers.forEach(function(paper){
     var prevKind='';
     paper.childNodes.forEach(function(el){
       if(el.nodeType!==1)return;
       if(el.classList.contains('gap'))return;
-      if(el.classList.contains('docset')){ if(out.length&&out[out.length-1].trim()!==''&&prevKind!=='docset')out.push(''); out.push(el.textContent); prevKind='docset'; return }
-      if(el.classList.contains('comment-src')){ if(out.length&&out[out.length-1].trim()!==''&&prevKind!=='comment')out.push(''); out.push(el.dataset.raw||el.textContent); prevKind='comment'; return }
-      // 原生 Enter 拆出的新块没有 data-bid,按通用规则识别类型
-      var kind=el.dataset.kind||(/^H[1-6]$/.test(el.tagName)?'heading':el.tagName==='UL'?'ul':el.tagName==='OL'?'ol':el.tagName==='BLOCKQUOTE'?'quote':el.tagName==='TABLE'?'table':el.tagName==='HR'?'hr':'para');
-      el.dataset.kind=kind;
-      if(!el.dataset.bid){
-        var maxBid=0;
-        document.querySelectorAll('#display-pane [data-bid]').forEach(function(x){maxBid=Math.max(maxBid,+x.dataset.bid)});
-        el.dataset.bid=maxBid+1;
+      if(el.classList.contains('docset')){
+        if(lines.length&&lines[lines.length-1].trim()!==''&&prevKind!=='docset')lines.push('');
+        segs.push({bid:el.dataset.bid?+el.dataset.bid:null,kind:'docset',l0:lines.length,l1:0,text:''});
+        lines.push(el.textContent);
+        segs[segs.length-1].l1=lines.length;
+        segs[segs.length-1].text=el.textContent;
       }
-      var lines=serializeBlockEl(el);
-      // 空行保真:除连续列表项外,顶层块之间保持空行(P-02)
-      var isList=(kind==='ul'||kind==='ol');
-      var prevIsList=(prevKind==='ul'||prevKind==='ol');
-      if(out.length>0&&out[out.length-1].trim()!==''&&!(isList&&prevIsList))out.push('');
-      lines.forEach(function(l){out.push(l)});
-      prevKind=kind;
+      else if(el.classList.contains('comment-src')){
+        if(lines.length&&lines[lines.length-1].trim()!==''&&prevKind!=='comment')lines.push('');
+        segs.push({bid:el.dataset.bid?+el.dataset.bid:null,kind:'comment',l0:lines.length,l1:0,text:''});
+        lines.push(el.dataset.raw||el.textContent);
+        segs[segs.length-1].l1=lines.length;
+        segs[segs.length-1].text=el.dataset.raw||el.textContent;
+      }
+      else{
+        // 原生 Enter 拆出的新块没有 data-bid,按通用规则识别类型
+        var kind=el.dataset.kind||(/^H[1-6]$/.test(el.tagName)?'heading':el.tagName==='UL'?'ul':el.tagName==='OL'?'ol':el.tagName==='BLOCKQUOTE'?'quote':el.tagName==='TABLE'?'table':el.tagName==='HR'?'hr':'para');
+        el.dataset.kind=kind;
+        if(!el.dataset.bid){
+          var maxBid=0;
+          document.querySelectorAll('#display-pane [data-bid]').forEach(function(x){maxBid=Math.max(maxBid,+x.dataset.bid)});
+          el.dataset.bid=maxBid+1;
+        }
+        var ls=serializeBlockEl(el);
+        // 空段:自带一对空行(2 空行=1 空段),不再吃分隔行
+        var isEmptyPara=(kind==='para'&&ls.length===1&&ls[0]==='');
+        // 空行保真:除连续列表项外,顶层块之间保持空行(P-02)
+        var isList=(kind==='ul'||kind==='ol');
+        var prevIsList=(prevKind==='ul'||prevKind==='ol');
+        if(!isEmptyPara&&lines.length>0&&lines[lines.length-1].trim()!==''&&!(isList&&prevIsList))lines.push('');
+        var s={bid:+el.dataset.bid,kind:kind,l0:lines.length,l1:0,text:''};
+        segs.push(s);
+        if(isEmptyPara){lines.push('');lines.push('')}
+        else ls.forEach(function(l){lines.push(l)});
+        s.l1=lines.length;
+        s.text=lines.slice(s.l0,s.l1).join('\n');
+      }
+      prevKind=segs[segs.length-1]?segs[segs.length-1].kind:'';
     });
   });
-  return out.join('\n');
+  // 文末空段补偿:引擎/缓存分段都会剪掉结尾 \n 的幻影行,这里多补一行
+  if(segs.length&&segs[segs.length-1].kind==='para'&&segs[segs.length-1].text==='')lines.push('');
+  return {lines:lines,segs:segs};
+}
+// 全文序列化:遍历每页纸的顶层块
+function serializeAll(){
+  return serializeSegments().lines.join('\n');
 }
 
 
@@ -632,6 +677,7 @@ window.AwenEngine={
   breakLines:breakLines, measureEm:measureEm, layoutPages:layoutPages,
   // 序列化
   inlineSource:inlineSource, blockPrefix:blockPrefix,
-  serializeBlockEl:serializeBlockEl, serializeAll:serializeAll
+  serializeBlockEl:serializeBlockEl, serializeAll:serializeAll,
+  serializeSegments:serializeSegments, segRecsToNodes:segRecsToNodes
 };
 })();

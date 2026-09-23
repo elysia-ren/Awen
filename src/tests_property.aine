@@ -3,6 +3,15 @@
 // 不变量:①解析器在任意编辑下不破坏"一行一块"不变量 ②NodeId 计数一致(§1.1)
 //        ③标题改名保留行内命令(§87)且最小 diff ④注释存活 ⑤Label 持久
 
+// 真实行数:源码以 \n 结尾时,split 末尾的 "" 是幻影行(lexer 已剪),不计
+fn prop_real_line_count(src: String) -> i32 {
+    let n = src.split("\n").len()
+    if src.len() > 0 && src[src.len() - 1] == "\n" {
+        return n - 1
+    }
+    return n
+}
+
 // Schrage 法 LCG(乘数 16807,模 2^31-1;i32 安全,无溢出不确定)
 fn prop_schrage(seed: i32) -> i32 {
     let hi = seed / 127773
@@ -43,7 +52,7 @@ fn prop_fuzz_semantic_stability() -> Result<i32, String> {
         }
         // 不变量 ①:一行一块(词法主循环逐行 push)
         let out = lex(src)
-        assert(out.blocks.len() == src.split("\n").len(), f"round {round}: 行块不变量破坏")
+        assert(out.blocks.len() == prop_real_line_count(src), f"round {round}: 行块不变量破坏")
         // 不变量 ②:NodeId 计数 = 节点数 + 1(顺序分配,§1.1)
         let pr = parse(out)
         let state = build_document(pr, src)
@@ -142,7 +151,7 @@ fn prop_fuzz_multi_seed() -> Result<i32, String> {
                 }
             }
             let out = lex(src)
-            assert(out.blocks.len() == src.split("\n").len(), f"sweep {sweep} round {round}: 行块不变量")
+            assert(out.blocks.len() == prop_real_line_count(src), f"sweep {sweep} round {round}: 行块不变量")
             let pr = parse(out)
             let state = build_document(pr, src)
             assert(doc_next_id(state) == doc_node_count(state) + 1, "NodeId 计数")

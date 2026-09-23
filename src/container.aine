@@ -168,23 +168,142 @@ fn pow2(n: i32) -> i32 {
     return r
 }
 
-// 滚动哈希(乘加,素数模)→ 8 位 hex,资源内容短名(同图不重名)
-fn content_hash8(data: Vec<i32>) -> String {
-    var h: i32 = 7
+// 十六进制串(小写)→ i64:aine 的 s[i] 即字符码
+fn hex2i64(s: String) -> i64 {
+    // i64 累加器:aine 绑定处不自动加宽,借 Vec<i64> 的 push 加宽;
+    // s[i] 是字符而非数值,查表得值(字符与整数比较恒 false,勿用)
+    let hexd = "0123456789abcdef"
+    var acc: Vec<i64> = []
+    acc = acc.push(0)
     var i: i32 = 0
-    while i < data.len() {
-        h = (h * 31 + data.get(i)) % 2147483647
+    while i < s.len() {
+        let d = find_str(hexd, s[i..(i + 1)], 0)
+        acc = acc.push(acc.get(i) * 16 + d)
         i += 1
     }
-    var hex = ""
+    return acc.get(s.len())
+}
+
+// SHA-256(资源强哈希):以 i64 承载 32 位无符号运算(aine Int 为 i64,
+// 加法先加后 & 0xffffffff 封顶,全程无乘法溢出)。返回前 8 字节 16 位 hex,
+// 用作资源内容短名(同图不重名,弱滚动哈希已弃)。
+fn rotr32(x: i64, n: i32) -> i64 {
+    let inv = 32 - n
+    return ((x >> n) | ((x & ((1 << n) - 1)) << inv)) & 0xffffffff
+}
+
+fn sha256_64hex(data: Vec<i32>) -> String {
+    let KHEX = "428a2f98 71374491 b5c0fbcf e9b5dba5 3956c25b 59f111f1 923f82a4 ab1c5ed5 d807aa98 12835b01 243185be 550c7dc3 72be5d74 80deb1fe 9bdc06a7 c19bf174 e49b69c1 efbe4786 0fc19dc6 240ca1cc 2de92c6f 4a7484aa 5cb0a9dc 76f988da 983e5152 a831c66d b00327c8 bf597fc7 c6e00bf3 d5a79147 06ca6351 14292967 27b70a85 2e1b2138 4d2c6dfc 53380d13 650a7354 766a0abb 81c2c92e 92722c85 a2bfe8a1 a81a664b c24b8b70 c76c51a3 d192e819 d6990624 f40e3585 106aa070 19a4c116 1e376c08 2748774c 34b0bcb5 391c0cb3 4ed8aa4a 5b9cca4f 682e6ff3 748f82ee 78a5636f 84c87814 8cc70208 90befffa a4506ceb bef9a3f7 c67178f2"
+    let kt = KHEX.split(" ")
+    var K = []
+    var ki: i32 = 0
+    while ki < kt.len() {
+        K = K.push(hex2i64(kt.get(ki)))
+        ki += 1
+    }
+    let M = 0xffffffff
+    // 消息填充:0x80 + 零至 56 mod 64 + 8 字节大端比特长度
+    var msg: Vec<i32> = []
+    var i: i32 = 0
+    while i < data.len() {
+        msg = msg.push(data.get(i))
+        i += 1
+    }
+    let bitlen = data.len() * 8
+    msg = msg.push(0x80)
+    while msg.len() % 64 != 56 {
+        msg = msg.push(0)
+    }
+    var sh = 56
+    while sh >= 0 {
+        msg = msg.push((bitlen / pow2(sh)) & 0xff)
+        sh -= 8
+    }
+    var h0 = hex2i64("6a09e667")
+    var h1 = hex2i64("bb67ae85")
+    var h2 = hex2i64("3c6ef372")
+    var h3 = hex2i64("a54ff53a")
+    var h4 = hex2i64("510e527f")
+    var h5 = hex2i64("9b05688c")
+    var h6 = hex2i64("1f83d9ab")
+    var h7 = hex2i64("5be0cd19")
+    // 逐 512 位块压缩
+    var blk = 0
+    while blk < msg.len() {
+        var w = []
+        i = 0
+        while i < 16 {
+            let off = blk + i * 4
+            let v = ((msg.get(off) * pow2(24)) + (msg.get(off + 1) * pow2(16)) + (msg.get(off + 2) * pow2(8)) + msg.get(off + 3))
+            w = w.push(v)
+            i += 1
+        }
+        while i < 64 {
+            let x = w.get(i - 15)
+            let s0 = (rotr32(x, 7) ^ rotr32(x, 18) ^ (x >> 3)) & M
+            let y = w.get(i - 2)
+            let s1 = (rotr32(y, 17) ^ rotr32(y, 19) ^ (y >> 10)) & M
+            let nv = (w.get(i - 16) + s0 + w.get(i - 7) + s1) & M
+            w = w.push(nv)
+            i += 1
+        }
+        var a = h0
+        var b = h1
+        var c = h2
+        var d = h3
+        var e = h4
+        var f = h5
+        var g = h6
+        var h = h7
+        i = 0
+        while i < 64 {
+            let S1 = (rotr32(e, 6) ^ rotr32(e, 11) ^ rotr32(e, 25)) & M
+            let ch = ((e & f) ^ ((e ^ M) & g)) & M
+            let t1 = (h + S1 + ch + K.get(i) + w.get(i)) & M
+            let S0 = (rotr32(a, 2) ^ rotr32(a, 13) ^ rotr32(a, 22)) & M
+            let maj = ((a & b) ^ (a & c) ^ (b & c)) & M
+            let t2 = (S0 + maj) & M
+            h = g
+            g = f
+            f = e
+            e = (d + t1) & M
+            d = c
+            c = b
+            b = a
+            a = (t1 + t2) & M
+            i += 1
+        }
+        h0 = (h0 + a) & M
+        h1 = (h1 + b) & M
+        h2 = (h2 + c) & M
+        h3 = (h3 + d) & M
+        h4 = (h4 + e) & M
+        h5 = (h5 + f) & M
+        h6 = (h6 + g) & M
+        h7 = (h7 + h) & M
+        blk += 64
+    }
+    // 前 8 字节(h0、h1)→ 16 hex
     let digits = "0123456789abcdef"
-    var d: i32 = 7
-    while d >= 0 {
-        let nib = (h / pow2(d * 4)) % 16
+    var hex = ""
+    var hi: i32 = 7
+    while hi >= 0 {
+        let nib = (h0 / pow2(hi * 4)) % 16
         hex = hex + digits[nib..(nib + 1)]
-        d -= 1
+        hi -= 1
+    }
+    hi = 7
+    while hi >= 0 {
+        let nib = (h1 / pow2(hi * 4)) % 16
+        hex = hex + digits[nib..(nib + 1)]
+        hi -= 1
     }
     return hex
+}
+
+// 资源内容哈希:SHA-256 前 64 位(16 hex)
+fn content_hash8(data: Vec<i32>) -> String {
+    return sha256_64hex(data)
 }
 
 fn json_escape_q(s: String) -> String {

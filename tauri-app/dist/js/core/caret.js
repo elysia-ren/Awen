@@ -66,7 +66,8 @@ function applySyncNow(){
   scheduleNativeRefresh(caret);
   updateDiagBar();
 }
-// 节流的权威重排:输入暂停后交 native 解析
+// 节流的权威重排:输入暂停后先试块级增量(O(脏段),纸面基本不动),
+// 增量不适用(结构变化/跨页截断/分页数变)才回退全量解析+重建
 var refreshTimer=null,refreshCaret=null;
 function scheduleNativeRefresh(caret){
   refreshCaret=caret||refreshCaret||null;
@@ -74,6 +75,11 @@ function scheduleNativeRefresh(caret){
   refreshTimer=setTimeout(function(){
     refreshTimer=null;
     var c=refreshCaret; refreshCaret=null;
+    if(window.composing){ scheduleNativeRefresh(c); return }
+    if(Date.now()-(window.lastPaperInputAt||0)<400){ scheduleNativeRefresh(c); return }
+    try{
+      if(incrRefresh(saveCaret()))return;
+    }catch(e){ console.error('增量刷新失败,回退全量',e) }
     render(gSrc,c);
   },500);
 }

@@ -56,6 +56,21 @@ fn extract_quote(blk: Block) -> QuoteData {
     }
 }
 
+// ── 空段规则(用户定稿):每 2 连续空行 = 1 个空段落 ──
+// K 连续空行 → floor(K/2) 个 Para([]);奇数个的最后一行是普通分隔。
+// 空段是真实节点(可跨全量渲染存活),由 mapping 给 span、serializeAll
+// 以「2 空行/空段」配平回写。
+fn push_empty_paras(nodes: Vec<DocNode>, run: i32) -> Vec<DocNode> {
+    var out = nodes
+    var n = run / 2
+    var i = 0
+    while i < n {
+        out = out.push(Para([]))
+        i += 1
+    }
+    return out
+}
+
 // ── 树构建 ─────────────────────────────────────────────────
 
 fn parse(lex_out: LexOutput) -> ParseResult {
@@ -71,6 +86,9 @@ fn parse(lex_out: LexOutput) -> ParseResult {
     // §14 段落合并:连续 Paragraph(无空行分隔)合并为单个 Para
     var merged_inline: Vec<Inline> = []
     var has_pending = false
+
+    // 空段规则:当前 Blank 连续计数
+    var blank_run = 0
 
     while i < blocks.len() {
         let blk = blocks[i].block
@@ -113,6 +131,16 @@ fn parse(lex_out: LexOutput) -> ParseResult {
             nodes.push(Para(merged_inline))
             merged_inline = []
             has_pending = false
+        }
+
+        // 空段结算:非 Blank 块出现 → 把之前的空行按 floor(K/2) 落成空段
+        let is_blank = match blk {
+            Blank { true }
+            _ { false }
+        }
+        if !is_blank && blank_run > 0 {
+            nodes = push_empty_paras(nodes, blank_run)
+            blank_run = 0
         }
 
         // 引用块
@@ -231,7 +259,9 @@ fn parse(lex_out: LexOutput) -> ParseResult {
                 i = j
                 continue
             }
-            Blank { }
+            Blank {
+                blank_run += 1
+            }
             RawLine(content) { }
             RawClose(cmd) { }
             TableRow(cells, delimiter) { }
@@ -249,6 +279,10 @@ fn parse(lex_out: LexOutput) -> ParseResult {
     // 刷出末尾未关闭的合并段落
     if has_pending {
         nodes.push(Para(merged_inline))
+    }
+    // 文末空行(lexer 已剪掉最后一行)→ 空段结算
+    if blank_run > 0 {
+        nodes = push_empty_paras(nodes, blank_run)
     }
 
     return ParseResult { nodes: nodes, diags: diags }
