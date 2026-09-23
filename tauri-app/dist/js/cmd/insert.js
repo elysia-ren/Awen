@@ -53,11 +53,25 @@ function insertBlock(kind){
   }else insertSyntax('\n'+ins.join('\n')+'\n');
 }
 
+function tagMediaDir(){
+  // 每个标签一个媒体子目录;无则生成并确保存在(插入即入包)
+  if(window.awenMediaDir)return Promise.resolve(window.awenMediaDir);
+  var name='session-'+Date.now()+'-'+Math.floor(Math.random()*1000000);
+  return Bridge.mediaEnsure(name).then(function(dir){
+    window.awenMediaDir=dir;
+    if(activeFile>=0&&openFiles[activeFile])openFiles[activeFile].media_dir=dir;
+    return dir;
+  });
+}
+
 function pickImageInsert(){
-  // 原生对话框选图(Tauri)→ data URI 插入;保存 .awen 时自动资源化为 media/ 引用
+  // 原生对话框选图 → 立即写入当前文档媒体目录(源码只留 media/ 引用),
+  // 保存 .awen 时按引用收进容器
   if(!(Bridge.native&&Bridge.pickImage))return;
-  Bridge.pickImage().then(function(uri){
-    if(uri)insertRawLine('@[image "'+uri+'"]');
+  tagMediaDir().then(function(dir){
+    return Bridge.pickImage(dir);
+  }).then(function(res){
+    if(res&&res.ref)insertRawLine('@[image "'+res.ref+'"]');
   }).catch(function(e){ alert('插入图片失败:'+String(e).slice(0,120)) });
 }
 function insertRawLine(line){

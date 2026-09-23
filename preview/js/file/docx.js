@@ -34,6 +34,20 @@ function importDocx(){
       };
       mammoth.convertToHtml({arrayBuffer:rd.result},opts).then(function(res){
         var src=htmlToAwen(res.value);
+        // 文档里的图片立即资源化进媒体目录,源码只留 media/ 引用
+        return tagMediaDir().then(function(dir){
+          var jobs=[];
+          var re=/"(data:image\/[^;]+;base64,[A-Za-z0-9+\/=]+)"/g;
+          var found=[];var mm;
+          while((mm=re.exec(src))!==null)found.push(mm[1]);
+          found.forEach(function(uri){
+            jobs.push(Bridge.dataUriResource(uri,dir).then(function(r2){
+              src=src.replace('"'+uri+'"','"'+r2.ref+'"');
+            }));
+          });
+          return Promise.all(jobs).then(function(){return src});
+        });
+      }).then(function(src){
         var name=f.name.replace(/\.docx$/i,'');
         inp.remove();
         var reuse=false;

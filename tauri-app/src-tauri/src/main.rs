@@ -338,6 +338,7 @@ async fn awen_container_save(
     path: String,
     syntax: String,
     doc_id: String,
+    media_dir: String,
 ) -> Result<String, String> {
     let lock = lock.0.clone();
     tauri::async_runtime::spawn_blocking(move || {
@@ -349,7 +350,11 @@ async fn awen_container_save(
         let build = dir.join("build");
         fs::create_dir_all(&build).map_err(|e| format!("创建 build/ 失败:{e}"))?;
         fs::write(build.join("cli_in.awen"), &syntax).map_err(|e| format!("写入 cli_in.awen 失败:{e}"))?;
-        let media_base = local_app_dir().join("media");
+        let media_base = if media_dir.trim().is_empty() {
+            local_app_dir().join("media")
+        } else {
+            PathBuf::from(&media_dir)
+        };
         fs::create_dir_all(&media_base).map_err(|e| format!("创建媒体目录失败:{e}"))?;
         let media_base_s = media_base.to_string_lossy().to_string();
         let _g = lock.lock().map_err(|_| "内部锁中毒".to_string())?;
@@ -448,39 +453,146 @@ async fn awen_container_open(
     .map_err(|e| format!("任务调度失败:{e}"))?
 }
 
-// 读取本地图片为 data URI(路径由前端 dialog.open 选择;对话框不能在
-// spawn_blocking 线程 blocking 调用,故选择在前端、读取在此)
+// ── 图片资源化:插入即入媒体目录(源码只写 media/ 引用,容器打包时收集)──
+
+const B64T: &[u8; 64] = b"ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
+fn b64_encode(data: &[u8]) -> String {
+    let mut out = String::with_capacity((data.len() + 2) / 3 * 4);
+    for ch in data.chunks(3) {
+        let b = [ch[0], *ch.get(1).unwrap_or(&0), *ch.get(2).unwrap_or(&0)];
+        let n = ((b[0] as u32) << 16) | ((b[1] as u32) << 8) | b[2] as u32;
+        out.push(B64T[(n >> 18) as usize & 63] as char);
+        out.push(B64T[(n >> 12) as usize & 63] as char);
+        out.push(if ch.len() > 1 { B64T[(n >> 6) as usize & 63] as char } else { '=' });
+        out.push(if ch.len() > 2 { B64T[n as usize & 63] as char } else { '=' });
+    }
+    out
+}
+
+// 与引擎 content_hash8 同款滚动哈希 → 8 位 hex(资源命名跨端一致)
+fn content_hash8(data: &[u8]) -> String {
+    let mut h: i64 = 7;
+    for &b in data {
+        h = (h * 31 + b as i64) % 2147483647;
+    }
+    let mut hex = String::new();
+    let digits = b"0123456789abcdef";
+    for d in (0..8).rev() {
+        let nib = (h / pow2i(d * 4)) % 16;
+        hex.push(digits[nib as usize] as char);
+    }
+    hex
+}
+fn pow2i(n: i64) -> i64 {
+    1i64 << n
+}
+
+fn mime_of_ext(ext: &str) -> &'static str {
+    match ext {
+        "png" => "image/png",
+        "jpg" | "jpeg" => "image/jpeg",
+        "gif" => "image/gif",
+        "webp" => "image/webp",
+        "svg" => "image/svg+xml",
+        _ => "application/octet-stream",
+    }
+}
+
+// 确保媒体子目录存在,返回绝对路径(前端存为该标签的 awenMediaDir)
 #[tauri::command]
-async fn read_image_data_uri(path: String) -> Result<String, String> {
+async fn media_ensure(name: String) -> Result<String, String> {
+    let safe: String = name
+        .chars()
+        .map(|c| if c.is_alphanumeric() || c == '-' || c == '_' { c } else { '_' })
+        .collect();
+    if safe.is_empty() {
+        return Err("非法媒体目录名".into());
+    }
+    let dir = local_app_dir().join("media").join(safe);
+    std::fs::create_dir_all(&dir).map_err(|e| format!("创建媒体目录失败:{e}"))?;
+    Ok(dir.to_string_lossy().to_string())
+}
+
+#[derive(serde::Serialize)]
+struct ResourceRef {
+    #[serde(rename = "ref")]
+    reference: String,
+    data_uri: String,
+}
+
+// 本地图片文件 → 写入媒体目录 + 返回包内引用与 data URI
+#[tauri::command]
+async fn image_resource(path: String, media_dir: String) -> Result<ResourceRef, String> {
     tauri::async_runtime::spawn_blocking(move || {
         let data = fs::read(&path).map_err(|e| format!("读取失败:{e}"))?;
         if data.len() > 20 * 1024 * 1024 {
             return Err("图片超过 20MB".into());
         }
-        let mime = match path
+        let ext = path
             .rsplit('.')
             .next()
             .map(|e| e.to_lowercase())
-            .unwrap_or_default()
-            .as_str()
-        {
-            "png" => "image/png",
-            "jpg" | "jpeg" => "image/jpeg",
-            "gif" => "image/gif",
-            "webp" => "image/webp",
-            _ => "application/octet-stream",
-        };
-        const T: &[u8; 64] = b"ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
-        let mut b64 = String::with_capacity((data.len() + 2) / 3 * 4);
-        for ch in data.chunks(3) {
-            let b = [ch[0], *ch.get(1).unwrap_or(&0), *ch.get(2).unwrap_or(&0)];
-            let n = ((b[0] as u32) << 16) | ((b[1] as u32) << 8) | b[2] as u32;
-            b64.push(T[(n >> 18) as usize & 63] as char);
-            b64.push(T[(n >> 12) as usize & 63] as char);
-            b64.push(if ch.len() > 1 { T[(n >> 6) as usize & 63] as char } else { '=' });
-            b64.push(if ch.len() > 2 { T[n as usize & 63] as char } else { '=' });
+            .unwrap_or_default();
+        let mime = mime_of_ext(&ext);
+        let name = format!("img-{}.{}", content_hash8(&data), ext);
+        std::fs::create_dir_all(&media_dir).map_err(|e| format!("创建媒体目录失败:{e}"))?;
+        std::fs::write(Path::new(&media_dir).join(&name), &data)
+            .map_err(|e| format!("写入媒体失败:{e}"))?;
+        Ok(ResourceRef {
+            reference: format!("media/{name}"),
+            data_uri: format!("data:{mime};base64,{}", b64_encode(&data)),
+        })
+    })
+    .await
+    .map_err(|e| format!("任务调度失败:{e}"))?
+}
+
+// data URI → 写入媒体目录 + 返回包内引用(docx 导入等场景)
+#[tauri::command]
+async fn data_uri_resource(data_uri: String, media_dir: String) -> Result<ResourceRef, String> {
+    tauri::async_runtime::spawn_blocking(move || {
+        let rest = data_uri.strip_prefix("data:").ok_or("非 data URI")?;
+        let semi = rest.find(';').ok_or("data URI 缺少类型段")?;
+        let mime = rest[..semi].to_string();
+        let b64 = rest[semi + 1..].strip_prefix("base64,").ok_or("仅支持 base64 data URI")?;
+        let mut table = [255u8; 256];
+        let alphabet = b"ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
+        for (i, &c) in alphabet.iter().enumerate() {
+            table[c as usize] = i as u8;
         }
-        Ok(format!("data:{};base64,{}", mime, b64))
+        let mut bytes = Vec::with_capacity(b64.len() / 4 * 3);
+        let mut acc: u32 = 0;
+        let mut bits = 0u32;
+        for &c in b64.as_bytes() {
+            if c == b'=' || c == b'\n' || c == b'\r' { continue; }
+            let v = table[c as usize];
+            if v == 255 { continue; }
+            acc = (acc << 6) | v as u32;
+            bits += 6;
+            if bits >= 8 {
+                bits -= 8;
+                bytes.push((acc >> bits) as u8);
+            }
+        }
+        if bytes.len() > 20 * 1024 * 1024 {
+            return Err("图片超过 20MB".into());
+        }
+        let ext = match mime.as_str() {
+            "image/png" => "png",
+            "image/jpeg" => "jpg",
+            "image/gif" => "gif",
+            "image/webp" => "webp",
+            "image/svg+xml" => "svg",
+            _ => "bin",
+        };
+        let name = format!("img-{}.{}", content_hash8(&bytes), ext);
+        std::fs::create_dir_all(&media_dir).map_err(|e| format!("创建媒体目录失败:{e}"))?;
+        std::fs::write(Path::new(&media_dir).join(&name), &bytes)
+            .map_err(|e| format!("写入媒体失败:{e}"))?;
+        Ok(ResourceRef {
+            reference: format!("media/{name}"),
+            data_uri: data_uri.clone(),
+        })
     })
     .await
     .map_err(|e| format!("任务调度失败:{e}"))?
@@ -513,7 +625,9 @@ fn main() {
             core_take_pending_paths,
             awen_container_save,
             awen_container_open,
-            read_image_data_uri
+            media_ensure,
+            image_resource,
+            data_uri_resource
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
