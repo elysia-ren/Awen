@@ -24,7 +24,7 @@ Awen 是一款"aine 引擎 + 桌面壳"的中文文档编辑器:**显示视图**
 
 ## 快速开始
 
-1. 从 [Releases](../../releases) 下载 `Awen-Editor-1.1.0-x64-setup.exe` 安装(或本地构建,见下)。
+1. 从 [Releases](../../releases) 下载 `Awen-Editor-1.1.1-x64-setup.exe` 安装(或本地构建,见下)。
 2. 启动后直接在纸面上写作;`.awen` 文件已关联,双击即开。
 3. 十分钟入门见[使用手册第三章](manual/index.html)。
 

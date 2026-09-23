@@ -441,16 +441,12 @@ function layoutPages(blocks){
   for(var k=0;k<items.length;k++){
     var it=items[k];
     if(it.h>capacity&&it.b.kind==='para'){
-      if(cur.length){pages.push(cur);cur=[]}
-      var linesCount=Math.max(1,Math.round(it.h/it.lineH));
-      var perPage=Math.max(1,Math.floor(capacity/it.lineH));
-      var pos=0;
-      while(pos<linesCount){
-        var take=Math.min(perPage,linesCount-pos);
-        cur.push({b:it.b,l0:pos,l1:pos+take,partLines:it.lines,h:take*it.lineH});
-        pos+=take;
-        if(pos<linesCount){pages.push(cur);cur=[]}
-      }
+      // 超页高段落整段独占一页,不再劈段:劈段会让 DOM 只持有段的部分内容,
+      // 序列化只回写可见部分=真数据丢失(页外内容静默消失)。
+      // 纸面纵向溢出由 sheet minHeight 承接,该段完整可见、可编辑、可序列化。
+      if(cur.length){pages.push(cur);cur=[];used=0}
+      cur.push({b:it.b,whole:true,h:it.h});
+      pages.push(cur);cur=[];used=0;
       continue;
     }
     if(used>0&&used+it.h>capacity){pages.push(cur);cur=[];used=0}
