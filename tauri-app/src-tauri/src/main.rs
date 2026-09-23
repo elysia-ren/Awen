@@ -454,8 +454,8 @@ async fn awen_container_open(
 async fn read_image_data_uri(path: String) -> Result<String, String> {
     tauri::async_runtime::spawn_blocking(move || {
         let data = fs::read(&path).map_err(|e| format!("读取失败:{e}"))?;
-        if data.len() > 1024 * 1024 {
-            return Err("图片超过 1MB(当前阶段限制)".into());
+        if data.len() > 20 * 1024 * 1024 {
+            return Err("图片超过 20MB".into());
         }
         let mime = match path
             .rsplit('.')

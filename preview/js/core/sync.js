@@ -1,8 +1,21 @@
 // 编辑同步入口:纸面输入 → 序列化 → 节流权威解析;键盘块级操作(自单文件版拆出;传统 script,全局变量直接共享)
 // ═══ 编辑同步:输入 → 序列化 → 必要时重排 ═══
 var repagTimer=null,lastEditSource=null;
+// 中文输入法组合期间:挂起序列化与权威重建——组合中间态(拼音串)一旦
+// 进入源码并触发纸面重建,会把输入法正在组词的文本拦腰清掉(用户看到的
+// "输入回退")。compositionend 后再走正常节流同步。
+var composing=false;
+document.addEventListener('compositionstart',function(){
+  composing=true;
+  if(repagTimer){clearTimeout(repagTimer);repagTimer=null}
+});
+document.addEventListener('compositionend',function(){
+  composing=false;
+  window.lastPaperInputAt=Date.now();
+});
 function onPaperInput(e){
   window.lastPaperInputAt=Date.now();
+  if(composing)return;   // 组合中间态不进源码
   if(repagTimer)clearTimeout(repagTimer);
   // 标点成步:句末标点立即落一步,且下一笔必开新语义步
   var punct=e&&e.data&&/[。？！，、；：.?!]/.test(e.data.slice(-1));

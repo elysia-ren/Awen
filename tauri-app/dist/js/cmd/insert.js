@@ -58,7 +58,7 @@ function pickImageInsert(){
   if(!(Bridge.native&&Bridge.pickImage))return;
   Bridge.pickImage().then(function(uri){
     if(uri)insertRawLine('@[image "'+uri+'"]');
-  }).catch(function(e){ document.getElementById('findmsg').textContent=String(e) });
+  }).catch(function(e){ alert('插入图片失败:'+String(e).slice(0,120)) });
 }
 function insertRawLine(line){
   var bel=inDisplayMode()?caretBlock():null;

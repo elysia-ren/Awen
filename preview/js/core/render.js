@@ -18,7 +18,7 @@ function render(src,caret,done){
     // pending 标志必须清掉:本次请求已结束,否则后续 flush 永远误判"在途"
     // 打字会话进行中(800ms 内有纸面输入):绝不重建——重建会把光标恢复到
     // 旧快照位置,后续输入错位(用户看到的"输入回退")
-    if(repagTimer||refreshTimer||Date.now()-(window.lastPaperInputAt||0)<800){
+    if(repagTimer||refreshTimer||window.composing||Date.now()-(window.lastPaperInputAt||0)<800){
       renderPending=false;
       return;
     }
