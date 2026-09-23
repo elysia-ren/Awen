@@ -69,6 +69,13 @@ function insertRawLine(line){
   if(at>0&&lines[at-1].trim()!=='')line='\n'+line;
   lines.splice(at,0,line);
   setSrc(lines.join('\n'));
+  // 插入位置若在视口外(如无光标时插到文尾),滚过去让用户看得见
+  setTimeout(function(){
+    var pane=document.getElementById('display-pane');
+    if(pane&&pane.scrollTop+pane.clientHeight<pane.scrollHeight-60){
+      pane.scrollTop=pane.scrollHeight;
+    }
+  },1000);
 }
 
 // 工具栏按钮按下不清除文字选区(Word 式行为)

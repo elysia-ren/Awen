@@ -11,7 +11,28 @@ function importDocx(){
     if(!f){ inp.remove(); return }
     var rd=new FileReader();
     rd.onload=function(){
-      mammoth.convertToHtml({arrayBuffer:rd.result}).then(function(res){
+      // mammoth 默认忽略图片且只认英文样式名:显式转换图片为 data URI,
+      // 并补充中文 Word 样式名映射(标题 1/标题 2…),否则格式全部丢失
+      var opts={
+        styleMap:[
+          "p[style-name='Title'] => h1:fresh",
+          "p[style-name='标题'] => h1:fresh",
+          "p[style-name='标题 1'] => h1:fresh",
+          "p[style-name='标题 2'] => h2:fresh",
+          "p[style-name='标题 3'] => h3:fresh",
+          "p[style-name='标题 4'] => h4:fresh",
+          "p[style-name='Heading 1'] => h1:fresh",
+          "p[style-name='Heading 2'] => h2:fresh",
+          "p[style-name='Heading 3'] => h3:fresh",
+          "p[style-name='Heading 4'] => h4:fresh"
+        ],
+        convertImage:mammoth.images.imgElement(function(image){
+          return image.readAsBase64String().then(function(b64){
+            return {src:'data:'+image.contentType+';base64,'+b64};
+          });
+        })
+      };
+      mammoth.convertToHtml({arrayBuffer:rd.result},opts).then(function(res){
         var src=htmlToAwen(res.value);
         var name=f.name.replace(/\.docx$/i,'');
         inp.remove();
@@ -51,6 +72,13 @@ function htmlToAwen(html){
       else if(tag==='U')t+='@[u]'+inner+'@[/u]';
       else if(tag==='DEL'||tag==='S')t+='~~'+inner+'~~';
       else if(tag==='CODE')t+='`'+inner+'`';
+      else if(tag==='IMG'){
+        // data URI 图片(mammoth convertImage 产出)→ 带引号的图片引用,
+        // 保存 .awen 容器时自动资源化为 media/ 文件
+        var src=n.getAttribute('src')||'';
+        if(src)t+='@[image "'+src+'"]';
+        return;
+      }
       else if(tag==='A'){ var href=n.getAttribute('href')||''; t+='@[link '+inner+' url: '+href+']' }
       else t+=inner;
     });
@@ -88,7 +116,11 @@ function htmlToAwen(html){
         out.push('@[/table]');
         out.push('');
       }
-      else if(tag==='IMG'){ out.push('@[image imported-image]'); out.push('') }
+      else if(tag==='IMG'){
+        // 顶层图片(mammoth convertImage → data URI):保留真实引用
+        var src=n.getAttribute('src')||'';
+        if(src){ out.push('@[image "'+src+'"]'); out.push('') }
+      }
       else if(tag==='HR'){ out.push('---') }
       else walk(n);
     });
