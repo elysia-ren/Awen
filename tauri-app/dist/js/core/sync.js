@@ -44,6 +44,40 @@ function onPaperKey(e){
   if((e.ctrlKey||e.metaKey)&&!e.shiftKey&&e.key==='u'){ e.preventDefault(); fmtCmd('underline'); return }
   if((e.ctrlKey||e.metaKey)&&e.key==='s'){ e.preventDefault(); doSave(); return }
   if(e.key==='Enter'&&e.target.closest&&e.target.closest('table')){ e.preventDefault(); return }
+  // 普通段落内的回车:手动拆块,不交给浏览器——浏览器拆分会克隆整块 DOM
+  // (包括 data-bid),产生重复 bid;后续光标按旧 bid 恢复会跳回前一段,
+  // 用户看到的就是"回车换行后输入回退"
+  if(e.key==='Enter'&&!e.shiftKey&&e.target.closest&&e.target.closest('#display-pane .paper')){
+    e.preventDefault();
+    var sel=window.getSelection();
+    if(!sel.rangeCount)return;
+    var r0=sel.getRangeAt(0);
+    var curBlk=r0.startContainer.nodeType===1
+      ?(r0.startContainer.closest?r0.startContainer.closest('#display-pane [data-bid]'):null)
+      :(r0.startContainer.parentElement?r0.startContainer.parentElement.closest('#display-pane [data-bid]'):null);
+    if(!curBlk)return;
+    var r=sel.getRangeAt(0).cloneRange();
+    if(!r.collapsed)r.deleteContents();
+    var tailFrag=r.cloneContents();
+    var maxBid=0;
+    document.querySelectorAll('#display-pane [data-bid]').forEach(function(x){maxBid=Math.max(maxBid,+x.dataset.bid||0)});
+    var newB=document.createElement('p');
+    newB.contentEditable='true';
+    while(tailFrag.firstChild)newB.appendChild(tailFrag.firstChild);
+    if(!newB.firstChild)newB.appendChild(document.createTextNode(''));
+    newB.dataset.bid=String(maxBid+1);
+    newB.dataset.kind='para';
+    var gap=curBlk.nextElementSibling;
+    if(!(gap&&gap.classList.contains('gap'))){
+      gap=document.createElement('div'); gap.className='gap'; gap.contentEditable='false';
+      curBlk.parentNode.insertBefore(gap,curBlk.nextSibling);
+    }
+    gap.parentNode.insertBefore(newB,gap.nextSibling);
+    var nr=document.createRange();nr.setStart(newB,0);nr.collapse(true);
+    sel.removeAllRanges();sel.addRange(nr);
+    onPaperInput();
+    return;
+  }
   if(e.key==='Backspace'){
     var c=saveCaret();
     if(c&&c.off===0){
