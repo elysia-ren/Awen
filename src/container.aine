@@ -139,6 +139,25 @@ fn mime_ext(mime: String) -> String {
     return "bin"
 }
 
+// 资源名 → MIME(按扩展名)
+fn mime_of_name(name: String) -> String {
+    var ext = ""
+    var i: i32 = name.len() - 1
+    while i >= 0 {
+        if name[i] == "." {
+            ext = name[(i + 1)..name.len()]
+            break
+        }
+        i -= 1
+    }
+    if ext == "png" { return "image/png" }
+    if ext == "jpg" || ext == "jpeg" { return "image/jpeg" }
+    if ext == "gif" { return "image/gif" }
+    if ext == "webp" { return "image/webp" }
+    if ext == "svg" { return "image/svg+xml" }
+    return "application/octet-stream"
+}
+
 fn pow2(n: i32) -> i32 {
     var r: i32 = 1
     var i: i32 = 0
@@ -241,11 +260,46 @@ fn extract_data_uris(syntax: String) -> PackOut {
     return PackOut { syntax: out, names: names, mimes: mimes, chunks: chunks }
 }
 
-// 打包:syntax + 资源(data URI 抽取)→ 写 target(.awen 容器);
-// 资源同时落盘 media_base(内容寻址),供当前会话经 asset 协议渲染
+// 打包:syntax + 资源 → 写 target(.awen 容器)。
+// 资源两个来源:① 源码里残余的 data URI(抽取后源码替换为 media/ 引用,
+// 并把文件落盘 media_base,供当前会话经 asset 协议渲染);
+// ② 源码中已存在的 media/ 引用(此前已资源化)→ 从 media_base 读回进包。
 // 返回资源化后的源码(调用方以此为新的 gSrc)
 fn pack_awen(syntax: String, target: String, doc_id: String, media_base: String) -> String {
     let po = extract_data_uris(syntax)
+    var names = po.names
+    var mimes = po.mimes
+    var chunks = po.chunks
+    // ② 源码中已资源化的 media/ 引用:从媒体目录读回,进 chunk(去重)
+    var scan = po.syntax
+    while true {
+        let p = find_str(scan, "media/", 0)
+        if p < 0 { break }
+        var e = p + 6
+        while e < scan.len() {
+            let c = scan[e]
+            if c == "\"" || c == "]" || c == "\n" || c == " " { break }
+            e += 1
+        }
+        var name = scan[p..e]
+        // 引用统一剥掉 media/ 前缀,与 data URI 抽取的裸名一致
+        if name.starts_with("media/") { name = name[6..name.len()] }
+        var seen = false
+        var k: i32 = 0
+        while k < names.len() {
+            if names.get(k) == name { seen = true }
+            k += 1
+        }
+        if !seen {
+            if file_exists(media_base + "/" + name) {
+                let bytes = read_bytes(media_base + "/" + name)
+                names = names.push(name)
+                mimes = mimes.push(mime_of_name(name))
+                chunks = chunks.push(base64_encode(bytes))
+            }
+        }
+        scan = scan[e..scan.len()]
+    }
     let sep = "#<awen:container format=0.5>\n"
     // 源码不以换行结尾时补一个,保证容器内 sep 行独立成行;
     // manifest 记录"原始源码"字节数,解包精确还原(packed 即原源码)
@@ -258,23 +312,23 @@ fn pack_awen(syntax: String, target: String, doc_id: String, media_base: String)
     var offsets = ""
     var cur: i32 = full.len()
     var i: i32 = 0
-    while i < po.chunks.len() {
-        let data = base64_decode(po.chunks.get(i))
-        let name = po.names.get(i)
-        let piece = "{\"id\":\"" + json_escape_q(name) + "\",\"type\":\"" + po.mimes.get(i)
+    while i < chunks.len() {
+        let data = base64_decode(chunks.get(i))
+        let name = names.get(i)
+        let piece = "{\"id\":\"" + json_escape_q(name) + "\",\"type\":\"" + mimes.get(i)
             + "\",\"name\":\"" + json_escape_q(name) + "\",\"codec\":\"none\",\"offset\":" + f"{cur}"
             + ",\"length\":" + f"{data.len()}" + ",\"original_size\":" + f"{data.len()}"
             + ",\"hash\":\"h-" + content_hash8(data) + "\"}"
         if i > 0 { offsets = offsets + "," }
         offsets = offsets + piece
         full = full.concat(data)
-        write_bytes(media_base + "/" + po.names.get(i), data)
+        write_bytes(media_base + "/" + name, data)
         cur = full.len()
         i += 1
     }
     var m = "{\"format_version\":\"0.5\",\"document_id\":\"" + json_escape_q(doc_id)
         + "\",\"syntax_version\":\"0.4\",\"syntax_language\":\"awen\",\"syntax_style\":\"user\""
-        + ",\"resource_revision\":" + f"{po.chunks.len()}"
+        + ",\"resource_revision\":" + f"{chunks.len()}"
         + ",\"canonical_revision\":0,\"compiler_compatibility\":\">=0.4\""
         + ",\"syntax_codec\":\"none\",\"syntax_bytes\":" + f"{syntax_bytes}"
         + ",\"chunks\":[" + offsets + "]}"

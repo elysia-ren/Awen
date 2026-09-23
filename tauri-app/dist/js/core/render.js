@@ -7,11 +7,34 @@ var renderSeq=0;
 // renderPending=true 表示权威渲染在途,纸面 DOM 还是旧结构——
 // 期间 serializeAll 只会拿到旧内容,applySyncNow 必须推迟而不是覆盖 gSrc
 var renderPending=false;
+// 超长 data URI 送引擎解析前替换为占位引用(aine 解释器对几百 KB 的
+// 行内字符串会长时间无响应),块结构不受影响;解析返回后按映射把原文
+// 恢复进块文本供渲染。gSrc 不做替换。
+function parseSafe(src){
+  if(src.length<20000||src.indexOf('"data:image/')<0)return Bridge.parse(src);
+  var out=src,map={},n=0;
+  var re=/"data:image\/[^;"]{400,}"/g;
+  out=out.replace(re,function(m){
+    var k='media/awen-elided-'+(n++);
+    map[k]=m.slice(1,-1);
+    return '"'+k+'"';
+  });
+  if(n===0)return Bridge.parse(src);
+  return Bridge.parse(out).then(function(res){
+    (res.blocks||[]).forEach(function(b){
+      if(!b.text)return;
+      Object.keys(map).forEach(function(k){
+        if(b.text.indexOf(k)>=0)b.text=b.text.split(k).join(map[k]);
+      });
+    });
+    return res;
+  });
+}
 function render(src,caret,done){
   gSrc=src;
   renderPending=true;
   var seq=++renderSeq;
-  Bridge.parse(src).then(function(res){
+  parseSafe(src).then(function(res){
     if(seq!==renderSeq)return;
     // 纸面有未落盘的编辑(节流定时器挂着):放弃本次重建,避免权威结果
     // 把 DOM 里的新编辑抹掉——待处理编辑落盘后会自行再触发渲染。

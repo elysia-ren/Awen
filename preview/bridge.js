@@ -59,9 +59,9 @@ window.Bridge={
   },
 
   // .awen v0.5 容器:打包保存(引擎抽 data URI 资源化),返回资源化后源码
-  awenContainerSave:function(path,syntax,docId){
+  awenContainerSave:function(path,syntax,docId,mediaDir){
     if(!tauri)return Promise.resolve(null);
-    return tauri.core.invoke('awen_container_save',{path:path,syntax:syntax,docId:docId})
+    return tauri.core.invoke('awen_container_save',{path:path,syntax:syntax,docId:docId,mediaDir:mediaDir||''})
       .then(function(res){
         // 壳返回 JSON 文本(引擎容器流程约定:字符串载荷统一 JSON)
         if(typeof res==='string'){ try{res=JSON.parse(res)}catch(e){ return null } }
@@ -91,15 +91,33 @@ window.Bridge={
     return u;
   },
 
-  // 选择本地图片(前端 dialog.open 选路径 → 壳读文件),返回 data URI;取消 null
-  pickImage:function(){
+  // 确保媒体子目录存在,返回绝对路径(每个文档标签一个)
+  mediaEnsure:function(name){
+    if(!tauri)return Promise.resolve('');
+    return tauri.core.invoke('media_ensure',{name:name});
+  },
+  // 本地图片 → 写入媒体目录,返回 {ref:"media/img-x.ext"}(源码引用)
+  imageResource:function(path,mediaDir){
+    if(!tauri)return Promise.resolve(null);
+    return tauri.core.invoke('image_resource',{path:path,mediaDir:mediaDir});
+  },
+  // data URI → 写入媒体目录,返回 {ref}
+  dataUriResource:function(dataUri,mediaDir){
+    if(!tauri)return Promise.resolve(null);
+    return tauri.core.invoke('data_uri_resource',{dataUri:dataUri,mediaDir:mediaDir});
+  },
+  // 选择本地图片(系统对话框),返回 {ref, dataUri};取消 null
+  pickImage:function(mediaDir){
     if(!tauri||!tauri.dialog||!tauri.dialog.open)return Promise.resolve(null);
     return tauri.dialog.open({
       multiple:false,
       filters:[{name:'图片',extensions:['png','jpg','jpeg','gif','webp']}]
-    }).then(function(path){
+    }).then(function(picked){
+      var path=picked;
+      if(Array.isArray(path))path=path[0];
+      if(path&&typeof path==='object')path=path.path||path.filePath||null;
       if(!path)return null;
-      return tauri.core.invoke('read_image_data_uri',{path:path});
+      return tauri.core.invoke('image_resource',{path:path,mediaDir:mediaDir});
     });
   },
 
