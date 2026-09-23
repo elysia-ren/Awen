@@ -23,6 +23,7 @@ enum DocNode {
     RawBlk(ExplicitCommand, Option<String>, Vec<String>)
     TblNode(Option<Vec<Vec<Inline>>>, Vec<Vec<Vec<Inline>>>, bool)
     CommentNode(String)
+    EmptyPara
 }
 
 struct ParseResult {
@@ -71,9 +72,34 @@ fn parse(lex_out: LexOutput) -> ParseResult {
     // §14 段落合并:连续 Paragraph(无空行分隔)合并为单个 Para
     var merged_inline: Vec<Inline> = []
     var has_pending = false
+    // 空行规则(用户定稿 2026-09-23):1 个空行=段落分隔(现状);
+    // 每 2 个连续空行=1 个空段落(显示为空行)。blank_run 计连续空行数,
+    // 在遇到非空行时结算:floor(blank_run/2) 个空段。
+    var blank_run: i32 = 0
 
     while i < blocks.len() {
         let blk = blocks[i].block
+        let cur_is_blank = match blk {
+            Blank { true }
+            _ { false }
+        }
+        if cur_is_blank {
+            blank_run += 1
+        } else {
+            // 结算:连续空行折算空段落(插入在本块之前)
+            var empties: i32 = blank_run / 2
+            while empties > 0 {
+                if has_pending {
+                    nodes.push(Para(merged_inline))
+                    merged_inline = []
+                    has_pending = false
+                }
+                nodes.push(Para([]))
+                blank_run -= 2
+                empties -= 1
+            }
+            blank_run = 0
+        }
 
         // 列表项:延续或开启列表组
         let is_item = match blk {
@@ -231,7 +257,18 @@ fn parse(lex_out: LexOutput) -> ParseResult {
                 i = j
                 continue
             }
-            Blank { }
+            Blank {
+                blank_run += 1
+                if blank_run >= 2 {
+                    if has_pending {
+                        nodes.push(Para(merged_inline))
+                        merged_inline = []
+                        has_pending = false
+                    }
+                    nodes.push(Para([]))
+                    blank_run = 0
+                }
+            }
             RawLine(content) { }
             RawClose(cmd) { }
             TableRow(cells, delimiter) { }
