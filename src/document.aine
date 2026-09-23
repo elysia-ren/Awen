@@ -324,31 +324,6 @@ fn build_node(node: DocNode, nodes: Vec<SemNode>, next_id: i32, parent: i32, sou
             }
             acc_nodes = acc_nodes.push(sem)
         }
-        EmptyPara {
-            // 空段落(显示为空行):无文本内容的段落节点
-            let sem = SemNode {
-                id: my_id,
-                kind: "empty",
-                level: 0,
-                inline: [],
-                children: [],
-                parent: parent,
-                span_start: 0,
-                span_end: 0,
-                raw_lines: [],
-                raw_lang: None,
-                raw_cmd: Code,
-                tbl_header: [],
-                tbl_rows: [],
-                tbl_has_delim: false,
-                obj_cu: CommandUse { cmd: Code, name_raw: "", args: [], attrs: [], content: None },
-                comment_text: "",
-                list_ordered: false,
-                list_items: [],
-                quote_depth: 0,
-            }
-            acc_nodes = acc_nodes.push(sem)
-        }
         DocRoot(children) { }
     }
 
