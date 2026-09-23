@@ -1,93 +1,84 @@
 # Awen 编辑器
 
-基于 Awen 文档格式的轻量级中文编辑器。支持所见即所得编辑、语法视图、分屏对照、多文件管理、中文排版优化。
+把排版交给引擎,把写作还给你。
 
-## 📖 使用手册
+Awen 是一款"aine 引擎 + 桌面壳"的中文文档编辑器:**显示视图**是一张所见即所得的 A4 纸;**语法视图**里同一份文档是简洁的明文源码——这份源码是文档的唯一权威,明文存储、Git 友好、AI 可读。
 
-**[在线阅读使用手册](https://elysia-ren.github.io/Awen/manual/)** — 从创建第一篇文档到高级技巧、语法速查、故障排除的完整教程（也可直接打开 [`manual/Awen编辑器使用手册.html`](manual/Awen编辑器使用手册.html)）。
-
-## 快速开始
-
-安装桌面版：运行 `tauri-app/src-tauri/target/release/bundle/nsis/Awen 编辑器_1.0.0_x64-setup.exe`，安装后从开始菜单启动，可直接双击 `.awen` 文件打开。
+**[📖 阅读使用手册](manual/index.html)** · [下载安装包(GitHub Releases)](../../releases)
 
 ## 功能
 
-- **三种视图模式**：显示（WYSIWYG 纸面编辑）、语法（源码 + 行号 + 诊断）、分屏（对照）
-- **纸面直接编辑**：打字 / 回车分段 / 选区格式化 / 浮动工具栏 / 迷你工具栏
-- **中文排版优化**：中英混排间距（⅛em）、行首行尾禁则、标点挤压、词边界断行
-- **像素级分页**：按纸张实际尺寸和行高自动分页（A4/Letter/B5/A3/A5、纵向/横向）
-- **插入**：表格（选行列）/ 图片（data URI 嵌入）/ 链接 / 脚注 / 目录 / 批注 / 分隔线 / 引用
-- **格式化**：粗体 / 倾斜 / 下划线 / 删除线 / 上标 / 下标 / 行内代码 / 颜色 / 底纹 / 清除
-- **对齐**：左 / 居中 / 右 / 两端
-- **查找替换**：区分大小写 / 方向 / 全部替换 / 浮动对话框
-- **撤销重做**：300 步历史，init 去重
-- **多文件**：标签页切换 / 未保存标记 / 关闭确认
-- **导出**：Markdown / HTML / Word(.doc) / TXT / 打印 PDF
-- **语法视图**：行号栏 / 当前行高亮 / 诊断面板 / 跳转定位
-- **页面设置**：纸张 / 边距（含自定义）/ 行间距 / 方向
+- **双视图写作**:显示(WYSIWYG 纸面)/ 语法(行号源码)/ 分屏(滚动按源码行↔文档块锚定联动)
+- **中文排版引擎**:中英混排间距(⅛em)、行首行尾禁则、标点挤压、词边界断行——由 aine 排版引擎自动处理
+- **像素级分页**:按纸张实际尺寸分页(A4/Letter/B5/A3/A5),页边距/行距/段间距/首行缩进全部写回源码
+- **.awen v0.5 文件包**:明文源码 + Manifest + 图片资源的单文件容器;图片保存时自动收进包内,文档拷走不丢图;原子提交不损文件
+- **多文件标签**:标题栏标签切换,双击改名,独立撤销栈与媒体目录
+- **格式化**:粗斜下删、上下标、颜色、底纹、字号、字体、行内代码、清除格式;中文方言语法(@[字体 宋体])与英文写法等价
+- **插入**:表格(行列选择器+布局工具)、图片(系统对话框,≤1MB)、链接、脚注、目录、数学、书签、日期、特殊符号、引用块、批注
+- **查找替换**:高亮计数、方向、全字匹配、批量替换(可作用于源码标记)
+- **导入导出**:导入 docx;导出 Markdown / HTML / Word / TXT;打印 / 另存 PDF
+- **写作环境**:专注模式、导航大纲、编辑标记、护眼主题、缩放、窄窗自适应功能区
+- **数据安全**:自动保存草稿恢复、原子提交、资源哈希校验、300 步语义步撤销
+
+## 快速开始
+
+1. 从 [Releases](../../releases) 下载 `Awen 编辑器_1.0.0_x64-setup.exe` 安装(或本地构建,见下)。
+2. 启动后直接在纸面上写作;`.awen` 文件已关联,双击即开。
+3. 十分钟入门见[使用手册第三章](manual/index.html)。
 
 ## Awen 语法速查
 
 ```
-# 一级标题       ## 二级标题     ### 三级标题
-**粗体**         *斜体*          ~~删除线~~
-`行内代码`       > 引用          - 列表项
-1. 编号列表      --- 分隔线
+# 一级标题        ## 二级标题      **粗体**   _斜体_   ~~删除~~
+- 列表            1. 编号          > 引用     --- 分隔线
+@[image 图.png width 60% align center]
+@[color #3366CC]彩字@[/color]      @[m]E=mc^2@[/m]
+@[table 表名] | a | b | @[/table]
+@[font "KaiTi"] 本行楷体          (单行作用域)
+@[字体 宋体] 本行宋体              (中文方言等价)
 
-@[image 图片.png]
-@[link 文字 url: https://example.com]
-@[color #FF0000]红字@[/color]
-@[table 表名]
-| 列1 | 列2 |
-| --- | --- |
-| 内容 | 内容 |
-@[/table]
-
-@[page A4]       @[margin 20mm]
-@[font "宋体"]   @[size 11pt]
-@[toc depth: 2]  @[comment 批注]
+@[page A4]  @[margin 20mm]  @[line-spacing 1.9]  @[toc depth: 2]
 ```
 
-完整语法参考见 `manual/Awen编辑器使用手册.html`。
+完整语法与排版规则见[使用手册第 38 章](manual/index.html)。
 
 ## 项目结构
 
 ```
-├── preview/
-│   ├── template.html    ← 编辑器 UI 层源码（手工维护）
-│   ├── engine.js        ← 渲染/分页/序列化（DOM 层；解析走 Aine 原生）
-│   ├── bridge.js        ← Tauri IPC 桥（块结构/诊断/文件读写）
-│   └── vendor/          ← 本地第三方库（mammoth，离线 docx 导入）
-├── manual/              ← 使用手册 + 截图
-├── src/                 ← Aine 语言核心（权威引擎）
-├── corpus/              ← 测试文档
-├── docs/                ← 设计文档
-└── tauri-app/           ← Tauri v2 桌面应用（IPC 调 Aine 原生引擎）
+├── preview/            ← 前端(壳层)
+│   ├── template.html   ←   界面骨架(手工维护)
+│   ├── engine.js       ←   DOM 渲染/分页/序列化
+│   ├── bridge.js       ←   Tauri IPC 桥
+│   ├── css/ js/        ←   样式与 24 个职责模块
+│   └── vendor/         ←   本地第三方库(Font Awesome、mammoth)
+├── src/                ← aine 语言引擎(解析/排版/诊断/容器,453 测试)
+├── corpus/             ← 语法正样本语料
+├── manual/             ← 使用手册(HTML)+ 截图 + 构建脚本
+├── docs/               ← 设计文档(规范方案/开发计划/决策记录…)
+└── tauri-app/          ← Tauri v2 桌面应用(Rust 薄壳:IPC/对话框/容器 IO)
 ```
 
-构建产物（`tauri-app/dist/`、桌面 exe）与测试写入的 `test_*.awen` 均不入库，
-可用 `python gen_tpl.py`、`npx @tauri-apps/cli build`（在 tauri-app/src-tauri 下）重新生成。
+## 从源码构建
+
+依赖:[Node.js](https://nodejs.org)、[Rust](https://rustup.rs)、aine 编译器(引擎运行时)。
+
+```bash
+# 1. 同步前端到桌面应用
+python gen_tpl.py
+
+# 2. 构建 aine 引擎测试(可选,453 项)
+aine test src/tests.aine
+
+# 3. 构建桌面版(安装包输出到 src-tauri/target/release/bundle/nsis/)
+cd tauri-app/src-tauri && cargo build --release
+# 或完整安装包:在 tauri-app/ 下 npx @tauri-apps/cli build
+```
 
 ## 技术栈
 
-- 前端：原生 HTML/CSS/JavaScript，无框架依赖（仅 docx 导入内置 mammoth）
-- 排版引擎：CJK 排版（镜像 `layout_width` Aine 模块）
-- 核心：Aine 语言（编译为原生代码）
-- 桌面：Tauri v2（Rust）
-
-## 运行测试
-
-```bash
-E:\个人项目\Flow\flowc\target\release\aine.exe test src/tests.aine
-```
-
-## 架构
-
-```
-User Syntax ──→ lexer(词法) ──→ parser(树) ──→ document(状态) ──→ mapping(映射)
-                    ↓                                                                    ↑
-                refs(Label/Ref) ←── theme(级联) ←── render(渲染) ←── pipeline(管线) ──┘
-```
+- 前端:原生 HTML/CSS/JavaScript(24 个职责模块,无框架;Font Awesome 本地分发)
+- 引擎:Aine 语言(aine 解释器执行;453 项测试)
+- 桌面:Tauri v2(Rust 薄壳:IPC、对话框、原子写、asset 协议)
 
 ## License
 

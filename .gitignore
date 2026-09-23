@@ -15,3 +15,7 @@ test_*.awen
 preview/preview.html
 tauri-app/src-tauri/gen/
 tauri-app/src-tauri/resources/
+
+# 依赖与本地工具产物
+node_modules/
+manual/_dbg*.png
