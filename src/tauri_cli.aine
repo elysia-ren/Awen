@@ -40,7 +40,78 @@ module seed;
 module incremental_update;
 module core_blocks;
 
+// JSON 字符串转义(响应行构造用)
+fn json_escape_str(s: String) -> String {
+    var out = "\""
+    var i: i32 = 0
+    while i < s.len() {
+        let c = s[i]
+        if c == "\"" {
+            out = out + "\\\""
+        } else if c == "\\" {
+            out = out + "\\\\"
+        } else if c == "\n" {
+            out = out + "\\n"
+        } else if c == "\r" {
+            out = out + "\\r"
+        } else if c == "\t" {
+            out = out + "\\t"
+        } else {
+            out = out + c
+        }
+        i += 1
+    }
+    return out + "\""
+}
+
+// ── 常驻 Core 模式(daemon):stdin 每行一个请求 JSON,stdout 每行一个响应 ──
+// 消灭每次解析的进程启动成本;进程由壳层拉起并看护,崩溃自动重启。
+// 请求:{"id":N,"op":"parse|pack|unpack",...};响应:{"id":N,"ok":true,"result":"..."}
+fn daemon_loop() {
+    while true {
+        let line = read_line()
+        if line == "" { break }
+        let m = json_decode(line)
+        let id = match m.get("id") { Some(x) { x } None { 0 } }
+        let op = match m.get("op") { Some(x) { x } None { "" } }
+        var result = ""
+        if op == "parse" {
+            let src = match m.get("src") { Some(x) { x } None { "" } }
+            var json = ""
+            if src == "" {
+                json = "{\"blocks\":[],\"diags\":[],\"outline\":[]}"
+            } else {
+                let o2 = lex(src)
+                let pr = parse(o2)
+                let st = build_document(pr, src)
+                json = blocks_to_json(st, src)
+            }
+            result = json
+        } else if op == "pack" {
+            let src = match m.get("src") { Some(x) { x } None { "" } }
+            let target = match m.get("target") { Some(x) { x } None { "" } }
+            let doc_id = match m.get("doc_id") { Some(x) { x } None { "" } }
+            let mdir = match m.get("media_dir") { Some(x) { x } None { "" } }
+            result = pack_awen(src, target, doc_id, mdir)
+        } else if op == "unpack" {
+            let path = match m.get("path") { Some(x) { x } None { "" } }
+            let mdir = match m.get("media_dir") { Some(x) { x } None { "" } }
+            let sout = match m.get("source_out") { Some(x) { x } None { "" } }
+            result = unpack_awen(path, mdir, sout)
+        }
+        print("{\"id\":" + f"{id}" + ",\"ok\":true,\"result\":" + json_escape_str(result) + "}")
+    }
+}
+
 fn main() {
+    // daemon 常驻模式:aine.exe run src/tauri_cli.aine daemon
+    if cli_args.len() > 0 {
+        let mode = cli_args.get(0)
+        if mode == "daemon" {
+            daemon_loop()
+            return
+        }
+    }
     // 容器模式(参数经全局 args 传入,见 aine run [args]):
     //   pack   <src_file> <target_awen> <doc_id> <media_base>  抽 data URI 资源化并打容器,
     //                                              资源化源码回写 build/cli_container_src.awen
