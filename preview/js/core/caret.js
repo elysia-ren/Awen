@@ -33,6 +33,7 @@ function caretLineNumber(){
   return ta.value.substring(0,ta.selectionStart).split('\n').length;
 }
 function applySyncNow(){
+  if(window.composing)return;   // 输入法组合中:中间态不入源码
   if(repagTimer){clearTimeout(repagTimer);repagTimer=null}
   if(lastEditSource==='syntax'||currentMode==='syntax'){
     // 语法视图/语法侧编辑:输入框即源码权威(§85),不再从纸面 DOM 反写
