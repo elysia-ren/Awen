@@ -46,7 +46,7 @@ fn parser_para_after_table_preserved() -> Result<i32, String> {
     let n_t = count_nodes(pr.nodes, "table")
     let n_p = count_nodes(pr.nodes, "para")
     if n_t != 1 { return Err(f"应有 1 个表格,得到 {n_t}") }
-    if n_p != 1 { return Err(f"表格后的段落被吞掉:para={n_p}") }
+    if n_p != 2 { return Err(f"表格后应有空段+段落共 2 个 para,得到 {n_p}") }
     return Ok(0)
 }
 
@@ -58,7 +58,8 @@ fn parser_para_after_raw_preserved() -> Result<i32, String> {
     let n_r = count_nodes(pr.nodes, "raw")
     let n_p = count_nodes(pr.nodes, "para")
     if n_r != 1 { return Err(f"应有 1 个 Raw 块,得到 {n_r}") }
-    if n_p != 1 { return Err(f"Raw 块后的段落被吞掉:para={n_p}") }
+    // 新空行规则:Raw 后 2 连续空行 = 1 个空段落 + 1 个真段落
+    if n_p != 2 { return Err(f"Raw 后应有空段+段落共 2 个 para,得到 {n_p}") }
     return Ok(0)
 }
 

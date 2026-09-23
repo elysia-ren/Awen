@@ -36,17 +36,20 @@ function render(src,caret,done){
   var seq=++renderSeq;
   parseSafe(src).then(function(res){
     if(seq!==renderSeq)return;
-    // 打字会话进行中或有未落盘编辑:不重建纸面(重建会把光标恢复到旧快照
-    // 位置,窗口期内的输入错位——即"输入回退")。改为"纸面为准":
+    // 打字会话进行中或有未落盘编辑、或光标停在空段上:不重建纸面(重建会把
+    // 光标恢复到旧快照位置,窗口期内的输入错位——即"输入回退")。改为"纸面为准":
     // 立即序列化当前 DOM 与 gSrc 比对,有差异就推进 gSrc 并重新调度解析;
     // 完全一致(纯排版刷新)才安全重建,重建前后保住光标。
-    if(repagTimer||refreshTimer||window.composing||Date.now()-(window.lastPaperInputAt||0)<800){
+    var emptyHold=emptyParaUnderCaret();
+    if(repagTimer||refreshTimer||window.composing||emptyHold||Date.now()-(window.lastPaperInputAt||0)<800){
       renderPending=false;
-      var curSrc=Engine.serializeAll();
-      if(curSrc!==gSrc){
-        gSrc=curSrc;
-        recordHist(curSrc,true);
-        scheduleNativeRefresh(saveCaret());
+      if(!emptyHold){
+        var curSrc=Engine.serializeAll();
+        if(curSrc!==gSrc){
+          gSrc=curSrc;
+          recordHist(curSrc,true);
+          scheduleNativeRefresh(saveCaret());
+        }
       }
       return;
     }
@@ -253,4 +256,15 @@ function renderStatus(){
   document.getElementById('st-words').textContent=chars+' 字';
   document.getElementById('st-labels').textContent='标签 '+labels;
   document.getElementById('st-page').textContent='共 '+gPages.length+' 页';
+}
+
+// 光标是否停在"空段落"上(回车产生、尚无内容的块):
+// 空段是用户准备输入的位置,权威渲染不得将其收走
+function emptyParaUnderCaret(){
+  var b=caretBlock();
+  if(!b)return false;
+  if(b.dataset.kind!=='para')return false;
+  var hasMedia=b.querySelector('img,[data-media]');
+  if(hasMedia)return false;
+  return b.textContent.replace(/\u200B/g,'').trim()==='';
 }
