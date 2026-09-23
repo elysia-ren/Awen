@@ -36,16 +36,22 @@ function render(src,caret,done){
   var seq=++renderSeq;
   parseSafe(src).then(function(res){
     if(seq!==renderSeq)return;
-    // 纸面有未落盘的编辑(节流定时器挂着):放弃本次重建,避免权威结果
-    // 把 DOM 里的新编辑抹掉——待处理编辑落盘后会自行再触发渲染。
-    // pending 标志必须清掉:本次请求已结束,否则后续 flush 永远误判"在途"
-    // 打字会话进行中(800ms 内有纸面输入):绝不重建——重建会把光标恢复到
-    // 旧快照位置,后续输入错位(用户看到的"输入回退")
+    // 打字会话进行中或有未落盘编辑:不重建纸面(重建会把光标恢复到旧快照
+    // 位置,窗口期内的输入错位——即"输入回退")。改为"纸面为准":
+    // 立即序列化当前 DOM 与 gSrc 比对,有差异就推进 gSrc 并重新调度解析;
+    // 完全一致(纯排版刷新)才安全重建,重建前后保住光标。
     if(repagTimer||refreshTimer||window.composing||Date.now()-(window.lastPaperInputAt||0)<800){
       renderPending=false;
+      var curSrc=Engine.serializeAll();
+      if(curSrc!==gSrc){
+        gSrc=curSrc;
+        recordHist(curSrc,true);
+        scheduleNativeRefresh(saveCaret());
+      }
       return;
     }
     renderPending=false;
+    var caretNow=saveCaret();
     gNodes=Engine.ingestNative(res.blocks||[],gSrc);
     Engine.applyDocsets(gNodes);   // 文档级 @[page/margin/...] 设置生效(源码即权威)
     CFG=Engine.getConfig();
@@ -53,7 +59,7 @@ function render(src,caret,done){
     renderNodes();
     nativeDiags={src:gSrc,ds:res.diags||[]};
     updateDiagBar();
-    if(caret)restoreCaret(caret);
+    if(caretNow)restoreCaret(caretNow);
     if(done)done();
   }).catch(function(e){
     renderPending=false;
