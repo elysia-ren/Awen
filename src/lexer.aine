@@ -74,9 +74,6 @@ fn lex(src: String) -> LexOutput {
     while lineno < lines.len() {
         let line = lex_strip_cr(lines[lineno])
         lineno += 1
-        // 文件末尾的空尾行(src 以 \n 结尾时 split 的产物)不是真实空行:
-        // 不产生 Blank,否则会被空段规则误计为空段落(滚雪球)
-        if lineno == lines.len() && line.len() == 0 { continue }
         // Raw Block 状态
         let in_raw = match raw {
             Some(cmd) { true }
