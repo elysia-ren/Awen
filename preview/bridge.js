@@ -27,6 +27,14 @@ window.Bridge={
     });
   },
 
+  // 块级增量解析:只送脏段 [{bid,text}],返回 {nodes:[{bid,res:{blocks[]}}]}
+  parseBlocks:function(blocks){
+    if(!tauri)return Promise.reject(new Error('非桌面环境'));
+    return tauri.core.invoke('core_parse_blocks',{blocks:JSON.stringify(blocks)}).then(function(jsonText){
+      return (typeof jsonText==='string')?JSON.parse(jsonText):jsonText;
+    });
+  },
+
   // 打开文件对话框。返回 Promise<{name, src, path?}|null>(取消为 null)
   openDialog:function(){
     if(!tauri)return Promise.resolve(null);

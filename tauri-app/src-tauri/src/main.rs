@@ -128,6 +128,22 @@ async fn core_parse(app: AppHandle, src: String) -> Result<String, String> {
         .ok_or_else(|| "daemon 响应缺 result".to_string())
 }
 
+/// 块级增量解析:前端只送脏段 [{bid,text}],daemon 每段独立走权威管线,
+/// 返回 [{bid,res}]。O(脏块) 替代 O(全文),打字停顿后的大文档刷新走这里。
+#[tauri::command]
+async fn core_parse_blocks(app: AppHandle, blocks: String) -> Result<String, String> {
+    let arr: serde_json::Value =
+        serde_json::from_str(&blocks).map_err(|e| format!("blocks 不是合法 JSON:{e}"))?;
+    let req = serde_json::json!({ "id": 1, "op": "parse_blocks", "blocks": arr }).to_string();
+    let line = daemon_call_retry(&app, &req)?;
+    let v: serde_json::Value =
+        serde_json::from_str(&line).map_err(|e| format!("daemon 响应解析失败:{e}"))?;
+    v.get("result")
+        .and_then(|x| x.as_str())
+        .map(|s| s.to_string())
+        .ok_or_else(|| "daemon 响应缺 result".to_string())
+}
+
 /// .awen 容器(v0.5)检测:文件尾 8 字节为 magic "AWENBIN"+0x0A
 fn is_container_file(path: &str) -> bool {
     if let Ok(mut f) = std::fs::File::open(path) {
@@ -622,6 +638,7 @@ fn main() {
         .manage(PendingPaths(Mutex::new(std::env::args().skip(1).collect())))
         .invoke_handler(tauri::generate_handler![
             core_parse,
+            core_parse_blocks,
             core_open_dialog,
             core_save_dialog,
             core_read_file,

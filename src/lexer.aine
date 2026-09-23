@@ -70,8 +70,14 @@ fn lex(src: String) -> LexOutput {
     var raw: Option<ExplicitCommand> = None
     var table = false
     let lines = src.split("\n")
+    // 源码以 \n 结尾时,split 在末尾多出一个 "" 幻影行——它不是真实行。
+    // 不剪掉的话文末会多算一个空行,空段规则(2 空行=1 空段)会多产一个空段。
+    var n_lines = lines.len()
+    if n_lines > 0 && src.len() > 0 && lines[n_lines - 1] == "" {
+        n_lines -= 1
+    }
     var lineno = 0
-    while lineno < lines.len() {
+    while lineno < n_lines {
         let line = lex_strip_cr(lines[lineno])
         lineno += 1
         // Raw Block 状态
@@ -176,7 +182,7 @@ fn lex(src: String) -> LexOutput {
             }
         }
     }
-    let last = lines.len()
+    let last = n_lines
     match raw {
         Some(cmd) { diags.push(diag_error("Raw Block 未闭合到文件结尾", last)) }
         None { }

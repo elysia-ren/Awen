@@ -33,6 +33,7 @@ function parseSafe(src){
 function render(src,caret,done){
   gSrc=src;
   renderPending=true;
+  incrSeq++;                      // 使在途的增量刷新过期
   var seq=++renderSeq;
   parseSafe(src).then(function(res){
     if(seq!==renderSeq)return;
@@ -56,6 +57,7 @@ function render(src,caret,done){
     renderPending=false;
     var caretNow=saveCaret();
     gNodes=Engine.ingestNative(res.blocks||[],gSrc);
+    gSegCache=buildSegCache(gSrc,gNodes);
     Engine.applyDocsets(gNodes);   // 文档级 @[page/margin/...] 设置生效(源码即权威)
     CFG=Engine.getConfig();
     gPages=Engine.layoutPages(gNodes);
@@ -267,4 +269,127 @@ function emptyParaUnderCaret(){
   var hasMedia=b.querySelector('img,[data-media]');
   if(hasMedia)return false;
   return b.textContent.replace(/\u200B/g,'').trim()==='';
+}
+
+// ═══ 块级增量刷新(真增量:O(脏段) 解析,替代全量 parse+重建)═══
+// 输入暂停后:scheduleNativeRefresh → incrRefresh:
+//   1. serializeSegments 取当前段列表,与 gSegCache 按位对比 → 脏段
+//   2. 脏段交 daemon op=parse_blocks(引擎每段独立权威解析,与全文一致)
+//   3. 段的节点数/kind 全部不变 → gNodes 原位拼接 + 逐块原位替换 DOM
+//      (只有被编辑的块重渲,其余纸面 DOM 不动——光标/滚动/选中全部无扰)
+//   4. 任何结构变化(段数/节点数/kind 变)或分页数变 → 返回 false 走全量
+var gSegCache=[];      // [{text,start,count}] 与 gNodes 对齐(全文渲染后重建)
+var incrSeq=0;         // 增量会话序号:全量 render/新增量都会使其过期
+
+// gSrc → 段列表(与引擎 blank_run 语义一致:K 空行 → floor(K/2) 空段;
+// 结尾 \n 的幻影行剪掉,与 lexer 对齐),再把 gNodes 按行基归段:
+// start=段首行号(分段定位用),nodeStart=段内首节点的 gNodes 下标(拼接用)
+function buildSegCache(src,nodes){
+  var lines=src.split('\n');
+  if(lines.length&&src.length>0&&lines[lines.length-1]==='')lines.pop();
+  var isBlank=function(l){return l.trim()===''};
+  var segs=[],i=0;
+  while(i<lines.length){
+    if(isBlank(lines[i])){
+      var rs=i;
+      while(i<lines.length&&isBlank(lines[i]))i++;
+      var pairs=Math.floor((i-rs)/2);
+      for(var j=0;j<pairs;j++)segs.push({text:'',start:rs+2*j,nodeStart:-1,count:0});
+    }else{
+      var st=i;
+      while(i<lines.length&&!isBlank(lines[i]))i++;
+      segs.push({text:lines.slice(st,i).join('\n'),start:st,nodeStart:-1,count:0});
+    }
+  }
+  var si=0;
+  for(var k=0;k<nodes.length;k++){
+    var ns=nodes[k].srcStart;
+    if(ns==null||ns<0)continue;
+    while(si<segs.length-1&&ns>=((si+1<segs.length)?segs[si+1].start:Infinity))si++;
+    if(si<segs.length){
+      if(segs[si].count===0)segs[si].nodeStart=k;
+      segs[si].count++;
+    }
+  }
+  return segs;
+}
+
+// 单块原位替换:按 bid 找到元素,用新节点重渲后原地换掉。
+// 跨页截断段(l0/l1)与非块元素不处理 → 返回 false 触发全量。
+function replaceSegBlock(idx,node){
+  var el=document.querySelector('#display-pane [data-bid="'+idx+'"]');
+  if(!el||el.classList.contains('gap'))return false;
+  if(el.dataset.l0!==undefined)return false;
+  var nel;
+  try{ nel=makeBlock(node,{whole:true}) }catch(e){ return false }
+  if(!nel||nel.nodeType!==1)return false;
+  nel.dataset.bid=String(idx);
+  el.replaceWith(nel);
+  return true;
+}
+
+// 增量刷新入口。返回 true=增量完成;false=需要全量 render。
+function incrRefresh(freshCaret){
+  if(!document.querySelector('#display-pane .paper'))return false;
+  var sg=Engine.serializeSegments();
+  var lines=sg.lines,segs=sg.segs;
+  var cache=gSegCache;
+  if(!cache.length||cache.length!==segs.length)return false;
+  var dirty=[];
+  for(var i=0;i<segs.length;i++){ if(segs[i].text!==cache[i].text)dirty.push(i) }
+  if(!dirty.length)return true;
+  // 空段本地合成(空段引擎解析结果为空,不进请求)
+  var reqs=[],localMap={};
+  dirty.forEach(function(di){
+    if(segs[di].text===''){
+      // 空段:span 就是空行对,节点本地合成(引擎对空文本返回空 blocks)
+      localMap[di]=[{kind:'para',level:0,srcStart:segs[di].l0,srcEnd:segs[di].l1,text:'',lang:''}];
+    }else reqs.push({bid:String(di),text:segs[di].text});
+  });
+  var seq=++incrSeq;
+  var finish=function(map){
+    if(seq!==incrSeq)return false;
+    var caret=saveCaret();
+    var ops=[];
+    for(var d=0;d<dirty.length;d++){
+      var di=dirty[d],nodes=map[di],c=cache[di];
+      if(!c||!nodes||nodes.length!==c.count||c.nodeStart<0)return false;
+      for(var k=0;k<nodes.length;k++){
+        if(nodes[k].kind!==gNodes[c.nodeStart+k].kind)return false;
+      }
+      ops.push({start:c.nodeStart,nodes:nodes});
+    }
+    for(var o=ops.length-1;o>=0;o--){
+      [].splice.apply(gNodes,[ops[o].start,ops[o].nodes.length].concat(ops[o].nodes));
+    }
+    // 提交后推进缓存,避免下个空闲周期重复解析同一段
+    for(var d2=0;d2<dirty.length;d2++){cache[dirty[d2]].text=segs[dirty[d2]].text}
+    for(var o2=0;o2<ops.length;o2++){
+      for(var k2=0;k2<ops[o2].nodes.length;k2++){
+        if(!replaceSegBlock(ops[o2].start+k2,ops[o2].nodes[k2]))return false;
+      }
+    }
+    var oldPages=gPages?gPages.length:0;
+    gPages=Engine.layoutPages(gNodes);
+    if(gPages.length!==oldPages)return false;
+    renderOutline();
+    renderStatus();
+    if(caret)restoreCaret(caret);
+    return true;
+  };
+  if(!reqs.length){
+    return finish(localMap);
+  }
+  Bridge.parseBlocks(reqs).then(function(res){
+    var map=localMap;
+    (res&&res.nodes||[]).forEach(function(n){
+      var di=+n.bid;
+      if(!segs[di])return;
+      map[di]=Engine.segRecsToNodes(n.res&&n.res.blocks||[],segs[di].l0);
+    });
+    if(!finish(map))render(gSrc);
+  }).catch(function(){
+    render(gSrc);
+  });
+  return true;
 }

@@ -87,6 +87,30 @@ fn daemon_loop() {
                 json = blocks_to_json(st, src)
             }
             result = json
+        } else if op == "parse_blocks" {
+            // 块级增量解析:只解析前端送来的脏段,每段独立走完整权威管线。
+            // 段内无空行 → 段⇄节点 1:1,独立解析与全文解析结果一致;
+            // 每段响应 {"bid","res":{blocks,diags,outline}},res 复用 blocks_to_json。
+            let arr = match m.get("blocks") { Some(x) { x } None { [] } }
+            var out = "{\"nodes\":["
+            var fi = true
+            var i: i32 = 0
+            while i < arr.len() {
+                let item = arr.get(i)
+                let bid = match item.get("bid") { Some(x) { x } None { "" } }
+                let text = match item.get("text") { Some(x) { x } None { "" } }
+                var res = ""
+                if text == "" {
+                    res = "{\"blocks\":[],\"diags\":[],\"outline\":[]}"
+                } else {
+                    res = segment_blocks_json(text)
+                }
+                if !fi { out = out + "," }
+                fi = false
+                out = out + "{\"bid\":" + json_escape_str(bid) + ",\"res\":" + res + "}"
+                i += 1
+            }
+            result = out + "]}"
         } else if op == "pack" {
             let src = match m.get("src") { Some(x) { x } None { "" } }
             let target = match m.get("target") { Some(x) { x } None { "" } }
