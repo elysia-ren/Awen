@@ -1,0 +1,18 @@
+
+body{font-family:"Microsoft YaHei","Segoe UI",sans-serif;max-width:860px;margin:0 auto;padding:40px 20px;color:#24262a;line-height:1.8;font-size:15px}
+h1{font-size:28px;border-bottom:3px solid #4b6f8d;padding-bottom:12px;margin-top:40px}
+h2{font-size:22px;color:#2a4a66;margin-top:36px;border-left:4px solid #4b6f8d;padding-left:12px}
+h3{font-size:17px;color:#3d3f43;margin-top:24px}
+h4{font-size:15px;color:#3d3f43;margin-top:18px}
+table{border-collapse:collapse;width:100%;margin:12px 0}
+th,td{border:1px solid #d0d2d5;padding:8px 12px;text-align:left}
+th{background:#f5f5f6;font-weight:600}
+code{background:#f0f1f2;padding:2px 6px;border-radius:3px;font-family:Consolas,monospace;font-size:.9em}
+pre{background:#f5f6f7;border:1px solid #e0e1e4;border-radius:4px;padding:12px 16px;overflow-x:auto}
+pre code{background:none;padding:0}
+.tip{background:#e8f4e8;border-left:4px solid #4a8a4a;padding:8px 14px;margin:12px 0;border-radius:0 4px 4px 0}
+.warn{background:#fff3e0;border-left:4px solid #e67e22;padding:8px 14px;margin:12px 0;border-radius:0 4px 4px 0}
+img{max-width:100%;border:1px solid #d0d2d5;border-radius:4px;margin:12px 0}
+kbd{background:#e8e9eb;border:1px solid #c9cbce;border-radius:3px;padding:1px 6px;font-family:Consolas;font-size:.9em;box-shadow:0 1px 1px rgba(0,0,0,.1)}
+.step{margin:8px 0;padding-left:20px;border-left:3px solid #d0d2d5}
+.step::before{content:attr(data-n);font-weight:700;color:#4b6f8d;margin-right:8px}
