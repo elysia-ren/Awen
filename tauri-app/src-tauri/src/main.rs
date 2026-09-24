@@ -169,16 +169,49 @@ async fn core_list_fonts() -> Result<Vec<String>, String> {
     .map_err(|e| format!("任务调度失败:{e}"))?
 }
 
+// wmf→png 批转脚本(System.Drawing 可渲染 Windows 图元文件;4x 超采白底)
+const WMF_CONVERT_PS1: &str = r#"
+param([string]$dir)
+Add-Type -AssemblyName System.Drawing
+Get-ChildItem -LiteralPath $dir -Filter *.wmf | ForEach-Object {
+  try {
+    $img=[System.Drawing.Image]::FromFile($_.FullName)
+    $w=[int]($img.Width*4)
+    $h=[int]($img.Height*4)
+    if($w -lt 8){$w=8}
+    if($h -lt 8){$h=8}
+    if($w -gt 6000){$w=6000}
+    if($h -gt 6000){$h=6000}
+    $bmp=New-Object System.Drawing.Bitmap($w,$h)
+    $g=[System.Drawing.Graphics]::FromImage($bmp)
+    $g.Clear([System.Drawing.Color]::White)
+    $g.InterpolationMode='HighQualityBicubic'
+    $g.DrawImage($img,0,0,$w,$h)
+    $bmp.Save($_.FullName+'.png',[System.Drawing.Imaging.ImageFormat]::Png)
+    $g.Dispose()
+    $bmp.Dispose()
+    $img.Dispose()
+  } catch {
+    Write-Host "FAIL $($_.Name): $($_.Exception.Message)"
+  }
+}
+"#;
+
 /// 批量图片资源化(docx 导入专用):一次 IPC 服务端循环写盘。
-/// 输入 data URI 列表,返回 media/ 引用列表(顺序对应);
+/// 输入 data URI 列表,返回 media/ 引用列表(顺序对应,失败项为空串);
 /// 同内容同哈希自动去重,已存在的文件直接复用。
+/// wmf/emf(公式 OLE 预览)先落临时目录,经 PowerShell System.Drawing
+/// 批量转 4x 高清白底 PNG(Windows 自带 GDI 可渲染图元文件),公式真实显示。
 #[tauri::command]
 async fn core_batch_resource(data_uris: Vec<String>, media_dir: String) -> Result<Vec<String>, String> {
     tauri::async_runtime::spawn_blocking(move || {
         use std::hash::{Hash, Hasher};
         std::fs::create_dir_all(&media_dir).map_err(|e| format!("创建媒体目录失败:{e}"))?;
         let dir = std::path::Path::new(&media_dir);
+        let tmp = dir.join("_wmf_tmp");
+        let _ = std::fs::create_dir_all(&tmp);
         let mut refs = Vec::with_capacity(data_uris.len());
+        let mut wmf_pending: Vec<(String, String)> = Vec::new(); // (hash文件名, 返回占位索引对应)
         for uri in &data_uris {
             let (mime, payload) = match uri.split_once(";base64,") {
                 Some((m, p)) => (m.trim_start_matches("data:"), p),
@@ -187,6 +220,8 @@ async fn core_batch_resource(data_uris: Vec<String>, media_dir: String) -> Resul
                     continue;
                 }
             };
+            let lower = mime.to_lowercase();
+            let is_vector = lower.contains("wmf") || lower.contains("emf");
             let bytes = match b64_decode(payload) {
                 Some(b) => b,
                 None => {
@@ -196,12 +231,78 @@ async fn core_batch_resource(data_uris: Vec<String>, media_dir: String) -> Resul
             };
             let mut h = std::collections::hash_map::DefaultHasher::new();
             bytes.hash(&mut h);
-            let name = format!("img-{:016x}.{}", h.finish(), img_ext_of(mime));
-            let path = dir.join(&name);
-            if !path.exists() {
-                std::fs::write(&path, &bytes).map_err(|e| format!("写图失败:{e}"))?;
+            let hash16 = format!("{:016x}", h.finish());
+            if is_vector {
+                // 矢量公式:原始文件入临时目录,待 PowerShell 批转 PNG
+                let raw = format!("{}.{}", hash16, if lower.contains("emf") { "emf" } else { "wmf" });
+                let path = tmp.join(&raw);
+                if !path.exists() {
+                    std::fs::write(&path, &bytes).map_err(|e| format!("写图失败:{e}"))?;
+                }
+                wmf_pending.push((raw, hash16.clone()));
+                refs.push(format!("__wmf__:{}", hash16));
+            } else {
+                let name = format!("img-{}.{}", hash16, img_ext_of(&lower));
+                let path = dir.join(&name);
+                if !path.exists() {
+                    std::fs::write(&path, &bytes).map_err(|e| format!("写图失败:{e}"))?;
+                }
+                refs.push(format!("media/{}", name));
             }
-            refs.push(format!("media/{}", name));
+        }
+        // 矢量批转:脚本落盘用 -File 执行(-Command 长脚本的引号/花括号转义不可靠)
+        if !wmf_pending.is_empty() {
+            let ps1 = tmp.join("_convert.ps1");
+            std::fs::write(&ps1, WMF_CONVERT_PS1).map_err(|e| format!("写转换脚本失败:{e}"))?;
+            let out = std::process::Command::new("powershell")
+                .args([
+                    "-NoProfile",
+                    "-ExecutionPolicy",
+                    "Bypass",
+                    "-File",
+                    &ps1.display().to_string(),
+                    "-dir",
+                    &tmp.display().to_string(),
+                ])
+                .output();
+            match &out {
+                Ok(o) if !o.status.success() => {
+                    // 失败现场转储(调试后移除)
+                    let _ = std::fs::write("C:\\Users\\Elysia\\AppData\\Local\\Temp\\wmf_debug_ps1.txt", &WMF_CONVERT_PS1);
+                    let _ = std::fs::write("C:\\Users\\Elysia\\AppData\\Local\\Temp\\wmf_debug_err.txt", &o.stderr);
+                    let _ = std::fs::write("C:\\Users\\Elysia\\AppData\\Local\\Temp\\wmf_debug_out.txt", &o.stdout);
+                    eprintln!("wmf 批转失败 status={:?} stderr={}", o.status, String::from_utf8_lossy(&o.stderr));
+                }
+                _ => {}
+            }
+            // 转换成功的替换为 png 引用;失败的清空(前端兜底文本占位)
+            for (raw, hash16) in &wmf_pending {
+                let png_path = tmp.join(format!("{}.png", raw));
+                let idx = refs.iter().position(|r| r == &format!("__wmf__:{}", hash16));
+                if let Ok(png) = std::fs::read(&png_path) {
+                    let mut h2 = std::collections::hash_map::DefaultHasher::new();
+                    png.hash(&mut h2);
+                    let name = format!("img-{:016x}.png", h2.finish());
+                    let final_path = dir.join(&name);
+                    if !final_path.exists() {
+                        std::fs::write(&final_path, &png).map_err(|e| format!("写图失败:{e}"))?;
+                    }
+                    if let Some(i) = idx {
+                        refs[i] = format!("media/{}", name);
+                    }
+                } else if let Some(i) = idx {
+                    refs[i] = String::new();
+                }
+            }
+            // 调试:保留现场(修复后移除)
+            let dbg = std::path::Path::new("C:/Users/Elysia/AppData/Local/Temp");
+            let read_probe = wmf_pending.first().map(|(raw, _)| {
+                let pp = tmp.join(format!("{}.png", raw));
+                (pp.display().to_string(), std::fs::read(&pp).map(|b| b.len()).map_err(|e| e.to_string()))
+            });
+            let _ = std::fs::write(dbg.join("wmf_debug_status.txt"), format!("status={:?}\nrefs={:?}\npending={:?}\nread_probe={:?}\n", out, refs, wmf_pending, read_probe));
+            let _ = std::fs::write(dbg.join("wmf_debug_dir.txt"), format!("{:?}", std::fs::read_dir(&tmp).map(|rd| rd.filter_map(|e| e.ok()).map(|e| e.file_name().to_string_lossy().to_string()).collect::<Vec<String>>())));
+            let _ = std::fs::remove_dir_all(&tmp);
         }
         Ok(refs)
     })

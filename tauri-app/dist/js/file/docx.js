@@ -1,5 +1,58 @@
 // DOCX 导入(mammoth 本地分发;HTML → Awen 语法)(自单文件版拆出;传统 script,全局变量直接共享)
 // ═══ DOCX 导入(mammoth 本地分发,离线可用;HTML → Awen 语法转换)═══
+// importDocxFromBuffer:从 ArrayBuffer 完整导入(转换+wmf 批转 PNG+批量资源化),
+// 文件对话框与自动化测试共用此入口。
+function importDocxFromBuffer(buf){
+  // mammoth 默认忽略图片且只认英文样式名:显式转换图片为 data URI,
+  // 并补充中文 Word 样式名映射(标题 1/标题 2…),否则格式全部丢失
+  var opts={
+    styleMap:[
+      "p[style-name='Title'] => h1:fresh",
+      "p[style-name='标题'] => h1:fresh",
+      "p[style-name='标题 1'] => h1:fresh",
+      "p[style-name='标题 2'] => h2:fresh",
+      "p[style-name='标题 3'] => h3:fresh",
+      "p[style-name='标题 4'] => h4:fresh",
+      "p[style-name='Heading 1'] => h1:fresh",
+      "p[style-name='Heading 2'] => h2:fresh",
+      "p[style-name='Heading 3'] => h3:fresh",
+      "p[style-name='Heading 4'] => h4:fresh"
+    ],
+    convertImage:mammoth.images.imgElement(function(image){
+      return image.readAsBase64String().then(function(b64){
+        return {src:'data:'+image.contentType+';base64,'+b64};
+      });
+    })
+  };
+  return mammoth.convertToHtml({arrayBuffer:buf},opts).then(function(res){
+    // wmf/emf(公式 OLE 预览)照常产出 data URI,由 Rust 批量转 4x PNG
+    // (PowerShell System.Drawing,Windows 自带 GDI 可渲染图元文件);
+    // 转换失败的在下方替换时兜底为 〖公式〗 文本
+    var hadVec=(res.value.match(/data:image\/(?:x-)?(?:wmf|emf)/g)||[]).length;
+    var src=htmlToAwen(res.value);
+    // 图片批量资源化进媒体目录,源码只留 media/ 引用(去重+一次 IPC+单遍替换)
+    return tagMediaDir().then(function(dir){
+      var re=/"(data:image\/[^;]+;base64,[A-Za-z0-9+\/=]+)"/g;
+      var uniq={},order=[],mm;
+      while((mm=re.exec(src))!==null){
+        var uri=mm[1];
+        if(uniq[uri]===undefined){ uniq[uri]=order.length; order.push(uri) }
+      }
+      document.getElementById('st-diag').textContent='导入中:资源化 '+order.length+' 张图片…';
+      return Bridge.batchResource(order,dir).then(function(refs){
+        var map={};
+        order.forEach(function(u,i){ if(refs[i])map[u]=refs[i] });
+        // 单遍替换:有 ref 换 media/ 引用;wmf/emf 转换失败才落文本占位
+        src=src.replace(/@\[image "(data:image\/[^;]+;base64,[A-Za-z0-9+\/=]+)"\]/g,function(m0,u){
+          if(map[u])return '@[image "'+map[u]+'"]';
+          if(/wmf|emf/i.test(u))return '〖公式〗';
+          return m0;
+        });
+        return {src:src,imgs:order.length,vec:hadVec};
+      });
+    });
+  });
+}
 function importDocx(){
   if(typeof mammoth==='undefined'){ alert('转换库未加载(vendor/mammoth.browser.min.js 缺失)'); return }
   var inp=document.createElement('input');
@@ -11,52 +64,7 @@ function importDocx(){
     if(!f){ inp.remove(); return }
     var rd=new FileReader();
     rd.onload=function(){
-      // mammoth 默认忽略图片且只认英文样式名:显式转换图片为 data URI,
-      // 并补充中文 Word 样式名映射(标题 1/标题 2…),否则格式全部丢失
-      var opts={
-        styleMap:[
-          "p[style-name='Title'] => h1:fresh",
-          "p[style-name='标题'] => h1:fresh",
-          "p[style-name='标题 1'] => h1:fresh",
-          "p[style-name='标题 2'] => h2:fresh",
-          "p[style-name='标题 3'] => h3:fresh",
-          "p[style-name='标题 4'] => h4:fresh",
-          "p[style-name='Heading 1'] => h1:fresh",
-          "p[style-name='Heading 2'] => h2:fresh",
-          "p[style-name='Heading 3'] => h3:fresh",
-          "p[style-name='Heading 4'] => h4:fresh"
-        ],
-        convertImage:mammoth.images.imgElement(function(image){
-          return image.readAsBase64String().then(function(b64){
-            return {src:'data:'+image.contentType+';base64,'+b64};
-          });
-        })
-      };
-      mammoth.convertToHtml({arrayBuffer:rd.result},opts).then(function(res){
-        // wmf/emf 是浏览器不支持的矢量格式(公式编辑器产物),先在 HTML 层
-        // 占位化:否则上千个 wmf 全转 data URI,HTML 膨胀十几 MB 且渲染全破图
-        var hadVec=(res.value.match(/data:image\/(?:x-)?(?:wmf|emf)/g)||[]).length;
-        var html=res.value.replace(/<img[^>]*src="data:image\/(?:x-)?(?:wmf|emf)[^"]*"[^>]*>/g,'[公式或矢量图,未能转换]');
-        var src=htmlToAwen(html);
-        // 图片批量资源化进媒体目录,源码只留 media/ 引用(去重+一次 IPC+单遍替换)
-        return tagMediaDir().then(function(dir){
-          var re=/"(data:image\/[^;]+;base64,[A-Za-z0-9+\/=]+)"/g;
-          var uniq={},order=[],mm;
-          while((mm=re.exec(src))!==null){
-            var uri=mm[1];
-            if(uniq[uri]===undefined){ uniq[uri]=order.length; order.push(uri) }
-          }
-          document.getElementById('st-diag').textContent='导入中:资源化 '+order.length+' 张图片…';
-          return Bridge.batchResource(order,dir).then(function(refs){
-            var map={};
-            order.forEach(function(u,i){ if(refs[i])map[u]=refs[i] });
-            src=src.replace(/"(data:image\/[^;]+;base64,[A-Za-z0-9+\/=]+)"/g,function(m0,u){
-              return map[u]?('"'+map[u]+'"'):m0;
-            });
-            return {src:src,imgs:order.length,vec:hadVec};
-          });
-        });
-      }).then(function(r){
+      importDocxFromBuffer(rd.result).then(function(r){
         var src=r.src;
         var name=f.name.replace(/\.docx$/i,'');
         inp.remove();
@@ -76,7 +84,7 @@ function importDocx(){
         setTimeout(function(){
           document.getElementById('st-diag').textContent='诊断 ✓';
         },1200);
-        alert('导入完成:图片 '+r.imgs+' 张已入包'+(r.vec?(';'+r.vec+' 个公式/矢量图未转换,已留占位'):''));
+        alert('导入完成:图片 '+r.imgs+' 张已入包'+(r.vec?(';'+r.vec+' 个公式/矢量图以 〖公式〗 占位'):''));
       }).catch(function(e){ inp.remove(); alert('DOCX 解析失败:'+e.message) });
     };
     rd.readAsArrayBuffer(f);
@@ -107,7 +115,13 @@ function htmlToAwen(html){
         if(src)t+='@[image "'+src+'"]';
         return;
       }
-      else if(tag==='A'){ var href=n.getAttribute('href')||''; t+='@[link '+inner+' url: '+href+']' }
+      else if(tag==='A'){
+        var href=n.getAttribute('href')||'';
+        // 图片套链接/空文本不产 link 命令(空 inner 会产出 @[link url:] 裸串,
+        // 内嵌 @[image] 会嵌套破坏语法)——保留内容,放弃超链接
+        if(inner.trim()===''||inner.indexOf('@[')>=0||href==='')t+=inner;
+        else t+='@[link '+inner+' url: '+href+']';
+      }
       else t+=inner;
     });
     return t;
