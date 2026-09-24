@@ -35,6 +35,7 @@ module inline_edit;
 module inline_span;
 module page_flow;
 module core_blocks;
+module tests_dialect;
 
 module tests_common;
 module tests_property;

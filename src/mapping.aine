@@ -90,9 +90,9 @@ fn find_node_start(lines: Vec<String>, from: i32, node: SemNode) -> i32 {
         } else if node.kind == "raw" {
             if is_pure_obj_line(t) { return i }
         } else if node.kind == "table" {
-            if starts_with_at(t, 0, "@[table") { return i }
+            if starts_with_at(t, 0, "@[table") || starts_with_at(t, 0, "@[表格") { return i }
         } else if node.kind == "comment" {
-            if starts_with_at(t, 0, "@[comment") { return i }
+            if starts_with_at(t, 0, "@[comment") || starts_with_at(t, 0, "@[批注") { return i }
         }
         i += 1
     }
@@ -134,11 +134,11 @@ fn find_node_end(lines: Vec<String>, start: i32, node: SemNode) -> i32 {
         // 否则会吞掉后续块直到出现某个 @[/comment],撑大 span 使
         // compute_spans 的 line_idx 错位、后续节点全部找不到起点
         let open = lines[start].trim()
-        if open == "@[comment]" || open == "@[comment ]" {
+        if open == "@[comment]" || open == "@[comment ]" || open == "@[批注]" || open == "@[批注 ]" {
             // 裸开式:向后找闭合行
             var j = start + 1
             while j < lines.len() {
-                if lines[j].trim().contains("@[/comment]") { return j }
+                if lines[j].trim().contains("@[/comment]") || lines[j].trim().contains("@[/批注]") { return j }
                 j += 1
             }
         }

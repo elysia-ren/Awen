@@ -2,11 +2,31 @@
 // D-1:混排间距 ⅛ em;D-2:全角判定全项目唯一实现;D-3:西文按词断行
 // 依据:核心规范 §10.1–10.3;docs/M5_DESIGN.md §2
 
-// 全角判定:表意文字 / CJK 标点符号区 / 全角形式区(D-2 唯一实现)
+// 全角判定(Unicode EAW Wide/Fullwidth 的实用子集;D-2 唯一实现)。
+// 覆盖:汉字(含扩展A)/假名/谚文音节与字母/CJK标点/康熙部首/兼容表意/
+// 全角形式/全角货币符号。其余文字(拉丁/希腊/西里尔/阿拉伯/天城文等)
+// 一律 0.5em 估宽——估宽模型对任意文字都有合理值,不限于中日韩英。
 fn layout_is_fullwidth(c: String) -> bool {
     if cjk_is_ideograph(c) { return true }
-    if c >= "、" && c <= "〿" { return true }
+    if c >= "⺀" && c <= "〿" { return true }
+    if c >= "ぁ" && c <= "ヿ" { return true }
+    if c >= "가" && c <= "힣" { return true }
+    if c >= "ᄀ" && c <= "ᇿ" { return true }
     if c >= "！" && c <= "｝" { return true }
+    if c >= "￠" && c <= "￦" { return true }
+    return false
+}
+
+// 西文词单元:连续词字符不可断(拉丁/数字之外,希腊/西里尔/希伯来/
+// 阿拉伯/亚美尼亚等空格分词文字同为词单元;无词间空格的泰/老/高棉
+// 文字保持逐字断行以免整段无断点溢出)
+fn layout_is_word(c: String) -> bool {
+    if cjk_is_latin(c) { return true }
+    if c >= "Ά" && c <= "ώ" { return true }
+    if c >= "Ѐ" && c <= "ӿ" { return true }
+    if c >= "־" && c <= "׿" { return true }
+    if c >= "؀" && c <= "ۿ" { return true }
+    if c >= "՚" && c <= "֏" { return true }
     return false
 }
 
@@ -60,14 +80,14 @@ fn layout_build_units(text: String) -> Vec<LayoutUnit> {
     var i = 0
     while i < text.len() {
         let c = text[i]
-        if cjk_is_latin(c) {
-            // 西文词:连续字母数字为不可分单元
+        if layout_is_word(c) {
+            // 西文词:连续词字符为不可分单元(希腊/西里尔等字母文字同此)
             var word = c
             var w = layout_em_width(c)
             i += 1
             while i < text.len() {
                 let c2 = text[i]
-                if cjk_is_latin(c2) {
+                if layout_is_word(c2) {
                     word = word + c2
                     w = w + layout_em_width(c2)
                     i += 1
