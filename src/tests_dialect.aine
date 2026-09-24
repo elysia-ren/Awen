@@ -130,3 +130,18 @@ fn width_japanese_pagination_sane() -> Result<i32, String> {
     assert(narrow.pages > wide.pages, f"日文窄页 {narrow.pages} 应多于宽页 {wide.pages}")
     Ok(0)
 }
+
+@test
+fn font_width_table_binary_search() -> Result<i32, String> {
+    // 字体度量宽表:区间二分查宽(命中区间/区间内未列字符回退 0.5)
+    let ctx = page_flow_ctx_cfg_w(210.0, 297.0, 20.0, 11.0, 1.9, "ac", "ad", [1.0, 2.0])
+    // a→1.0(range0);b→未列(不在任何区间)→0.5;c→2.0(range1)
+    let w1 = layout_measure_w("ab", ctx)
+    let w2 = layout_measure_w("c", ctx)
+    assert(w1 > 1.49 && w1 < 1.51, f"a+b 应为 1.5,得到 {w1}")
+    assert(w2 > 1.99 && w2 < 2.01, f"c 应为 2.0,得到 {w2}")
+    // 空表回退均匀估宽
+    let ctx2 = page_flow_ctx_cfg_w(210.0, 297.0, 20.0, 11.0, 1.9, "", "", [])
+    assert(layout_measure_w("ab", ctx2) == 1.0, "空表应回退均匀估宽")
+    Ok(0)
+}

@@ -68,9 +68,10 @@ fn json_escape_str(s: String) -> String {
 // 消灭每次解析的进程启动成本;进程由壳层拉起并看护,崩溃自动重启。
 // 请求:{"id":N,"op":"parse|pack|unpack",...};响应:{"id":N,"ok":true,"result":"..."}
 fn daemon_loop() {
-    // 增量排版状态(daemon 常驻,跨请求保留):上一轮 fast 流 + cfg 五参数
+    // 增量排版状态(daemon 常驻,跨请求保留):上一轮 fast 流 + cfg 五参数 + 宽表快照
     var g_prev_flow: Vec<PageFlowResult> = []
     var g_prev_cfgn: Vec<f64> = []
+    var g_prev_wfs = ""
     while true {
         let line = read_line()
         if line == "" { break }
@@ -97,13 +98,31 @@ fn daemon_loop() {
                         let mg = (match c.get("mg") { Some(x) { x } None { 20 } }) + 0.0
                         let fp = (match c.get("fp") { Some(x) { x } None { 11 } }) + 0.0
                         let ls = (match c.get("ls") { Some(x) { x } None { 1.65 } }) + 0.0
-                        let ctx = page_flow_ctx_cfg(pw, ph, mg, fp, ls)
+                        var wf_s = ""
+                        var wf_e = ""
+                        var wf_ws: Vec<f64> = []
+                        let wobj = c.get("widths")
+                        match wobj {
+                            Some(wv) {
+                                wf_s = match wv.get("s") { Some(x) { x } None { "" } }
+                                wf_e = match wv.get("e") { Some(x) { x } None { "" } }
+                                let warr = match wv.get("w") { Some(x) { x } None { [] } }
+                                var wi = 0
+                                while wi < warr.len() {
+                                    wf_ws = wf_ws.push((warr.get(wi)) + 0.0)
+                                    wi += 1
+                                }
+                            }
+                            None { }
+                        }
+                        let ctx = page_flow_ctx_cfg_w(pw, ph, mg, fp, ls, wf_s, wf_e, wf_ws)
                         let flow = page_flow_with(st, ctx)
                         let lay = layout_recs_json(st, src, flow)
                         // 拼接:剥掉 blocks_to_json 收尾 '}',接上 pages/recs
                         json = json[0..(json.len() - 1)] + "," + lay[1..lay.len()]
                         // 留存本轮流供增量排版复用
                         g_prev_cfgn = [pw, ph, mg, fp, ls]
+                        g_prev_wfs = wf_s
                         if g_prev_flow.len() == 0 {
                             g_prev_flow = g_prev_flow.push(flow)
                         } else {
@@ -130,9 +149,26 @@ fn daemon_loop() {
                 let mg = (match cfgv.get("mg") { Some(x) { x } None { 20 } }) + 0.0
                 let fp = (match cfgv.get("fp") { Some(x) { x } None { 11 } }) + 0.0
                 let ls = (match cfgv.get("ls") { Some(x) { x } None { 1.65 } }) + 0.0
-                let ctx = page_flow_ctx_cfg(pw, ph, mg, fp, ls)
-                // cfg 五参数与上一轮一致才走增量;否则全量
-                var same_cfg = g_prev_cfgn.len() == 5
+                var wf_s = ""
+                var wf_e = ""
+                var wf_ws: Vec<f64> = []
+                let wobj = cfgv.get("widths")
+                match wobj {
+                    Some(wv) {
+                        wf_s = match wv.get("s") { Some(x) { x } None { "" } }
+                        wf_e = match wv.get("e") { Some(x) { x } None { "" } }
+                        let warr = match wv.get("w") { Some(x) { x } None { [] } }
+                        var wi = 0
+                        while wi < warr.len() {
+                            wf_ws = wf_ws.push((warr.get(wi)) + 0.0)
+                            wi += 1
+                        }
+                    }
+                    None { }
+                }
+                let ctx = page_flow_ctx_cfg_w(pw, ph, mg, fp, ls, wf_s, wf_e, wf_ws)
+                // cfg 五参数+宽表与上一轮一致才走增量;否则全量
+                var same_cfg = g_prev_cfgn.len() == 5 && wf_s == g_prev_wfs
                 if same_cfg {
                     same_cfg = pw == g_prev_cfgn.get(0) && ph == g_prev_cfgn.get(1) && mg == g_prev_cfgn.get(2) && fp == g_prev_cfgn.get(3) && ls == g_prev_cfgn.get(4)
                 }
@@ -141,6 +177,7 @@ fn daemon_loop() {
                     flow = page_flow_incremental_fast(st, g_prev_flow[0], ctx)
                 }
                 g_prev_cfgn = [pw, ph, mg, fp, ls]
+                g_prev_wfs = wf_s
                 if g_prev_flow.len() == 0 {
                     g_prev_flow = g_prev_flow.push(flow)
                 } else {
