@@ -312,15 +312,15 @@
 <button class="btn-icon badge" onclick="todo('合并单元格','规划中')" title="合并单元格(规划中)"><i class="fa-solid fa-table-cells-large"></i><span class="lbl">合并</span></button>
 <button class="btn-icon badge" onclick="todo('拆分单元格','规划中')" title="拆分单元格(规划中)"><i class="fa-solid fa-table-cells"></i><span class="lbl">拆分</span></button>
 <button class="btn-icon badge" onclick="todo('单元格对齐','规划中')" title="对齐方式(规划中)"><i class="fa-solid fa-align-center"></i><span class="lbl">对齐</span></button>
-<button class="btn-icon badge" onclick="todo('表格排序','规划中')" title="排序(规划中)"><i class="fa-solid fa-sort"></i><span class="lbl">排序</span></button>
+<button class="btn-icon" onclick="tableSort()" title="按当前列升序排序"><i class="fa-solid fa-sort"></i><span class="lbl">排序</span></button>
 </div><div class="rg-label">布局</div></div>
 </div>
 <!-- 上下文:表格工具·设计 -->
 <div class="ribbon-page" data-page="table-design">
 <div class="rgroup"><div class="rg-body">
 <button class="btn-icon badge" onclick="todo('表格样式','规划中')" title="表格样式(规划中)"><i class="fa-solid fa-palette"></i><span class="lbl">表格样式</span></button>
-<button class="btn-icon badge" onclick="todo('表格边框','规划中')" title="边框(规划中)"><i class="fa-solid fa-border-all"></i><span class="lbl">边框</span></button>
-<button class="btn-icon badge" onclick="todo('表格底纹','规划中')" title="底纹(规划中)"><i class="fa-solid fa-fill-drip"></i><span class="lbl">底纹</span></button>
+<button class="btn-icon" onclick="tableToggleParam('border:none')" title="边框:开/关(当前表)"><i class="fa-solid fa-border-all"></i><span class="lbl">边框</span></button>
+<button class="btn-icon" onclick="tableToggleParam('zebra')" title="斑马纹底纹:开/关(当前表)"><i class="fa-solid fa-fill-drip"></i><span class="lbl">底纹</span></button>
 </div><div class="rg-label">设计</div></div>
 </div>
 <!-- 上下文:图片工具·格式 -->

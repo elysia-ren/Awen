@@ -93,3 +93,63 @@ function insertTableGrid(){
   document.getElementById('tblpop').style.display='none';
   setSrc(lines.join('\n'));
 }
+
+
+// ═══ 表格样式参数(光标所在表格的开行参数开关;经 data-open 序列化保真)═══
+function tableToggleParam(param){
+  var blk=caretBlock();
+  if(!blk||blk.dataset.kind!=='table'){ alert('请先将光标放在表格内'); return }
+  var node=gNodes[+blk.dataset.bid];
+  if(!node||node.kind!=='table'){ alert('请先将光标放在表格内'); return }
+  var open=node.open||('@[table]');
+  var re=new RegExp('\\s*'+param.replace(/[:]/g,'\\:'),'i');
+  var nl;
+  if(re.test(open)){
+    nl=open.replace(re,'').replace(/\s+/g,' ').replace(/\s*\]/,']');
+  }else{
+    nl=open.replace(/\]\s*$/,' '+param+']');
+  }
+  spliceSrcLine(node.srcStart,nl);
+}
+function spliceSrcLine(lineIdx,newText){
+  var NL=String.fromCharCode(10);
+  var lines=gSrc.split(NL);
+  lines[lineIdx]=newText;
+  setSrc(lines.join(NL));
+}
+function cellsOfRow(r){
+  return r.replace(/^\||\|$/g,'').split('|').map(function(x){return x.trim()});
+}
+// 表格排序:按指定列升序(数字按值,其余按中文/locale);表头与分隔行固定
+function tableSort(col){
+  var blk=caretBlock();
+  if(!blk||blk.dataset.kind!=='table'){ alert('请先将光标放在表格内'); return }
+  var node=gNodes[+blk.dataset.bid];
+  if(!node||!node.rows||node.rows.length<4){ alert('表格没有可排序的数据行'); return }
+  if(col==null){
+    // 按光标所在列排序
+    var s=window.getSelection();
+    col=0;
+    if(s.rangeCount){
+      var cell=s.getRangeAt(0).startContainer.parentElement;
+      var td=cell.closest?cell.closest('td,th'):null;
+      var tr=td?td.parentElement:null;
+      if(tr){ var cs=[...tr.children]; var ix=cs.indexOf(td); if(ix>0)col=ix }
+    }
+  }
+  var rows=node.rows.slice();
+  var head=rows.slice(0,2);           // 表头 + 分隔行
+  var body=rows.slice(2);
+  body.sort(function(a,b){
+    var ca=(cellsOfRow(a)[col]||''),cb=(cellsOfRow(b)[col]||'');
+    var na=parseFloat(ca.replace(/[^0-9.\-]/g,'')),nb=parseFloat(cb.replace(/[^0-9.\-]/g,''));
+    if(!isNaN(na)&&!isNaN(nb)&&ca.match(/[0-9]/)&&cb.match(/[0-9]/))return na-nb;
+    return ca.localeCompare(cb,'zh');
+  });
+  var all=head.concat(body);
+  var NLg=String.fromCharCode(10);
+  var lines=gSrc.split(NLg);
+  var base=node.srcStart+1;
+  for(var i=0;i<all.length;i++)lines[base+i]=all[i];
+  setSrc(lines.join(NLg));
+}

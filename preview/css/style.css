@@ -342,3 +342,7 @@ body.show-marks .paper p::after{content:' b6';color:#d5d8dc;margin-left:2px}
 .app.reading #display-pane{border:0;padding-top:14px}
 
 /* ═══ 缩放 ═══ */
+
+/* ═══ 表格样式参数(开行内声明)═══ */
+.paper table.tbl-noborder th,.paper table.tbl-noborder td{border:none}
+.paper table.tbl-zebra tbody tr:nth-child(even) td{background:#f2f6fb}
