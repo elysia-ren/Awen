@@ -26,6 +26,7 @@
   if(auto&&typeof auto.src==='string'&&auto.src.trim()!==''){
     src=auto.src;
     if(auto.name)document.getElementById('docname').value=auto.name;
+    restoreAutosaveMedia(auto.media_dir);
     setTimeout(function(){
       var d=document.getElementById('diagpop');
       if(!d)return;

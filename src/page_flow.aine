@@ -42,6 +42,10 @@ struct FlowCtx {
     img_h: f64
     // 块间距(与前端块间 gap 一致,校准引擎容量与真实纸面)
     gap_mm: f64
+    // 快速估行模式(>0 启用):整块测宽÷行宽估行数,不做逐词断行,
+    // 跳过内容签名——daemon 交互路径专用(千块级文档秒级返回);
+    // 精确排版(导出/增量收敛)仍走 0 的完整模式
+    fast: i32
 }
 
 fn page_flow_ctx() -> FlowCtx {
@@ -54,6 +58,7 @@ fn page_flow_ctx() -> FlowCtx {
         gap_lines: 1.0,
         img_h: 40.0,
         gap_mm: font * 0.55 * 0.352778,
+        fast: 0,
     }
 }
 
@@ -71,6 +76,7 @@ fn page_flow_ctx_cfg(page_w: f64, page_h: f64, margin: f64, font_pt: f64, line_s
         gap_lines: 1.0,
         img_h: 40.0,
         gap_mm: font_pt * 0.55 * 0.352778,
+        fast: 1,
     }
 }
 
@@ -84,7 +90,9 @@ fn page_flow_with(state: DocState, ctx: FlowCtx) -> PageFlowResult {
     var sigs: Vec<String> = []
 
     for node in state.nodes {
-        sigs = sigs.push(page_node_sig(node))
+        if ctx.fast == 0 {
+            sigs = sigs.push(page_node_sig(node))
+        }
         let r = page_flow_node(ctx, node, page, y, placed)
         placed = r.placed
         page = r.page
@@ -134,6 +142,19 @@ struct FlowOneOut {
     box_lines: i32
 }
 
+// ceil(w/unit):向上取整除(行数有限,整数累加避免浮点转整)
+fn ceil_ratio(w: f64, unit: f64) -> i32 {
+    if w <= 0.0 { return 1 }
+    var n: i32 = 1
+    var acc = unit
+    while acc < w {
+        acc = acc + unit
+        n += 1
+        if n > 200000 { break }
+    }
+    return n
+}
+
 fn page_flow_put(ctx: FlowCtx, page: i32, y: f64, node_id: i32, text: String, out: Vec<PlacedLine>) -> FlowOneOut {
     let o = out.push(PlacedLine { node_id: node_id, page: page, y_mm: y, text: text })
     var np = page
@@ -155,6 +176,59 @@ fn page_flow_node(ctx: FlowCtx, node: SemNode, page: i32, y: f64, out: Vec<Place
     }
     if node.kind == "raw" && node.raw_cmd == Comment {
         return FlowOneOut { page: page, y: y, lines: -1, placed: out, box_node: 0, box_start: 0, box_end: 0, box_lines: 0 }
+    }
+
+    // 快速估行:整块文本测宽 ÷ 行宽 = 行数(±1 行误差,页分配足够),
+    // 跳过逐词断行的解释器开销;文档级设置依旧不进版面
+    if ctx.fast > 0 {
+        if node.kind == "obj" && is_doc_level(node.obj_cu.cmd) {
+            return FlowOneOut { page: page, y: y, lines: -1, placed: out, box_node: 0, box_start: 0, box_end: 0, box_lines: 0 }
+        }
+        var text = ""
+        if node.kind == "heading" || node.kind == "para" {
+            text = inline_marked_text(node.inline)
+        } else if node.kind == "quote" {
+            text = "> " + inline_marked_text(node.inline)
+        } else if node.kind == "list" {
+            for item in node.list_items {
+                text = text + "- " + inline_marked_text(item) + " "
+            }
+        } else if node.kind == "raw" {
+            for l in node.raw_lines {
+                text = text + l + " "
+            }
+        } else if node.kind == "table" {
+            for cell in node.tbl_header {
+                text = text + inline_plain(cell) + " "
+            }
+            for row in node.tbl_rows {
+                for cell in row {
+                    text = text + inline_plain(cell) + " "
+                }
+            }
+        } else if node.kind == "hr" {
+            text = "――――――――――"
+        } else if node.kind == "obj" {
+            text = f"@[{node.obj_cu.name_raw}]"
+        }
+        // 估行补偿:贪心断行的行利用率 <100%(禁则/词边界推挤),
+        // 乘 1.25 系数低估会重新引发"页面塞太满→纸面拉长"
+        let total_w = layout_measure_em(text) * 1.25
+        let lines_n = ceil_ratio(total_w, ctx.max_em)
+        var o = out
+        var p = page
+        var yy = y
+        var n = 0
+        var li = 0
+        while li < lines_n {
+            let r = page_flow_put(ctx, p, yy, id, "…", o)
+            o = r.placed
+            p = r.page
+            yy = r.y
+            n = n + r.lines
+            li += 1
+        }
+        return FlowOneOut { page: p, y: yy, lines: n, placed: o, box_node: id, box_start: box_start, box_end: p, box_lines: n }
     }
 
     if node.kind == "heading" || node.kind == "para" || node.kind == "quote" {

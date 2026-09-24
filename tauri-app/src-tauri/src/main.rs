@@ -169,6 +169,91 @@ async fn core_list_fonts() -> Result<Vec<String>, String> {
     .map_err(|e| format!("任务调度失败:{e}"))?
 }
 
+/// 批量图片资源化(docx 导入专用):一次 IPC 服务端循环写盘。
+/// 输入 data URI 列表,返回 media/ 引用列表(顺序对应);
+/// 同内容同哈希自动去重,已存在的文件直接复用。
+#[tauri::command]
+async fn core_batch_resource(data_uris: Vec<String>, media_dir: String) -> Result<Vec<String>, String> {
+    tauri::async_runtime::spawn_blocking(move || {
+        use std::hash::{Hash, Hasher};
+        std::fs::create_dir_all(&media_dir).map_err(|e| format!("创建媒体目录失败:{e}"))?;
+        let dir = std::path::Path::new(&media_dir);
+        let mut refs = Vec::with_capacity(data_uris.len());
+        for uri in &data_uris {
+            let (mime, payload) = match uri.split_once(";base64,") {
+                Some((m, p)) => (m.trim_start_matches("data:"), p),
+                None => {
+                    refs.push(String::new());
+                    continue;
+                }
+            };
+            let bytes = match b64_decode(payload) {
+                Some(b) => b,
+                None => {
+                    refs.push(String::new());
+                    continue;
+                }
+            };
+            let mut h = std::collections::hash_map::DefaultHasher::new();
+            bytes.hash(&mut h);
+            let name = format!("img-{:016x}.{}", h.finish(), img_ext_of(mime));
+            let path = dir.join(&name);
+            if !path.exists() {
+                std::fs::write(&path, &bytes).map_err(|e| format!("写图失败:{e}"))?;
+            }
+            refs.push(format!("media/{}", name));
+        }
+        Ok(refs)
+    })
+    .await
+    .map_err(|e| format!("任务调度失败:{e}"))?
+}
+
+fn img_ext_of(mime: &str) -> &'static str {
+    match mime {
+        "image/png" => "png",
+        "image/jpeg" | "image/jpg" => "jpg",
+        "image/gif" => "gif",
+        "image/webp" => "webp",
+        "image/bmp" => "bmp",
+        "image/svg+xml" => "svg",
+        "image/avif" => "avif",
+        "image/x-icon" => "ico",
+        "image/tiff" => "tiff",
+        _ => "png",
+    }
+}
+
+fn b64_decode(s: &str) -> Option<Vec<u8>> {
+    fn val(c: u8) -> Option<u32> {
+        match c {
+            b'A'..=b'Z' => Some((c - b'A') as u32),
+            b'a'..=b'z' => Some((c - b'a' + 26) as u32),
+            b'0'..=b'9' => Some((c - b'0' + 52) as u32),
+            b'+' => Some(62),
+            b'/' => Some(63),
+            _ => None,
+        }
+    }
+    let bytes: Vec<u8> = s.bytes().filter(|c| !c.is_ascii_whitespace()).collect();
+    let mut out = Vec::with_capacity(bytes.len() / 4 * 3);
+    let mut acc: u32 = 0;
+    let mut nbits: u32 = 0;
+    for c in bytes {
+        if c == b'=' {
+            break;
+        }
+        let v = val(c)?;
+        acc = (acc << 6) | v;
+        nbits += 6;
+        if nbits >= 8 {
+            nbits -= 8;
+            out.push(((acc >> nbits) & 0xFF) as u8);
+        }
+    }
+    Some(out)
+}
+
 /// 块级增量解析:前端只送脏段 [{bid,text}],daemon 每段独立走权威管线,
 /// 返回 [{bid,res}]。O(脏块) 替代 O(全文),打字停顿后的大文档刷新走这里。
 #[tauri::command]
@@ -681,6 +766,7 @@ fn main() {
             core_parse,
             core_parse_blocks,
             core_list_fonts,
+            core_batch_resource,
             core_open_dialog,
             core_save_dialog,
             core_read_file,

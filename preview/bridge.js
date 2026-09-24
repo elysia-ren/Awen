@@ -28,6 +28,12 @@ window.Bridge={
     });
   },
 
+  // 批量图片资源化(docx 导入):一次 IPC,服务端去重写盘,返回 media/ 引用列表
+  batchResource:function(uris,mediaDir){
+    if(!tauri)return Promise.resolve([]);
+    return tauri.core.invoke('core_batch_resource',{dataUris:uris,mediaDir:mediaDir});
+  },
+
   // 系统字体枚举(注册表 Fonts 项,机器上有啥给啥)
   listFonts:function(){
     if(!tauri)return Promise.resolve([]);
