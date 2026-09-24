@@ -68,6 +68,9 @@ fn json_escape_str(s: String) -> String {
 // 消灭每次解析的进程启动成本;进程由壳层拉起并看护,崩溃自动重启。
 // 请求:{"id":N,"op":"parse|pack|unpack",...};响应:{"id":N,"ok":true,"result":"..."}
 fn daemon_loop() {
+    // 增量排版状态(daemon 常驻,跨请求保留):上一轮 fast 流 + cfg 五参数
+    var g_prev_flow: Vec<PageFlowResult> = []
+    var g_prev_cfgn: Vec<f64> = []
     while true {
         let line = read_line()
         if line == "" { break }
@@ -99,11 +102,52 @@ fn daemon_loop() {
                         let lay = layout_recs_json(st, src, flow)
                         // 拼接:剥掉 blocks_to_json 收尾 '}',接上 pages/recs
                         json = json[0..(json.len() - 1)] + "," + lay[1..lay.len()]
+                        // 留存本轮流供增量排版复用
+                        g_prev_cfgn = [pw, ph, mg, fp, ls]
+                        if g_prev_flow.len() == 0 {
+                            g_prev_flow = g_prev_flow.push(flow)
+                        } else {
+                            g_prev_flow[0] = flow
+                        }
                     }
                     None { }
                 }
             }
             result = json
+        } else if op == "relayout" {
+            // 增量排版:全量重解析后,排版复用上一轮未变前缀(签名比较),
+            // 只重排首变之后的尾段——返回与 op=parse 同构的 pages/recs
+            let src = match m.get("src") { Some(x) { x } None { "" } }
+            let cfgv = match m.get("cfg") { Some(x) { x } None { 0 } }
+            if src == "" {
+                result = "{\"pages\":0,\"recs\":[]}"
+            } else {
+                let o2 = lex(src)
+                let pr = parse(o2)
+                let st = build_document(pr, src)
+                let pw = (match cfgv.get("pw") { Some(x) { x } None { 210 } }) + 0.0
+                let ph = (match cfgv.get("ph") { Some(x) { x } None { 297 } }) + 0.0
+                let mg = (match cfgv.get("mg") { Some(x) { x } None { 20 } }) + 0.0
+                let fp = (match cfgv.get("fp") { Some(x) { x } None { 11 } }) + 0.0
+                let ls = (match cfgv.get("ls") { Some(x) { x } None { 1.65 } }) + 0.0
+                let ctx = page_flow_ctx_cfg(pw, ph, mg, fp, ls)
+                // cfg 五参数与上一轮一致才走增量;否则全量
+                var same_cfg = g_prev_cfgn.len() == 5
+                if same_cfg {
+                    same_cfg = pw == g_prev_cfgn.get(0) && ph == g_prev_cfgn.get(1) && mg == g_prev_cfgn.get(2) && fp == g_prev_cfgn.get(3) && ls == g_prev_cfgn.get(4)
+                }
+                var flow = page_flow_with(st, ctx)
+                if same_cfg && g_prev_flow.len() > 0 {
+                    flow = page_flow_incremental_fast(st, g_prev_flow[0], ctx)
+                }
+                g_prev_cfgn = [pw, ph, mg, fp, ls]
+                if g_prev_flow.len() == 0 {
+                    g_prev_flow = g_prev_flow.push(flow)
+                } else {
+                    g_prev_flow[0] = flow
+                }
+                result = layout_recs_json(st, src, flow)
+            }
         } else if op == "parse_blocks" {
             // 块级增量解析:只解析前端送来的脏段,每段独立走完整权威管线。
             // 段内无空行 → 段⇄节点 1:1,独立解析与全文解析结果一致;

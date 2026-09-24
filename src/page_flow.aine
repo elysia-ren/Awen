@@ -627,3 +627,101 @@ fn page_flow_incremental(state: DocState, prev: PageFlowResult) -> PageFlowResul
         end_y: y,
     }
 }
+
+// ── 快速增量排版(A′ daemon 路径)────────────────────────────
+// 与 fast 全量同口径(估行),复用上一轮前缀盒与首变节点起始页;
+// 尾段用 fast 节点排版重推。不产 PlacedLine(recs 只需页号)。
+// prev 须为同一文档上一轮的 fast 结果;cfg 变化由调用方判重。
+fn page_flow_incremental_fast(state: DocState, prev: PageFlowResult, ctx: FlowCtx) -> PageFlowResult {
+    let nodes = state.nodes
+    // 全量签名(供本轮首变定位与下一轮复用)
+    var sigs: Vec<String> = []
+    var k = 0
+    while k < nodes.len() {
+        sigs = sigs.push(page_node_sig(nodes[k]))
+        k += 1
+    }
+    // 首变定位:第一个签名不同的节点
+    var start_ix = nodes.len()
+    var changed = false
+    k = 0
+    while k < nodes.len() {
+        if k >= prev.sigs.len() {
+            start_ix = k
+            changed = true
+            break
+        }
+        if sigs[k] != prev.sigs[k] {
+            start_ix = k
+            changed = true
+            break
+        }
+        k += 1
+    }
+    if !changed {
+        return PageFlowResult {
+            pages: prev.pages,
+            placed: prev.placed,
+            boxes: prev.boxes,
+            sigs: sigs,
+            reused_lines: prev.placed.len(),
+            recomputed_lines: 0,
+            end_page: prev.end_page,
+            end_y: prev.end_y,
+        }
+    }
+    // 恢复点:首变节点在上一轮的起始页,页首 y=0
+    var page = prev.end_page
+    var y = prev.end_y
+    var bi = 0
+    while bi < prev.boxes.len() {
+        if prev.boxes[bi].node_id == start_ix + 1 {
+            page = prev.boxes[bi].start_page
+            y = 0.0
+        }
+        bi += 1
+    }
+    // 首变之前的盒原样保留
+    var boxes: Vec<NodeBox> = []
+    var b2 = 0
+    while b2 < prev.boxes.len() {
+        if prev.boxes[b2].node_id < start_ix + 1 {
+            boxes = boxes.push(prev.boxes[b2])
+        }
+        b2 += 1
+    }
+    // 尾段 fast 重排(含 F-4 段间距,与 page_flow_with 同口径)
+    let para_sp = doc_para_spacing_mm(state)
+    var m = start_ix
+    while m < nodes.len() {
+        let r = page_flow_node(ctx, nodes[m], page, y, [])
+        page = r.page
+        y = r.y
+        if r.lines >= 0 {
+            boxes = boxes.push(NodeBox { node_id: nodes[m].id, start_page: r.box_start, end_page: r.box_end, lines: r.box_lines })
+            y = y + ctx.gap_mm
+            if y + ctx.line_h > ctx.content_h {
+                page = page + 1
+                y = 0.0
+            }
+        }
+        if nodes[m].kind == "para" && para_sp > 0.0 {
+            y = y + para_sp
+            if y + ctx.line_h > ctx.content_h {
+                page = page + 1
+                y = 0.0
+            }
+        }
+        m += 1
+    }
+    return PageFlowResult {
+        pages: page + 1,
+        placed: [],
+        boxes: boxes,
+        sigs: sigs,
+        reused_lines: 0,
+        recomputed_lines: 0,
+        end_page: page,
+        end_y: y,
+    }
+}

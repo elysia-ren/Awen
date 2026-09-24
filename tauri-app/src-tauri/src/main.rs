@@ -361,6 +361,22 @@ fn b64_decode(s: &str) -> Option<Vec<u8>> {
     Some(out)
 }
 
+/// 增量排版:daemon 复用上一轮未变前缀的流,只重排首变之后的尾段,
+/// 返回 {pages,recs}(与 op=parse 的分页部分同构)。cfg 必传。
+#[tauri::command]
+async fn core_relayout(app: AppHandle, src: String, cfg: String) -> Result<String, String> {
+    let cfgv: serde_json::Value =
+        serde_json::from_str(&cfg).map_err(|e| format!("cfg 不是合法 JSON:{e}"))?;
+    let req = serde_json::json!({ "id": 1, "op": "relayout", "src": src, "cfg": cfgv }).to_string();
+    let line = daemon_call_retry(&app, &req)?;
+    let v: serde_json::Value =
+        serde_json::from_str(&line).map_err(|e| format!("daemon 响应解析失败:{e}"))?;
+    v.get("result")
+        .and_then(|x| x.as_str())
+        .map(|s| s.to_string())
+        .ok_or_else(|| "daemon 响应缺 result".to_string())
+}
+
 /// 块级增量解析:前端只送脏段 [{bid,text}],daemon 每段独立走权威管线,
 /// 返回 [{bid,res}]。O(脏块) 替代 O(全文),打字停顿后的大文档刷新走这里。
 #[tauri::command]
@@ -874,6 +890,7 @@ fn main() {
             core_parse_blocks,
             core_list_fonts,
             core_batch_resource,
+            core_relayout,
             core_open_dialog,
             core_save_dialog,
             core_read_file,
