@@ -213,14 +213,45 @@ fn page_flow_node(ctx: FlowCtx, node: SemNode, page: i32, y: f64, out: Vec<Place
                 text = text + l + " "
             }
         } else if node.kind == "table" {
-            for cell in node.tbl_header {
-                text = text + inline_plain(cell) + " "
-            }
+            // 表格几何:列数取表头/行最大单元格数,列宽均分;
+            // 逐行按"行内最高单元格的换行行数"推进光标(可跨页)
+            var ncols = node.tbl_header.len()
             for row in node.tbl_rows {
-                for cell in row {
-                    text = text + inline_plain(cell) + " "
+                let rl = row.len()
+                if rl > ncols { ncols = rl }
+            }
+            if ncols < 1 { ncols = 1 }
+            let colw = ctx.max_em / ncols
+            var o = out
+            var p = page
+            var yy = y
+            var n = 0
+            if node.tbl_header.len() > 0 {
+                let rl = table_row_lines(ctx, node.tbl_header, colw)
+                var q = 0
+                while q < rl {
+                    let rp = page_flow_put(ctx, p, yy, id, "|…|", o)
+                    o = rp.placed
+                    p = rp.page
+                    yy = rp.y
+                    n = n + rp.lines
+                    q += 1
                 }
             }
+            for row in node.tbl_rows {
+                let rl = table_row_lines(ctx, row, colw)
+                var q2 = 0
+                while q2 < rl {
+                    let rp2 = page_flow_put(ctx, p, yy, id, "|…|", o)
+                    o = rp2.placed
+                    p = rp2.page
+                    yy = rp2.y
+                    n = n + rp2.lines
+                    q2 += 1
+                }
+            }
+            n = n + 0
+            return FlowOneOut { page: p, y: yy, lines: n, placed: o, box_node: id, box_start: box_start, box_end: p, box_lines: n }
         } else if node.kind == "hr" {
             text = "――――――――――"
         } else if node.kind == "obj" {
@@ -739,4 +770,17 @@ fn page_flow_incremental_fast(state: DocState, prev: PageFlowResult, ctx: FlowCt
         end_page: page,
         end_y: y,
     }
+}
+
+// 表格行几何:行高 = 行内最高单元格的换行行数(列宽均分,测宽走字体度量)
+fn table_row_lines(ctx: FlowCtx, cells: Vec<Vec<Inline>>, colw: f64) -> i32 {
+    var mx = 1
+    for cell in cells {
+        let text = inline_plain(cell)
+        let w = layout_measure_w(text, ctx)
+        var l = ceil_ratio(w, colw)
+        if l < 1 { l = 1 }
+        if l > mx { mx = l }
+    }
+    return mx
 }
