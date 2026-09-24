@@ -92,10 +92,11 @@ function applyParaSpacingCustom(v){
   }
 }
 function toggleOrientation(){
-  // 横向为会话级覆盖(规范暂无横向语法):只重排,不写回源码
-  Engine.setPage({PAGE_W:CFG.PAGE_H,PAGE_H:CFG.PAGE_W});
-  renderKeep();
-  document.getElementById('btn-orient').textContent=CFG.PAGE_W>CFG.PAGE_H?'横向':'纵向';
+  // 横向为会话级覆盖(规范暂无横向语法):不写回源码。
+  // A′ 分页权威在引擎:标志在渲染链两端生效(请求 cfg 与 CFG 均交换)
+  window.__orient=(window.__orient==='landscape')?null:'landscape';
+  render(gSrc);
+  document.getElementById('btn-orient').textContent=window.__orient==='landscape'?'纵向':'横向';
 }
 
 // ═══ 首行缩进开关(@[first-line 2em] 文档级)═══
