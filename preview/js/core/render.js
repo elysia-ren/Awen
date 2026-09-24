@@ -101,7 +101,7 @@ function renderNodes(){
     sheet.style.padding=CFG.MARGIN+'mm';
     var paper=document.createElement('div');
     paper.className='paper';
-    paper.contentEditable='true';
+    paper.contentEditable=window.restrictEdit?'false':'true';
     paper.style.lineHeight=CFG.LINE_H;
     if(CFG.FONT)paper.style.fontFamily='\''+CFG.FONT+'\',serif';
     paper.style.setProperty('--fl',CFG.FIRSTLINE||'0em');

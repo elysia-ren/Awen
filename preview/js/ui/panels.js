@@ -401,3 +401,56 @@ function openRefManager(mode){
   document.getElementById('rm-body').innerHTML=h;
   d.style.display='flex';
 }
+
+// ═══ 限制编辑:纸面只读保护(会话级)═══
+function toggleRestrictEdit(){
+  window.restrictEdit=!window.restrictEdit;
+  document.querySelectorAll('#display-pane .paper').forEach(function(p){
+    p.contentEditable=window.restrictEdit?'false':'true';
+  });
+  var ta=document.getElementById('syntax-src');
+  if(ta)ta.readOnly=window.restrictEdit;
+  var b=document.getElementById('btn-restrict');
+  if(b)b.classList.toggle('on',window.restrictEdit);
+  return window.restrictEdit;
+}
+// renderNodes 建 paper 时遵守限制状态
+function restrictApplyTo(el){
+  if(window.restrictEdit)el.contentEditable='false';
+  return el;
+}
+
+// ═══ 网格线:纸面基线网格显示开关(视图级,持久化)═══
+function toggleGridlines(){
+  var on=document.body.classList.toggle('show-grid');
+  try{localStorage.setItem('awen-grid',on?'1':'0')}catch(e){}
+  return on;
+}
+
+// ═══ 检查更新:比对 GitHub Releases 最新 tag ═══
+function cmpVer(a,b){
+  var pa=String(a).split('.'),pb=String(b).split('.');
+  for(var i=0;i<3;i++){
+    var x=parseInt(pa[i]||'0'),y=parseInt(pb[i]||'0');
+    if(x!==y)return x-y;
+  }
+  return 0;
+}
+function checkUpdates(){
+  var cur='1.14.0';
+  try{ cur=window.__TAURI_APP_VERSION||cur }catch(e){}
+  var btn=event&&event.currentTarget;
+  var oldTxt=btn?btn.innerHTML:null;
+  if(btn)btn.innerHTML='<span>检查中…</span>';
+  fetch('https://api.github.com/repos/elysia-ren/Awen/releases/latest').then(function(r){return r.json()}).then(function(j){
+    var latest=String(j.tag_name||'').replace(/^v/,'');
+    var cmp=cmpVer(latest,cur);
+    if(cmp>0)alert('发现新版本 v'+latest+'(当前 v'+cur+')\n请到 GitHub Releases 页面下载。');
+    else if(cmp<0)alert('当前版本 v'+cur+' 比最新发布 v'+latest+' 还新(开发版)。');
+    else alert('已是最新版本 v'+cur+'。');
+    if(btn)btn.innerHTML=oldTxt;
+  }).catch(function(e){
+    if(btn)btn.innerHTML=oldTxt;
+    alert('检查更新失败(网络不可用):'+String(e).slice(0,80));
+  });
+}
