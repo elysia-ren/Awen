@@ -290,3 +290,27 @@ fn layout_cfg_narrow_page_more_pages() -> Result<i32, String> {
     assert(narrow.pages > wide.pages, f"窄页 {narrow.pages} 应多于宽页 {wide.pages}")
     Ok(0)
 }
+
+@test
+fn container_hash_verify() -> Result<i32, String> {
+    // 正常解包:新容器(16 hex SHA-256 截断哈希)应校验通过
+    let st = unpack_awen("build/_ctest.awen", "build", "build/_hv_src.awen")
+    assert(st.contains("\"ok\":true"), "正常容器应解包成功:"+st)
+    assert(st.contains("\"verified\":1"), "应校验 1 块:"+st)
+    // 篡改块区一个字节 → 解包必须拒绝
+    var v = read_bytes("build/_ctest.awen")
+    let sig = to_bytes("GIF89a")
+    var pos = -1
+    var i: i32 = 0
+    while i + 6 <= v.len() {
+        if bytes_eq(v[i..(i + 6)], sig) { pos = i }
+        i += 1
+    }
+    assert(pos >= 0, "应能定位 GIF 块")
+    v[(pos + 10)] = (v[(pos + 10)] + 1) % 256
+    write_bytes("build/_hv_tampered.awen", v)
+    let st2 = unpack_awen("build/_hv_tampered.awen", "build", "build/_hv2_src.awen")
+    assert(st2.contains("\"ok\":false"), "损坏容器必须被拒绝:"+st2)
+    assert(st2.contains("hash mismatch"), "应报哈希不符:"+st2)
+    Ok(0)
+}

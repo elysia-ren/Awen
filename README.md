@@ -22,7 +22,7 @@ Awen 是一款"aine 引擎 + 桌面壳"的中文文档编辑器:**显示视图**
 - **查找替换**:高亮计数、方向、全字匹配、批量替换(可作用于源码标记)
 - **导入导出**:导入 docx;导出 Markdown / HTML / Word / TXT;打印 / 另存 PDF
 - **写作环境**:专注模式、导航大纲、编辑标记、护眼主题、缩放、窄窗自适应功能区
-- **数据安全**:自动保存草稿恢复、原子提交、SHA-256 资源哈希校验、300 步语义步撤销
+- **数据安全**:自动保存草稿恢复、原子提交、SHA-256 截断哈希命名与解包校验、300 步语义步撤销
 
 ## 快速开始
 
@@ -55,7 +55,7 @@ Awen 是一款"aine 引擎 + 桌面壳"的中文文档编辑器:**显示视图**
 │   ├── bridge.js       ←   Tauri IPC 桥
 │   ├── css/ js/        ←   样式与 24 个职责模块
 │   └── vendor/         ←   本地第三方库(Font Awesome、mammoth)
-├── src/                ← aine 语言引擎(解析/排版/诊断/容器,453 测试)
+├── src/                ← aine 语言引擎(解析/排版/诊断/容器,474 测试)
 ├── corpus/             ← 语法正样本语料
 ├── manual/             ← 使用手册(HTML)+ 截图 + 构建脚本
 ├── docs/               ← 设计文档(规范方案/开发计划/决策记录…)
@@ -70,7 +70,7 @@ Awen 是一款"aine 引擎 + 桌面壳"的中文文档编辑器:**显示视图**
 # 1. 同步前端到桌面应用
 python gen_tpl.py
 
-# 2. 构建 aine 引擎测试(可选,453 项)
+# 2. 构建 aine 引擎测试(可选,474 项)
 aine test src/tests.aine
 
 # 3. 构建桌面版(安装包输出到 src-tauri/target/release/bundle/nsis/)
@@ -81,7 +81,7 @@ cd tauri-app/src-tauri && cargo build --release
 ## 技术栈
 
 - 前端:原生 HTML/CSS/JavaScript(24 个职责模块,无框架;Font Awesome 本地分发)
-- 引擎:Aine 语言(aine 解释器执行;453 项测试)
+- 引擎:Aine 语言(aine 解释器执行;474 项测试)
 - 桌面:Tauri v2(Rust 薄壳:IPC、对话框、原子写、asset 协议)
 
 ## License
