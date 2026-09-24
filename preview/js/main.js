@@ -4,6 +4,15 @@
   document.querySelectorAll('[data-icon]').forEach(function(el){
     el.innerHTML=ICONS[el.dataset.icon]||'';
   });
+  // 主题/缩放偏好恢复(localStorage)
+  try{
+    var th=localStorage.getItem('awen-theme');
+    if(th)setTheme(th);
+    var uz=parseInt(localStorage.getItem('awen-uizoom'));
+    if(uz&&uz!==100)applyUiZoom(uz);
+    var pz=parseInt(localStorage.getItem('awen-pagezoom'));
+    if(pz&&pz!==100)setPageZoom(pz);
+  }catch(e){}
   // 系统字体:机器上有啥给啥(注册表枚举),追加到写死的常用组之后
   if(window.Bridge&&Bridge.listFonts){
     Bridge.listFonts().then(function(fonts){

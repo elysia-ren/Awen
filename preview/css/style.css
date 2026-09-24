@@ -323,3 +323,22 @@ body.show-marks .paper p::after{content:' b6';color:#d5d8dc;margin-left:2px}
 .sr-table th{background:#f9fafb;color:#374151;font-weight:600;position:sticky;top:0}
 .sr-table code{font-family:Consolas,monospace;font-size:12px;color:#1d4ed8;word-break:break-all}
 .sr-table td:last-child{color:#374151}
+
+/* ═══ 深色主题(只压暗界面铬层,纸面保持白底)═══ */
+.app.dark .titlebar,.app.dark .ribbon,.app.dark .tabbar,.app.dark .sidebar,.app.dark .statusbar,.app.dark .settings-drawer,.app.dark .file-menu,.app.dark .filetabs{background:#1f2430;color:#d7dce3;border-color:#333a48}
+.app.dark .ribbon .tab,.app.dark .fm-item,.app.dark .sd-row,.app.dark .theme-card{color:#d7dce3}
+.app.dark .ribbon .tab.on{background:#2a3140;color:#fff}
+.app.dark .btn-icon,.app.dark .ib,.app.dark .sbtn{color:#c9d1dc}
+.app.dark .select-box,.app.dark .select-box select{background:#2a3140;color:#d7dce3;border-color:#3d4657}
+.app.dark .statusbar,.app.dark .gutter{color:#9aa4b2}
+.app.dark #sidebar{background:#232936}
+.app.dark .settings-drawer{background:#232936}
+
+/* ═══ 阅读视图(隐藏编辑铬层,只留纸面)═══ */
+.app.reading .titlebar,.app.reading .ribbon,.app.reading .tabbar,.app.reading .sidebar,.app.reading .statusbar,.app.reading .filetabs,.app.reading #sidebar,.app.reading #sb-open,.app.reading #minibar{display:none!important}
+.app.reading{height:100vh}
+.app.reading .workspace{grid-template-columns:1fr!important}
+.app.reading #syntax-pane,.app.reading .syntax-wrap{display:none!important}
+.app.reading #display-pane{border:0;padding-top:14px}
+
+/* ═══ 缩放 ═══ */
