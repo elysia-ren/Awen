@@ -35,7 +35,7 @@ recalc();
 // 每次先重置默认——源码里没有对应行时,设置回落默认值。
 function applyDocsets(nodes,docsets){
   cfg.PAGE_W=210; cfg.PAGE_H=297; cfg.MARGIN=20; cfg.LINE_H=1.9;
-  cfg.FONT_PT=11; cfg.FONT=''; cfg.FIRSTLINE=''; cfg.PARA_SPACING='0em';
+  cfg.FONT_PT=11; cfg.FONT=''; cfg.FIRSTLINE=''; cfg.PARA_SPACING='0em'; cfg.HEADER=''; cfg.FOOTER='';
   // A′:设置由引擎结构化下发(docsets=[[英文名,参数]…],任意语言别名已在
   // 引擎归一),前端不再按命令词猜——十语种写法天然生效
   var ds=docsets||[];
@@ -48,6 +48,8 @@ function applyDocsets(nodes,docsets){
     else if(key==='font'){ cfg.FONT=arg.replace(/^"(.*)"$/,'$1') }
     else if(key==='first-line'){ cfg.FIRSTLINE=arg.match(/em$/)?arg:arg+'em' }
     else if(key==='para-spacing'){ cfg.PARA_SPACING=arg.match(/em$/)?arg:arg+'em' }
+    else if(key==='header'){ cfg.HEADER=arg }
+    else if(key==='footer'){ cfg.FOOTER=arg }
   }
   // 兜底:无 docsets(旧响应)时退回原文正则(中英)
   if(!ds.length){
@@ -62,6 +64,8 @@ function applyDocsets(nodes,docsets){
       else if(m=t.match(/^@\[(?:font|字体)\s+"([^"]+)"\s*\]/)){ cfg.FONT=m[1] }
       else if(m=t.match(/^@\[(?:first-line|首行缩进|首行)\s+([\d.]+em)\s*\]/)){ cfg.FIRSTLINE=m[1] }
       else if(m=t.match(/^@\[(?:para-spacing|段距|段落间距)\s+([\d.]+em|\d+)\s*\]/)){ cfg.PARA_SPACING=m[1].match(/em$/)?m[1]:m[1]+'em' }
+      else if(m=t.match(/^@\[(?:header|页眉)\s+([^\]]*)\]/)){ cfg.HEADER=m[1] }
+      else if(m=t.match(/^@\[(?:footer|页脚)\s+([^\]]*)\]/)){ cfg.FOOTER=m[1] }
     }
   }
   recalc();
@@ -199,7 +203,7 @@ function recToNode(nb){
     var one=(nb.text||'').split('\n')[0].trim();
     if(/^@\[toc/.test(one)){
       b.kind='toc'; b.text=one;
-    }else if(/^@\[(?:page|页面|margin|边距|font|字体|size|大小|字号|line-spacing|行距|first-line|首行缩进|首行|theme|主题|numbering|编号|toc|目录|para-spacing|段距|段落间距)\s/.test(one)){
+    }else if(/^@\[(?:page|页面|margin|边距|font|字体|size|大小|字号|line-spacing|行距|first-line|首行缩进|首行|theme|主题|numbering|编号|toc|目录|para-spacing|段距|段落间距|header|页眉|footer|页脚)\s/.test(one)){
       b.kind='docset'; b.text=one;
     }else if(/^@\[label\s/.test(one)){
       b.kind='label'; b.text=one.replace(/^@\[label\s+/,'').replace(/\]$/,'');

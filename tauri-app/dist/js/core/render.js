@@ -193,9 +193,27 @@ function renderNodes(){
       paper.appendChild(makeBlock(b,item));
       paper.appendChild(gapEl());
     }
-    var folio=document.createElement('div');
-    folio.className='folio'; folio.contentEditable='false'; folio.textContent='— '+(p+1)+' —';
-    sheet.appendChild(paper); sheet.appendChild(folio);
+    // 页眉/页脚条(文档级 @[header]/@[footer] 设置;%p = 页码)
+    var hdr=CFG.HEADER||'', ftr=CFG.FOOTER||'', pno=p+1;
+    if(hdr){
+      var hEl=document.createElement('div');
+      hEl.className='hdr'; hEl.contentEditable='false';
+      hEl.style.top=Math.max(2,CFG.MARGIN*0.35)+'mm';
+      hEl.innerHTML=Engine.fmtH(String(hdr).replace(/%p/g,pno));
+      sheet.appendChild(hEl);
+    }
+    if(ftr){
+      var fEl=document.createElement('div');
+      fEl.className='ftr'; fEl.contentEditable='false';
+      fEl.style.bottom=Math.max(2,CFG.MARGIN*0.35)+'mm';
+      fEl.innerHTML=Engine.fmtH(String(ftr).replace(/%p/g,pno));
+      sheet.appendChild(fEl);
+    } else {
+      var folio=document.createElement('div');
+      folio.className='folio'; folio.contentEditable='false'; folio.textContent='— '+(p+1)+' —';
+      sheet.appendChild(folio);
+    }
+    sheet.appendChild(paper);
     pane.appendChild(sheet);
     if(scrollKeep>0)pane.scrollTop=scrollKeep;   // 重建保持滚动位置
   }
