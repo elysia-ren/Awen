@@ -87,6 +87,7 @@ function renderKeep(){
 // 用现有 gNodes/gPages 重建纸面 DOM(本地解析与原生权威解析共用出口)
 function renderNodes(){
   var pane=document.getElementById('display-pane');
+  var scrollKeep=pane.scrollTop;
   pane.innerHTML='';
   // 空文档也显示一张空白纸(Word 行为),不再是空空如也
   var pageList=gPages.length?gPages:[[]];
@@ -194,6 +195,7 @@ function renderNodes(){
     folio.className='folio'; folio.contentEditable='false'; folio.textContent='— '+(p+1)+' —';
     sheet.appendChild(paper); sheet.appendChild(folio);
     pane.appendChild(sheet);
+    if(scrollKeep>0)pane.scrollTop=scrollKeep;   // 重建保持滚动位置
   }
   renderOutline();
   renderStatus();
@@ -337,6 +339,43 @@ function replaceSegBlock(idx,node){
   return true;
 }
 
+// ── 增量排版自愈:增量解析不重分页,分页漂移由后台 relayout 修复 ──
+// 编辑停顿 1.5s 后:引擎复用上一轮未变前缀只重排尾段(快),
+// 页分配有变化才重建纸面(0.5s 级,带滚动/光标保持);用户继续输入则放弃
+var relayoutTimer=null;
+function scheduleRelayout(){
+  if(relayoutTimer)clearTimeout(relayoutTimer);
+  relayoutTimer=setTimeout(applyRelayout,1500);
+}
+function applyRelayout(){
+  relayoutTimer=null;
+  if(window.composing||Date.now()-(window.lastPaperInputAt||0)<800)return;
+  var cfgReq=Engine.layoutCfg();
+  if(window.__orient==='landscape'){var t=cfgReq.pw;cfgReq.pw=cfgReq.ph;cfgReq.ph=t}
+  Bridge.relayout(gSrc,cfgReq).then(function(res){
+    if(window.composing||Date.now()-(window.lastPaperInputAt||0)<800)return;
+    var newPages=Engine.layoutFromEngine(gNodes,res);
+    // 对比页分配是否变化(bid 序列逐页比对)
+    var changed=newPages.length!==gPages.length;
+    if(!changed){
+      for(var p=0;p<gPages.length&&!changed;p++){
+        if(gPages[p].length!==newPages[p].length){changed=true;break}
+        for(var k=0;k<gPages[p].length;k++){
+          if(gPages[p][k].b.bid!==newPages[p][k].b.bid){changed=true;break}
+        }
+      }
+    }
+    gPages=newPages;
+    if(changed){
+      var caret=saveCaret();
+      renderNodes();
+      if(caret)restoreCaret(caret);
+    }
+    renderOutline();
+    renderStatus();
+  }).catch(function(){ /* relayout 失败静默,下次全量自然修正 */ });
+}
+
 // 增量刷新入口。返回 true=增量完成;false=需要全量 render。
 function incrRefresh(freshCaret){
   if(!document.querySelector('#display-pane .paper'))return false;
@@ -373,6 +412,7 @@ function incrRefresh(freshCaret){
     }
     // 提交后推进缓存,避免下个空闲周期重复解析同一段
     for(var d2=0;d2<dirty.length;d2++){cache[dirty[d2]].text=segs[dirty[d2]].text}
+    scheduleRelayout();   // 分页自愈:增量解析后后台重排(引擎增量,用户无感)
     for(var o2=0;o2<ops.length;o2++){
       for(var k2=0;k2<ops[o2].nodes.length;k2++){
         if(!replaceSegBlock(ops[o2].start+k2,ops[o2].nodes[k2]))return false;

@@ -55,20 +55,12 @@ fn segment_blocks_json(text: String) -> String {
 fn layout_recs_json(state: DocState, src: String, flow: PageFlowResult) -> String {
     let spans = compute_spans(state, src)
     let lines = src.split("\n")
-    // node_id → 首个版面行的页(每节点查一遍首现)
+    // node_id → 起始页(直接取盒;fast 流不产 PlacedLine,盒是唯一页来源)
     var first_pages: Vec<i32> = []
     var first_ids: Vec<i32> = []
-    for pl in flow.placed {
-        var seen = false
-        var fi = 0
-        while fi < first_ids.len() {
-            if first_ids.get(fi) == pl.node_id { seen = true }
-            fi += 1
-        }
-        if !seen {
-            first_ids = first_ids.push(pl.node_id)
-            first_pages = first_pages.push(pl.page)
-        }
+    for b in flow.boxes {
+        first_ids = first_ids.push(b.node_id)
+        first_pages = first_pages.push(b.start_page)
     }
     var recs: Vec<i32> = []
     var last = 0

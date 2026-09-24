@@ -34,6 +34,14 @@ window.Bridge={
     return tauri.core.invoke('core_batch_resource',{dataUris:uris,mediaDir:mediaDir});
   },
 
+  // 增量排版:引擎复用上一轮未变前缀,返回 {pages,recs}
+  relayout:function(src,cfg){
+    if(!tauri)return Promise.reject(new Error('非桌面环境'));
+    return tauri.core.invoke('core_relayout',{src:src,cfg:JSON.stringify(cfg)}).then(function(jsonText){
+      return (typeof jsonText==='string')?JSON.parse(jsonText):jsonText;
+    });
+  },
+
   // 系统字体枚举(注册表 Fonts 项,机器上有啥给啥)
   listFonts:function(){
     if(!tauri)return Promise.resolve([]);
