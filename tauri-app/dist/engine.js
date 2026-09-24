@@ -35,7 +35,7 @@ recalc();
 // 每次先重置默认——源码里没有对应行时,设置回落默认值。
 function applyDocsets(nodes,docsets){
   cfg.PAGE_W=210; cfg.PAGE_H=297; cfg.MARGIN=20; cfg.LINE_H=1.9;
-  cfg.FONT_PT=11; cfg.FONT=''; cfg.FIRSTLINE=''; cfg.PARA_SPACING='0em'; cfg.HEADER=''; cfg.FOOTER='';
+  cfg.FONT_PT=11; cfg.FONT=''; cfg.FIRSTLINE=''; cfg.PARA_SPACING='0em'; cfg.HEADER=''; cfg.FOOTER=''; cfg.LINENUMBERS='';
   // A′:设置由引擎结构化下发(docsets=[[英文名,参数]…],任意语言别名已在
   // 引擎归一),前端不再按命令词猜——十语种写法天然生效
   var ds=docsets||[];
@@ -50,6 +50,7 @@ function applyDocsets(nodes,docsets){
     else if(key==='para-spacing'){ cfg.PARA_SPACING=arg.match(/em$/)?arg:arg+'em' }
     else if(key==='header'){ cfg.HEADER=arg }
     else if(key==='footer'){ cfg.FOOTER=arg }
+    else if(key==='linenumbers'){ cfg.LINENUMBERS=arg }
   }
   // 兜底:无 docsets(旧响应)时退回原文正则(中英)
   if(!ds.length){
@@ -94,7 +95,8 @@ function displayText(t){
     .replace(/@\[(?:link|链接)\s+([^\]]+?)\s+url:\s*([^\]]+)\]/g,'$1')
     .replace(/@\[(?:footnote|脚注)\s+(\d+)\s+([^\]]+)\]/g,'$2')
     .replace(/@\[(?:label|标签)\s+([^\]]+)\]/g,'$1')
-    .replace(/@\[(?:ref|引用)\s+([^\]]+)\]/g,'$1')
+    .replace(/@\[(?:dropcap|首字下沉)\]((?:.|])*?)@\[\/(?:dropcap|首字下沉)\]/g,'$1')
+        .replace(/@\[(?:ref|引用)\s+([^\]]+)\]/g,'$1')
     .replace(/_((?:.|])*?)_/g,'$1');
   return unescTokens(s);
 }
@@ -110,6 +112,7 @@ function fmtH(t){
   s=s.replace(/@\[(?:mark|底纹)\s+([^\]]+)\]((?:.|])*?)@\[\/(?:mark|底纹)\]/g,'<span data-cmd="@[mark $1]" data-close="@[/mark]" style="background:$1">$2</span>');
   s=s.replace(/@\[(?:color|颜色)\s+([^\]]+)\]((?:.|])*?)@\[\/(?:color|颜色)\]/g,'<span data-cmd="@[color $1]" data-close="@[/color]" style="color:$1">$2</span>');
   s=s.replace(/@\[(?:size|大小|字号)\s+([^\]]+)\]((?:.|])*?)@\[\/(?:size|大小|字号)\]/g,'<span data-cmd="@[size $1]" data-close="@[/size]" style="font-size:$1pt">$2</span>');
+  s=s.replace(/@\[(?:dropcap|首字下沉)\]((?:.|])*?)@\[\/(?:dropcap|首字下沉)\]/g,'<span class="dropcap" data-cmd="@[dropcap]" data-close="@[/dropcap]">$1</span>');
   s=s.replace(/@\[(?:link|链接)\s+([^\]]+?)\s+url:\s*"?([^"\]]+)"?\]/g,'<a href="$2" target="_blank" style="color:#2a4a66;text-decoration:underline">$1</a>');
   s=s.replace(/@\[(?:footnote|脚注)\s+(\d+)\s+([^\]]+)\]/g,function(m,n,txt){
     // data-self:自闭合命令,序列化只回写原命令(显示体是编号,内容在 data-cmd 里)
@@ -203,7 +206,7 @@ function recToNode(nb){
     var one=(nb.text||'').split('\n')[0].trim();
     if(/^@\[toc/.test(one)){
       b.kind='toc'; b.text=one;
-    }else if(/^@\[(?:page|页面|margin|边距|font|字体|size|大小|字号|line-spacing|行距|first-line|首行缩进|首行|theme|主题|numbering|编号|toc|目录|para-spacing|段距|段落间距|header|页眉|footer|页脚)\s/.test(one)){
+    }else if(/^@\[(?:page|页面|margin|边距|font|字体|size|大小|字号|line-spacing|行距|first-line|首行缩进|首行|theme|主题|numbering|编号|toc|目录|para-spacing|段距|段落间距|header|页眉|footer|页脚|linenumbers|行号)\s/.test(one)){
       b.kind='docset'; b.text=one;
     }else if(/^@\[label\s/.test(one)){
       b.kind='label'; b.text=one.replace(/^@\[label\s+/,'').replace(/\]$/,'');

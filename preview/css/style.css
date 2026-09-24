@@ -351,3 +351,9 @@ body.show-marks .paper p::after{content:' b6';color:#d5d8dc;margin-left:2px}
 .sheet{position:relative}
 .sheet .hdr{position:absolute;left:0;right:0;text-align:center;font-size:9pt;color:#555;overflow:hidden;white-space:nowrap;pointer-events:none}
 .sheet .ftr{position:absolute;left:0;right:0;text-align:center;font-size:9pt;color:#555;overflow:hidden;white-space:nowrap;pointer-events:none}
+
+/* ═══ 首字下沉 / 行号 ═══ */
+.paper .dropcap{float:left;font-size:3.1em;line-height:0.85;padding:2px 6px 0 0}
+.sheet.linenums{counter-reset:ln}
+.sheet.linenums .paper>[data-bid]{position:relative;counter-increment:ln}
+.sheet.linenums .paper>[data-bid]::before{content:counter(ln);position:absolute;left:-8mm;top:0;font-size:8.5pt;color:#98a0aa}

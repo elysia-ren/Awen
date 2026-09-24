@@ -194,6 +194,7 @@ function renderNodes(){
       paper.appendChild(gapEl());
     }
     // 页眉/页脚条(文档级 @[header]/@[footer] 设置;%p = 页码)
+    if((CFG.LINENUMBERS||'')==='on')sheet.classList.add('linenums');
     var hdr=CFG.HEADER||'', ftr=CFG.FOOTER||'', pno=p+1;
     if(hdr){
       var hEl=document.createElement('div');

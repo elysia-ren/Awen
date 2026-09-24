@@ -124,3 +124,27 @@ function togglePageNumField(){
   if(/@\[footer [^\]]*%p/.test(gSrc)){ upsertDocsetLine('footer',''); return }
   upsertDocsetLine('footer','第 %p 页');
 }
+
+
+// ═══ 首字下沉 / 行号 ═══
+function toggleDropcap(){
+  var blk=caretBlock();
+  if(!blk||blk.dataset.kind!=='para'){ alert('请先将光标放在段落内'); return }
+  var node=gNodes[+blk.dataset.bid];
+  var NLg=String.fromCharCode(10);
+  var lines=gSrc.split(NLg);
+  var li=node.srcStart;
+  var t=lines[li]||'';
+  if(t.indexOf('@[dropcap]')===0){
+    lines[li]=t.replace('@[dropcap]','').replace('@[/dropcap]','');
+  }else{
+    var first=t.charAt(0);
+    if(!first)return;
+    lines[li]='@[dropcap]'+first+'@[/dropcap]'+t.slice(1);
+  }
+  setSrc(lines.join(NLg));
+}
+function toggleLineNumbers(){
+  var on=/@\[linenumbers\s+on\s*\]/.test(gSrc);
+  upsertDocsetLine('linenumbers',on?'off':'on');
+}
