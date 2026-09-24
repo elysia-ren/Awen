@@ -109,7 +109,7 @@ fn lex(src: String) -> LexOutput {
         // 表格状态
         if table {
             let t = line.trim()
-            if t == "@[/table]" {
+            if t == "@[/table]" || t == "@[/表格]" {
                 blocks.push(LexedBlock { line: lineno - 1, block: TableClose })
                 table = false
                 continue

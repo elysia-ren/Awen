@@ -1,4 +1,6 @@
 // awen-proto/src/registry.aine —— 显式命令白名单注册表(核心规范 §11)
+// 中英方言等价:每个命令的中文名与英文名在此唯一登记(§6.14),
+// 块级行与行内命令共用 lookup——注册即全链路生效(解析/闭合/白名单)。
 enum ExplicitCommand {
     Image
     Figure
@@ -8,6 +10,9 @@ enum ExplicitCommand {
     Size
     Color
     U
+    Sup
+    Sub
+    Mark
     Link
     Ref
     Label
@@ -28,29 +33,32 @@ enum ExplicitCommand {
 
 fn lookup(name: String) -> Option<ExplicitCommand> {
     if name == "image" || name == "图片" { return Some(Image) }
-    if name == "figure" { return Some(Figure) }
-    if name == "table" { return Some(Table) }
-    if name == "cell" { return Some(Cell) }
+    if name == "figure" || name == "插图" { return Some(Figure) }
+    if name == "table" || name == "表格" { return Some(Table) }
+    if name == "cell" || name == "单元格" { return Some(Cell) }
     if name == "font" || name == "字体" { return Some(Font) }
-    if name == "size" || name == "大小" { return Some(Size) }
-    if name == "color" { return Some(Color) }
-    if name == "u" || name == "underline" { return Some(U) }
-    if name == "link" { return Some(Link) }
-    if name == "ref" { return Some(Ref) }
+    if name == "size" || name == "大小" || name == "字号" { return Some(Size) }
+    if name == "color" || name == "颜色" { return Some(Color) }
+    if name == "u" || name == "underline" || name == "下划线" || name == "下划" { return Some(U) }
+    if name == "sup" || name == "上标" { return Some(Sup) }
+    if name == "sub" || name == "下标" { return Some(Sub) }
+    if name == "mark" || name == "底纹" { return Some(Mark) }
+    if name == "link" || name == "链接" { return Some(Link) }
+    if name == "ref" || name == "引用" { return Some(Ref) }
     if name == "label" || name == "标签" { return Some(Label) }
-    if name == "footnote" { return Some(Footnote) }
-    if name == "toc" { return Some(Toc) }
-    if name == "comment" { return Some(Comment) }
-    if name == "page" { return Some(Page) }
-    if name == "margin" { return Some(Margin) }
-    if name == "theme" { return Some(Theme) }
-    if name == "numbering" { return Some(Numbering) }
-    if name == "line-spacing" { return Some(LineSpacing) }
-    if name == "para-spacing" { return Some(ParaSpacing) }
-    if name == "first-line" { return Some(FirstLine) }
-    if name == "bold" || name == "b" { return Some(Bold) }
-    if name == "math" || name == "m" { return Some(Math) }
-    if name == "code" || name == "c" { return Some(Code) }
+    if name == "footnote" || name == "脚注" { return Some(Footnote) }
+    if name == "toc" || name == "目录" { return Some(Toc) }
+    if name == "comment" || name == "批注" { return Some(Comment) }
+    if name == "page" || name == "页面" { return Some(Page) }
+    if name == "margin" || name == "边距" { return Some(Margin) }
+    if name == "theme" || name == "主题" { return Some(Theme) }
+    if name == "numbering" || name == "编号" { return Some(Numbering) }
+    if name == "line-spacing" || name == "行距" { return Some(LineSpacing) }
+    if name == "para-spacing" || name == "段距" || name == "段落间距" { return Some(ParaSpacing) }
+    if name == "first-line" || name == "首行缩进" || name == "首行" { return Some(FirstLine) }
+    if name == "bold" || name == "b" || name == "粗体" { return Some(Bold) }
+    if name == "math" || name == "m" || name == "数学" { return Some(Math) }
+    if name == "code" || name == "c" || name == "代码" { return Some(Code) }
     return None
 }
 
@@ -66,25 +74,26 @@ fn is_doc_level(cmd: ExplicitCommand) -> bool {
 
 fn is_scoped(cmd: ExplicitCommand) -> bool {
     return cmd == Bold || cmd == Font || cmd == Size || cmd == Color || cmd == U
+        || cmd == Sup || cmd == Sub || cmd == Mark
 }
 
 fn close_matches(cmd: ExplicitCommand, close_name: String) -> bool {
     if cmd == Code {
-        return close_name == "c" || close_name == "code"
+        return close_name == "c" || close_name == "code" || close_name == "代码"
     }
     if cmd == Math {
-        return close_name == "m" || close_name == "math"
+        return close_name == "m" || close_name == "math" || close_name == "数学"
     }
     return lookup(close_name) == Some(cmd)
 }
 
 fn positional_arity(cmd: ExplicitCommand) -> Option<i32> {
-    if cmd == Font || cmd == Size || cmd == Color || cmd == Theme
+    if cmd == Font || cmd == Size || cmd == Color || cmd == Mark || cmd == Theme
         || cmd == Page || cmd == Margin || cmd == LineSpacing || cmd == FirstLine
         || cmd == ParaSpacing {
         return Some(1)
     }
-    if cmd == Bold || cmd == U || cmd == Math || cmd == Toc {
+    if cmd == Bold || cmd == U || cmd == Sup || cmd == Sub || cmd == Mark || cmd == Math || cmd == Toc {
         return Some(0)
     }
     if cmd == Code {

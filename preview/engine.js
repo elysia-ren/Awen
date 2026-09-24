@@ -40,13 +40,13 @@ function applyDocsets(nodes){
   for(var i=0;i<nodes.length;i++){
     if(nodes[i].kind!=='docset')continue;
     var t=nodes[i].text||'';
-    if(m=t.match(/^@\[page\s+(\w+)\s*\]/)){ var sz=PAPER_SIZES[m[1]]; if(sz){cfg.PAGE_W=sz[0];cfg.PAGE_H=sz[1]} }
-    else if(m=t.match(/^@\[margin\s+([\d.]+)\s*(?:mm)?\s*\]/)){ cfg.MARGIN=parseFloat(m[1]) }
-    else if(m=t.match(/^@\[line-spacing\s+([\d.]+)\s*\]/)){ cfg.LINE_H=parseFloat(m[1]) }
-    else if(m=t.match(/^@\[size\s+([\d.]+)\s*(?:pt)?\s*\]/)){ cfg.FONT_PT=parseFloat(m[1]) }
-    else if(m=t.match(/^@\[font\s+"([^"]+)"\s*\]/)){ cfg.FONT=m[1] }
-    else if(m=t.match(/^@\[first-line\s+([\d.]+em)\s*\]/)){ cfg.FIRSTLINE=m[1] }
-    else if(m=t.match(/^@\[para-spacing\s+([\d.]+em|\d+)\s*\]/)){ cfg.PARA_SPACING=m[1].match(/em$/)?m[1]:m[1]+'em' }
+    if(m=t.match(/^@\[(?:page|页面)\s+(\w+)\s*\]/)){ var sz=PAPER_SIZES[m[1]]; if(sz){cfg.PAGE_W=sz[0];cfg.PAGE_H=sz[1]} }
+    else if(m=t.match(/^@\[(?:margin|边距)\s+([\d.]+)\s*(?:mm)?\s*\]/)){ cfg.MARGIN=parseFloat(m[1]) }
+    else if(m=t.match(/^@\[(?:line-spacing|行距)\s+([\d.]+)\s*\]/)){ cfg.LINE_H=parseFloat(m[1]) }
+    else if(m=t.match(/^@\[(?:size|大小|字号)\s+([\d.]+)\s*(?:pt)?\s*\]/)){ cfg.FONT_PT=parseFloat(m[1]) }
+    else if(m=t.match(/^@\[(?:font|字体)\s+"([^"]+)"\s*\]/)){ cfg.FONT=m[1] }
+    else if(m=t.match(/^@\[(?:first-line|首行缩进|首行)\s+([\d.]+em)\s*\]/)){ cfg.FIRSTLINE=m[1] }
+    else if(m=t.match(/^@\[(?:para-spacing|段距|段落间距)\s+([\d.]+em|\d+)\s*\]/)){ cfg.PARA_SPACING=m[1].match(/em$/)?m[1]:m[1]+'em' }
   }
   recalc();
 }
@@ -71,10 +71,10 @@ function displayText(t){
     .replace(/\*\*((?:.|])*?)\*\*/g,'$1')
     .replace(/~~((?:.|])*?)~~/g,'$1')
     .replace(/`((?:.|])*?)`/g,'$1')
-    .replace(/@\[link\s+([^\]]+?)\s+url:\s*([^\]]+)\]/g,'$1')
-    .replace(/@\[footnote\s+(\d+)\s+([^\]]+)\]/g,'$2')
-    .replace(/@\[label\s+([^\]]+)\]/g,'$1')
-    .replace(/@\[ref\s+([^\]]+)\]/g,'$1')
+    .replace(/@\[(?:link|链接)\s+([^\]]+?)\s+url:\s*([^\]]+)\]/g,'$1')
+    .replace(/@\[(?:footnote|脚注)\s+(\d+)\s+([^\]]+)\]/g,'$2')
+    .replace(/@\[(?:label|标签)\s+([^\]]+)\]/g,'$1')
+    .replace(/@\[(?:ref|引用)\s+([^\]]+)\]/g,'$1')
     .replace(/_((?:.|])*?)_/g,'$1');
   return unescTokens(s);
 }
@@ -90,8 +90,8 @@ function fmtH(t){
   s=s.replace(/@\[(?:mark|底纹)\s+([^\]]+)\]((?:.|])*?)@\[\/(?:mark|底纹)\]/g,'<span data-cmd="@[mark $1]" data-close="@[/mark]" style="background:$1">$2</span>');
   s=s.replace(/@\[(?:color|颜色)\s+([^\]]+)\]((?:.|])*?)@\[\/(?:color|颜色)\]/g,'<span data-cmd="@[color $1]" data-close="@[/color]" style="color:$1">$2</span>');
   s=s.replace(/@\[(?:size|大小|字号)\s+([^\]]+)\]((?:.|])*?)@\[\/(?:size|大小|字号)\]/g,'<span data-cmd="@[size $1]" data-close="@[/size]" style="font-size:$1pt">$2</span>');
-  s=s.replace(/@\[link\s+([^\]]+?)\s+url:\s*"?([^"\]]+)"?\]/g,'<a href="$2" target="_blank" style="color:#2a4a66;text-decoration:underline">$1</a>');
-  s=s.replace(/@\[footnote\s+(\d+)\s+([^\]]+)\]/g,function(m,n,txt){
+  s=s.replace(/@\[(?:link|链接)\s+([^\]]+?)\s+url:\s*"?([^"\]]+)"?\]/g,'<a href="$2" target="_blank" style="color:#2a4a66;text-decoration:underline">$1</a>');
+  s=s.replace(/@\[(?:footnote|脚注)\s+(\d+)\s+([^\]]+)\]/g,function(m,n,txt){
     // data-self:自闭合命令,序列化只回写原命令(显示体是编号,内容在 data-cmd 里)
     return '<sup class="fn" data-cmd="'+escAttrQ(m)+'" data-self="1" title="'+txt.replace(/"/g,'')+'" style="color:#2a4a66;cursor:help">'+n+'</sup>';
   });
@@ -115,11 +115,11 @@ function fmtH(t){
   s=s.replace(/~~((?:.|])*?)~~/g,'<del>$1</del>');
   s=s.replace(/`((?:.|])*?)`/g,'<code>$1</code>');
   s=s.replace(/_((?:.|])*?)_/g,'<em>$1</em>');
-  s=s.replace(/@\[label\s+([^\]]+)\]/g,function(m){
-    return '<span class="inline-label" data-cmd="'+escAttrQ(m)+'" data-self="1" title="标签">📌'+escAttrQ(m).replace(/@\[label\s+/,'').replace(/\]$/,'')+'</span>';
+  s=s.replace(/@\[(?:label|标签)\s+([^\]]+)\]/g,function(m){
+    return '<span class="inline-label" data-cmd="'+escAttrQ(m)+'" data-self="1" title="标签">📌'+escAttrQ(m).replace(/@\[(?:label|标签)\s+/,'').replace(/\]$/,'')+'</span>';
   });
-  s=s.replace(/@\[ref\s+([^\]]+)\]/g,function(m){
-    return '<span class="inline-ref" data-cmd="'+escAttrQ(m)+'" data-self="1" title="引用">↦'+escAttrQ(m).replace(/@\[ref\s+/,'').replace(/\]$/,'')+'</span>';
+  s=s.replace(/@\[(?:ref|引用)\s+([^\]]+)\]/g,function(m){
+    return '<span class="inline-ref" data-cmd="'+escAttrQ(m)+'" data-self="1" title="引用">↦'+escAttrQ(m).replace(/@\[(?:ref|引用)\s+/,'').replace(/\]$/,'')+'</span>';
   });
   s=unescTokens(s);
   return s;
@@ -183,7 +183,7 @@ function recToNode(nb){
     var one=(nb.text||'').split('\n')[0].trim();
     if(/^@\[toc/.test(one)){
       b.kind='toc'; b.text=one;
-    }else if(/^@\[(page|margin|font|size|line-spacing|first-line|theme|numbering|para-spacing)\s/.test(one)){
+    }else if(/^@\[(?:page|页面|margin|边距|font|字体|size|大小|字号|line-spacing|行距|first-line|首行缩进|首行|theme|主题|numbering|编号|toc|目录|para-spacing|段距|段落间距)\s/.test(one)){
       b.kind='docset'; b.text=one;
     }else if(/^@\[label\s/.test(one)){
       b.kind='label'; b.text=one.replace(/^@\[label\s+/,'').replace(/\]$/,'');
