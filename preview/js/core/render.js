@@ -37,6 +37,7 @@ function render(src,caret,done){
   var seq=++renderSeq;
   var cfgReq=Engine.layoutCfg();
   if(window.__orient==='landscape'){var t=cfgReq.pw;cfgReq.pw=cfgReq.ph;cfgReq.ph=t}
+      if(window.gWidths&&window.gWidths.font===(CFG.FONT||''))cfgReq.widths=window.gWidths.data;   // undefined 键不会写入 JSON(null 会送 daemon 崩)
   parseSafe(src,cfgReq).then(function(res){
     if(seq!==renderSeq)return;
     // 打字会话进行中或有未落盘编辑、或光标停在空段上:不重建纸面(重建会把
@@ -66,6 +67,7 @@ function render(src,caret,done){
     Engine.applyDocsets(gNodes,res.docsets);   // 文档级设置生效(引擎结构化下发,十语种别名归一)
     CFG=Engine.getConfig();
     if(window.__orient==='landscape')Engine.setPage({PAGE_W:CFG.PAGE_H,PAGE_H:CFG.PAGE_W});
+    ensureFontWidths();   // 字体变了异步刷新宽表(下一轮渲染生效)
     // A′ 引擎全权排版:页号来自 aine page_flow(与解析同一响应),整块落页不劈段
     gPages=Engine.layoutFromEngine(gNodes,res);
     renderNodes();
@@ -339,6 +341,28 @@ function replaceSegBlock(idx,node){
   return true;
 }
 
+// ── 字体度量宽表(A′:真实字形宽度,Rust 从字体文件提取)──
+// 文档字符集(去重,上限 4000)→ 引擎二分查宽;按字体缓存
+function ensureFontWidths(){
+  var font=CFG.FONT||'';
+  if(window.gWidths&&window.gWidths.font===font)return;
+  if(window.gWidthsLoading===font)return;
+  window.gWidthsLoading=font;
+  var chars=[],seen={};
+  for(var i=0;i<gSrc.length&&chars.length<4000;i++){
+    var c=gSrc.charAt(i);
+    var cc=gSrc.charCodeAt(i);
+    if(cc===10||cc===13||seen[c])continue;
+    seen[c]=1; chars.push(c);
+  }
+  if(!chars.length)return;
+  Bridge.fontWidths(font||'Microsoft YaHei',chars).then(function(data){
+    if(!data)return;
+    window.gWidths={font:font,data:data};
+    scheduleNativeRefresh(saveCaret());   // 宽表到位后刷新一轮分页
+  }).catch(function(){});
+}
+
 // ── 增量排版自愈:增量解析不重分页,分页漂移由后台 relayout 修复 ──
 // 编辑停顿 1.5s 后:引擎复用上一轮未变前缀只重排尾段(快),
 // 页分配有变化才重建纸面(0.5s 级,带滚动/光标保持);用户继续输入则放弃
@@ -352,6 +376,7 @@ function applyRelayout(){
   if(window.composing||Date.now()-(window.lastPaperInputAt||0)<800)return;
   var cfgReq=Engine.layoutCfg();
   if(window.__orient==='landscape'){var t=cfgReq.pw;cfgReq.pw=cfgReq.ph;cfgReq.ph=t}
+      if(window.gWidths&&window.gWidths.font===(CFG.FONT||''))cfgReq.widths=window.gWidths.data;   // undefined 键不会写入 JSON(null 会送 daemon 崩)
   Bridge.relayout(gSrc,cfgReq).then(function(res){
     if(window.composing||Date.now()-(window.lastPaperInputAt||0)<800)return;
     var newPages=Engine.layoutFromEngine(gNodes,res);

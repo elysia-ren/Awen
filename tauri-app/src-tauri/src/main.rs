@@ -361,6 +361,277 @@ fn b64_decode(s: &str) -> Option<Vec<u8>> {
     Some(out)
 }
 
+// ── 字体度量(零依赖 TTF/TTC 直读;真实字形宽度进排版)──────────
+
+fn u16_at(b: &[u8], o: usize) -> u32 {
+    ((b.get(o).copied().unwrap_or(0) as u32) << 8) | b.get(o + 1).copied().unwrap_or(0) as u32
+}
+fn u32_at(b: &[u8], o: usize) -> u32 {
+    ((b.get(o).copied().unwrap_or(0) as u32) << 24)
+        | ((b.get(o + 1).copied().unwrap_or(0) as u32) << 16)
+        | ((b.get(o + 2).copied().unwrap_or(0) as u32) << 8)
+        | b.get(o + 3).copied().unwrap_or(0) as u32
+}
+
+/// 家族名 → 字体文件路径(HKLM/HKCU Fonts 注册表:值名去后缀=家族,值数据=文件名)
+fn find_font_file(family: &str) -> Option<std::path::PathBuf> {
+    let wanted = family.trim().to_lowercase();
+    let mut hives = vec![r"HKLM\SOFTWARE\Microsoft\Windows NT\CurrentVersion\Fonts"];
+    // HKCU 在下方追加(复用同一解析)
+    let mut dirs = vec![std::path::PathBuf::from("C:\\Windows\\Fonts")];
+    if let Some(local) = dirs::local_data() {
+        dirs.push(local.join("Microsoft\\Windows\\Fonts"));
+        hives.push(r"HKCU\SOFTWARE\Microsoft\Windows NT\CurrentVersion\Fonts");
+    }
+    for (i, hive) in hives.iter().enumerate() {
+        let out = std::process::Command::new("reg").args(["query", hive]).output().ok()?;
+        let text = String::from_utf8_lossy(&out.stdout).to_string();
+        for line in text.lines() {
+            let line = line.trim();
+            if line.starts_with("HKEY_") {
+                continue;
+            }
+            // 行:家族名 (TrueType)    REG_SZ    文件名 —— 家族名可含空格,
+            // 用第一个 " (" 切家族,最后一段空白后是文件名
+            let pos = match line.find(" (") {
+                Some(p) => p,
+                None => continue,
+            };
+            let fam = line[..pos].trim().to_lowercase();
+            let file_name = match line.split_whitespace().last() {
+                Some(f) => f.trim(),
+                None => continue,
+            };
+            // 联合家族名(“X & X UI”)任一别名命中即可;含常见中文别名归一
+            let aliases: &[(&str, &str)] = &[
+                ("微软雅黑", "microsoft yahei"),
+                ("宋体", "simsun"),
+                ("新宋体", "nsimsun"),
+                ("黑体", "simhei"),
+                ("楷体", "kaiti"),
+                ("仿宋", "fangsong"),
+                ("等线", "dengxian"),
+                ("隶书", "lisu"),
+                ("幼圆", "youyuan"),
+            ];
+            let wanted_norm = aliases
+                .iter()
+                .find(|(cn, _)| wanted == *cn)
+                .map(|(_, en)| *en)
+                .unwrap_or(wanted.as_str());
+            let hit = fam
+                .split('&')
+                .any(|part| part.trim() == wanted_norm || part.trim() == wanted);
+            if hit {
+                for d in &dirs {
+                    let p = d.join(file_name);
+                    if p.exists() {
+                        return Some(p);
+                    }
+                }
+            }
+        }
+        let _ = i;
+    }
+    None
+}
+
+mod dirs {
+    pub fn local_data() -> Option<std::path::PathBuf> {
+        std::env::var("LOCALAPPDATA").ok().map(std::path::PathBuf::from)
+    }
+}
+
+/// 解析 sfnt(裸 TTF/OTF 或 TTC 首字体),返回 (数据, 表目录: tag→(offset,len))
+fn load_sfnt(path: &std::path::Path) -> Option<(Vec<u8>, Vec<(String, usize, usize)>)> {
+    let data = std::fs::read(path).ok()?;
+    let base = if data.len() >= 12 && &data[0..4] == b"ttcf" {
+        u32_at(&data, 12) as usize // TTC:取第一个字体
+    } else {
+        0
+    };
+    if data.len() < base + 12 {
+        return None;
+    }
+    let num_tables = u16_at(&data, base + 4) as usize;
+    let mut tables: Vec<(String, usize, usize)> = Vec::new();
+    for i in 0..num_tables {
+        let rec = base + 12 + i * 16;
+        if rec + 16 > data.len() {
+            break;
+        }
+        let tag = String::from_utf8_lossy(&data[rec..rec + 4]).to_string();
+        tables.push((tag, u32_at(&data, rec + 8) as usize, u32_at(&data, rec + 12) as usize));
+    }
+    Some((data, tables))
+}
+
+fn table<'a>(data: &'a [u8], tables: &[(String, usize, usize)], tag: &str) -> Option<&'a [u8]> {
+    tables.iter().find(|(t, _, _)| t == tag).and_then(|(_, o, l)| data.get(*o..*o + *l))
+}
+
+/// 字形 gid → 宽度(cmap format 4/12 + hmtx;缺字 None)
+struct GlyphMap {
+    upem: u32,
+    segments: Vec<(u32, u32, i32, u32, u32)>, // (end,start,delta,rangeOff,rangeBase) format4
+    groups: Vec<(u32, u32, u32)>,             // format12 (start,end,startGID)
+    hmtx_off: usize,
+    num_hmetrics: u32,
+}
+
+impl GlyphMap {
+    fn build(data: &[u8], tables: &[(String, usize, usize)]) -> Option<GlyphMap> {
+        let head = table(data, tables, "head")?;
+        let upem = u16_at(head, 18) as u32;
+        if upem == 0 {
+            return None;
+        }
+        let hhea = table(data, tables, "hhea")?;
+        let num_hmetrics = u16_at(hhea, 34) as u32;
+        let hmtx = table(data, tables, "hmtx")?;
+        let hmtx_off = hmtx.as_ptr() as usize - data.as_ptr() as usize;
+        let cmap = table(data, tables, "cmap")?;
+        let cmap_base = cmap.as_ptr() as usize - data.as_ptr() as usize;
+        let n = u16_at(cmap, 2) as usize;
+        let mut sub4: Option<(usize, usize)> = None; // (offset,len)
+        let mut sub12: Option<(usize, usize)> = None;
+        for e in 0..n {
+            let rec = 4 + e * 8;
+            let plat = u16_at(cmap, rec);
+            let enc = u16_at(cmap, rec + 2);
+            let off = u32_at(cmap, rec + 4) as usize;
+            let fmt = u16_at(cmap, off);
+            if plat == 3 && enc == 10 && fmt == 12 {
+                sub12 = Some((cmap_base + off, cmap.len() - cmap_base - off));
+            } else if plat == 3 && enc == 1 && fmt == 4 {
+                sub4 = Some((cmap_base + off, cmap.len() - cmap_base - off));
+            } else if plat == 0 && fmt == 4 && sub4.is_none() {
+                sub4 = Some((cmap_base + off, cmap.len() - cmap_base - off));
+            }
+        }
+        if sub4.is_none() && sub12.is_none() {
+            return None;
+        }
+        let mut segments: Vec<(u32, u32, i32, u32, u32)> = Vec::new();
+        if let Some((off, len)) = sub4 {
+            let seg_x2 = u16_at(data, off + 6) as usize;
+            let seg = seg_x2 / 2;
+            let end_off = off + 14;
+            let start_off = end_off + seg_x2 + 2;
+            let delta_off = start_off + seg_x2;
+            let range_off = delta_off + seg_x2;
+            for si in 0..seg {
+                let end = u16_at(data, end_off + si * 2) as u32;
+                let start = u16_at(data, start_off + si * 2) as u32;
+                let delta = u16_at(data, delta_off + si * 2) as u32 as i32; // 保存原始位型
+                let ro = u16_at(data, range_off + si * 2) as u32;
+                segments.push((end, start, delta, ro, range_off as u32 + si as u32 * 2));
+            }
+        }
+        let mut groups: Vec<(u32, u32, u32)> = Vec::new();
+        if let Some((off, len)) = sub12 {
+            let ng = u32_at(data, off + 12) as usize;
+            for gi in 0..ng.min(200000) {
+                let g = off + 16 + gi * 12;
+                if g + 12 > off + len {
+                    break;
+                }
+                groups.push((u32_at(data, g), u32_at(data, g + 4), u32_at(data, g + 8)));
+            }
+        }
+        Some(GlyphMap { upem, segments, groups, hmtx_off, num_hmetrics })
+    }
+    fn gid(&self, data: &[u8], cp: u32) -> Option<u32> {
+        for (end, start, delta, ro, rbase) in &self.segments {
+            if cp <= *end {
+                if cp < *start {
+                    return None;
+                }
+                if *ro == 0 {
+                    return Some(((cp as i32 + delta) as u32) & 0xFFFF);
+                }
+                // idRangeOffset 非零:字形 id 存于 idRangeOffset 项指向的字节数组
+                let goff = (*rbase as usize) + (*ro as usize) + (cp.wrapping_sub(*start)) as usize * 2;
+                let g = u16_at(data, goff) as u32;
+                return if g != 0 { Some((((g as i64) + (*delta as i64)) & 0xFFFF) as u32) } else { None };
+            }
+        }
+        for (gs, ge, gg) in &self.groups {
+            if cp >= *gs && cp <= *ge {
+                return Some(gg.wrapping_add(cp - *gs));
+            }
+        }
+        None
+    }
+    fn advance(&self, data: &[u8], gid: u32) -> Option<f64> {
+        let idx = gid.min(self.num_hmetrics.saturating_sub(1)) as usize;
+        let adv = u16_at(data, self.hmtx_off + idx * 4);
+        Some(adv as f64 / self.upem as f64)
+    }
+}
+
+/// 字体度量:family + 文档字符集(去重)→ 合并区间字宽表(UTF-16 首尾字符 + em 宽)
+/// 输出 {"s":..,"e":..,"w":[..]}(s/e 为区间首尾字符,w 为 em 宽数组);缺字字符不出现在表中
+#[tauri::command]
+async fn core_font_widths(family: String, chars: Vec<String>) -> Result<String, String> {
+    tauri::async_runtime::spawn_blocking(move || {
+        let path = match find_font_file(&family) {
+            Some(p) => p,
+            None => return Err(format!("找不到字体文件:{}", family)),
+        };
+        let (data, tables) = match load_sfnt(&path) {
+            Some(x) => x,
+            None => return Err("字体解析失败".into()),
+        };
+        let gm = match GlyphMap::build(&data, &tables) {
+            Some(g) => g,
+            None => {
+                let tags: Vec<&str> = tables.iter().map(|(t, _, _)| t.as_str()).collect();
+                return Err(format!("字体解析失败: upem/cmap/hmtx 缺失, tables={:?}", tags));
+            }
+        };
+        // 收集 (码点, em 宽)
+        let mut entries: Vec<(u32, f64)> = Vec::new();
+        for cs in &chars {
+            if let Some(c) = cs.chars().next() {
+                let cp = c as u32;
+                if let Some(gid) = gm.gid(&data, cp) {
+                    if let Some(w) = gm.advance(&data, gid) {
+                        entries.push((cp, (w * 1000.0).round() / 1000.0));
+                    }
+                }
+            }
+        }
+        entries.sort_by_key(|(cp, _)| *cp);
+        // 合并:码点连续且宽度相同的区间
+        let mut s = String::new();
+        let mut e = String::new();
+        let mut w: Vec<f64> = Vec::new();
+        let mut i = 0;
+        while i < entries.len() {
+            let (start_cp, width) = entries[i];
+            let mut end_cp = start_cp;
+            let mut j = i + 1;
+            while j < entries.len() && entries[j].1 == width && entries[j].0 == end_cp + 1 {
+                end_cp = entries[j].0;
+                j += 1;
+            }
+            if let Some(c1) = char::from_u32(start_cp) {
+                if let Some(c2) = char::from_u32(end_cp) {
+                    s.push(c1);
+                    e.push(c2);
+                    w.push(width);
+                }
+            }
+            i = j;
+        }
+        let ws = serde_json::to_string(&w).unwrap_or_else(|_| "[]".into());
+        Ok(format!("{{\"s\":{},\"e\":{},\"w\":{}}}", serde_json::to_string(&s).unwrap_or_default(), serde_json::to_string(&e).unwrap_or_default(), ws))
+    })
+    .await
+    .map_err(|e| format!("任务调度失败:{e}"))?
+}
+
 /// 增量排版:daemon 复用上一轮未变前缀的流,只重排首变之后的尾段,
 /// 返回 {pages,recs}(与 op=parse 的分页部分同构)。cfg 必传。
 #[tauri::command]
@@ -891,6 +1162,7 @@ fn main() {
             core_list_fonts,
             core_batch_resource,
             core_relayout,
+            core_font_widths,
             core_open_dialog,
             core_save_dialog,
             core_read_file,

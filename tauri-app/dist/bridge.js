@@ -34,6 +34,14 @@ window.Bridge={
     return tauri.core.invoke('core_batch_resource',{dataUris:uris,mediaDir:mediaDir});
   },
 
+  // 字体度量:family 的字符集区间宽表 {s,e,w}(em)
+  fontWidths:function(family,chars){
+    if(!tauri)return Promise.resolve(null);
+    return tauri.core.invoke('core_font_widths',{family:family,chars:chars}).then(function(jsonText){
+      return (typeof jsonText==='string')?JSON.parse(jsonText):jsonText;
+    });
+  },
+
   // 增量排版:引擎复用上一轮未变前缀,返回 {pages,recs}
   relayout:function(src,cfg){
     if(!tauri)return Promise.reject(new Error('非桌面环境'));

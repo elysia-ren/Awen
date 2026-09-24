@@ -162,3 +162,45 @@ fn layout_line_break(text: String, max_em: f64) -> Vec<String> {
     }
     return out
 }
+
+
+// ── 字体度量宽表(A′:Rust 从真实字体文件提取,经 cfg 下发)──────
+// 二分查字宽;未命中返回 -1(调用方回退估宽)。s/e 为区间首尾字符
+// (码点有序),w 为 em 宽。均缺省时走均匀估宽模型。
+fn wf_width(ctx: FlowCtx, c: String) -> f64 {
+    let n = ctx.wf_start_s.len()
+    if n == 0 { return -1.0 }
+    var lo: i32 = 0
+    var hi: i32 = n - 1
+    while lo <= hi {
+        let mid = (lo + hi) / 2
+        let sc = ctx.wf_start_s[mid..(mid + 1)]
+        let ec = ctx.wf_end_s[mid..(mid + 1)]
+        if c < sc {
+            hi = mid - 1
+        } else if c > ec {
+            lo = mid + 1
+        } else {
+            return ctx.wf_ws.get(mid)
+        }
+    }
+    return -1.0
+}
+
+// 带字体度量表的测宽:查表命中用真实字宽,未命中回退 0.5 估宽
+// (挤压/混排距在表模式下不计——快速估行口径,误差容忍)
+fn layout_measure_w(text: String, ctx: FlowCtx) -> f64 {
+    if ctx.wf_start_s.len() == 0 { return layout_measure_em(text) }
+    var total = 0.0
+    var i = 0
+    while i < text.len() {
+        let w = wf_width(ctx, text[i..(i + 1)])
+        if w >= 0 {
+            total = total + w
+        } else {
+            total = total + 0.5
+        }
+        i += 1
+    }
+    return total
+}
