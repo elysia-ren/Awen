@@ -264,7 +264,7 @@
 <button class="btn-icon badge" onclick="todo('拒绝修订','需引擎 change tracking')" title="拒绝修订(需引擎扩展)"><i class="fa-solid fa-xmark" style="color:#dc2626"></i><span class="lbl">拒绝</span></button>
 <button class="btn-icon badge" onclick="todo('比较文档','规划中(diff 两份源码)')" title="比较文档(规划中)"><i class="fa-solid fa-code-compare"></i><span class="lbl">比较</span></button>
 <button class="btn-icon badge" onclick="todo('合并文档','规划中(diff 两份源码)')" title="合并文档(规划中)"><i class="fa-solid fa-code-merge"></i><span class="lbl">合并</span></button>
-<button class="btn-icon badge" onclick="todo('限制编辑','规划中')" title="限制编辑(规划中)"><i class="fa-solid fa-lock"></i><span class="lbl">限制编辑</span></button>
+<button class="btn-icon" id="btn-restrict" onclick="toggleRestrictEdit()" title="限制编辑(文档只读保护)"><i class="fa-solid fa-lock"></i><span class="lbl">限制编辑</span></button>
 </div><div class="rg-label">更改与保护</div></div>
 </div>
 
@@ -283,7 +283,7 @@
 <button class="btn-icon" onclick="toggleSidebar()" title="显示/隐藏文档结构窗格"><i class="fa-solid fa-bars"></i><span class="lbl">导航窗格</span></button>
 <button class="btn-icon" id="btn-marks" onclick="toggleMarks()" title="显示段落标记(¶)"><i class="fa-solid fa-pencil"></i><span class="lbl">编辑标记</span></button>
 <button class="btn-icon badge" onclick="todo('标尺','规划中')" title="标尺(规划中)"><i class="fa-solid fa-ruler"></i><span class="lbl">标尺</span></button>
-<button class="btn-icon badge" onclick="todo('网格线','规划中')" title="网格线(规划中)"><i class="fa-solid fa-table-cells"></i><span class="lbl">网格线</span></button>
+<button class="btn-icon" id="btn-grid" onclick="toggleGridlines()" title="网格线(纸面基线网格显示开关)"><i class="fa-solid fa-table-cells"></i><span class="lbl">网格线</span></button>
 <button class="btn-icon badge" onclick="todo('护眼模式','规划中')" title="护眼模式(规划中)"><i class="fa-solid fa-eye"></i><span class="lbl">护眼</span></button>
 </div><div class="rg-label">显示</div></div>
 <div class="rgroup"><div class="rg-body nw">
@@ -398,7 +398,7 @@
 <div class="sd-rows"><div class="sd-row"><span>界面语言</span>
 <div class="select-box" style="width:110px"><select onchange="todo('界面语言','规划中')"><option>简体中文 (默认)</option><option>繁體中文</option><option>English</option></select><i class="fa-solid fa-caret-down"></i></div></div></div></div>
 <div class="sd-sec"><h4><i class="fa-solid fa-rotate-right"></i>更新与版本</h4>
-<div class="sd-rows"><div class="sd-row" onclick="todo('自动检查更新','规划中')" title="规划中"><span>自动检查更新</span><label class="tgl"><input type="checkbox" checked><span class="tr"></span></label></div>
+<div class="sd-rows"><div class="sd-row" onclick="checkUpdates()" title="检查 GitHub 上的新版本"><span>检查更新</span><i class="fa-solid fa-rotate"></i></div>
 <div class="sd-note">当前版本:Awen Editor v1.0.0</div></div></div>
 <div class="sd-sec"><h4><i class="fa-solid fa-circle-info"></i>关于</h4>
 <div class="sd-note" style="margin-top:0">Awen 文档编辑器<br>aine 引擎 + 桌面壳<br>© 2026 Awen Studio</div></div>

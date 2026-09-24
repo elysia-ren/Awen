@@ -372,3 +372,9 @@ body.show-marks .paper p::after{content:' b6';color:#d5d8dc;margin-left:2px}
 .rm-row.rm-bad{color:#b91c1c;background:#fef2f2}
 .rm-empty{color:#9ca3af;font-size:13px;padding:6px 0}
 .ref-flash{outline:3px solid #f59e0b;border-radius:4px;transition:outline-color 1s}
+
+/* ═══ 网格线(纸面基线网格)═══ */
+body.show-grid .sheet{background-image:repeating-linear-gradient(0deg,transparent,transparent calc(1em - 1px),#e8eef6 1em)}
+
+/* ═══ 限制编辑 ═══ */
+#btn-restrict.on{background:#fdecec;border-color:#e3b7b7}
