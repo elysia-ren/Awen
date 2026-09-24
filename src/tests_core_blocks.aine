@@ -237,3 +237,56 @@ fn segment_parse_para_merge_in_segment() -> Result<i32, String> {
     assert(seg_sig.contains("para|0|行甲延续\n行乙延续|"), seg_sig)
     Ok(0)
 }
+
+@test
+fn layout_recs_aligns_with_blocks() -> Result<i32, String> {
+    // A′:recs 与 blocks_to_json 记录同序同展开;注释/docset 沿用邻页
+    let src = "# 标题\n\n正文甲。\n\n- 甲\n- 乙\n\n@[comment 提示]\n\n@[page A4]\n\n正文乙。\n"
+    let state = build_document(parse(lex(src)), src)
+    let flow = page_flow_with(state, page_flow_ctx())
+    let json = layout_recs_json(state, src, flow)
+    let blocks = blocks_to_json(state, src)
+    // 解析两侧 JSON 对比数量
+    let jv = json_decode(json)
+    let bv = json_decode(blocks)
+    let recs = match jv.get("recs") { Some(x) { x } None { [] } }
+    let blocks_arr = match bv.get("blocks") { Some(x) { x } None { [] } }
+    assert(recs.len() == blocks_arr.len(), f"recs {recs.len()} 应等于 blocks {blocks_arr.len()}")
+    assert(flow.pages >= 1, "至少一页")
+    // 全部页号在 [0, pages) 内
+    var i: i32 = 0
+    while i < recs.len() {
+        let pg = recs.get(i)
+        assert(pg >= 0 && pg < flow.pages, f"recs[{i}]={pg} 越界")
+        i += 1
+    }
+    Ok(0)
+}
+
+@test
+fn layout_ctx_cfg_formula() -> Result<i32, String> {
+    // A4/20mm/12pt/2.0:line_h=12*0.352778*2.0;max_em=(210-40)/(12*0.352778)
+    let ctx = page_flow_ctx_cfg(210.0, 297.0, 20.0, 12.0, 2.0)
+    let expect_lh = 12.0 * 0.352778 * 2.0
+    let expect_em = (210.0 - 40.0) / (12.0 * 0.352778)
+    assert(ctx.line_h > expect_lh - 0.0001 && ctx.line_h < expect_lh + 0.0001, "line_h 公式不符")
+    assert(ctx.max_em > expect_em - 0.01 && ctx.max_em < expect_em + 0.01, "max_em 公式不符")
+    assert(ctx.content_h > 256.9 && ctx.content_h < 257.1, "content_h 公式不符")
+    Ok(0)
+}
+
+@test
+fn layout_cfg_narrow_page_more_pages() -> Result<i32, String> {
+    // 同一文档,窄页(max_em 小)分页数不得少于宽页
+    var src = "首段。\n\n"
+    var i: i32 = 0
+    while i < 60 {
+        src = src + "这是第" + f"{i}" + "句内容,持续填充以形成多页文档。\n\n"
+        i += 1
+    }
+    let state = build_document(parse(lex(src)), src)
+    let wide = page_flow_with(state, page_flow_ctx_cfg(210.0, 297.0, 20.0, 11.0, 1.65))
+    let narrow = page_flow_with(state, page_flow_ctx_cfg(105.0, 297.0, 20.0, 11.0, 1.65))
+    assert(narrow.pages > wide.pages, f"窄页 {narrow.pages} 应多于宽页 {wide.pages}")
+    Ok(0)
+}

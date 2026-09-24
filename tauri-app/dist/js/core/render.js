@@ -10,8 +10,8 @@ var renderPending=false;
 // 超长 data URI 送引擎解析前替换为占位引用(aine 解释器对几百 KB 的
 // 行内字符串会长时间无响应),块结构不受影响;解析返回后按映射把原文
 // 恢复进块文本供渲染。gSrc 不做替换。
-function parseSafe(src){
-  if(src.length<20000||src.indexOf('"data:image/')<0)return Bridge.parse(src);
+function parseSafe(src,cfg){
+  if(src.length<20000||src.indexOf('"data:image/')<0)return Bridge.parse(src,cfg);
   var out=src,map={},n=0;
   var re=/"data:image\/[^;"]{400,}"/g;
   out=out.replace(re,function(m){
@@ -19,8 +19,8 @@ function parseSafe(src){
     map[k]=m.slice(1,-1);
     return '"'+k+'"';
   });
-  if(n===0)return Bridge.parse(src);
-  return Bridge.parse(out).then(function(res){
+  if(n===0)return Bridge.parse(src,cfg);
+  return Bridge.parse(out,cfg).then(function(res){
     (res.blocks||[]).forEach(function(b){
       if(!b.text)return;
       Object.keys(map).forEach(function(k){
@@ -35,7 +35,9 @@ function render(src,caret,done){
   renderPending=true;
   incrSeq++;                      // 使在途的增量刷新过期
   var seq=++renderSeq;
-  parseSafe(src).then(function(res){
+  var cfgReq=Engine.layoutCfg();
+  if(window.__orient==='landscape'){var t=cfgReq.pw;cfgReq.pw=cfgReq.ph;cfgReq.ph=t}
+  parseSafe(src,cfgReq).then(function(res){
     if(seq!==renderSeq)return;
     // 打字会话进行中或有未落盘编辑、或光标停在空段上:不重建纸面(重建会把
     // 光标恢复到旧快照位置,窗口期内的输入错位——即"输入回退")。改为"纸面为准":
@@ -60,7 +62,9 @@ function render(src,caret,done){
     gSegCache=buildSegCache(gSrc,gNodes);
     Engine.applyDocsets(gNodes);   // 文档级 @[page/margin/...] 设置生效(源码即权威)
     CFG=Engine.getConfig();
-    gPages=Engine.layoutPages(gNodes);
+    if(window.__orient==='landscape')Engine.setPage({PAGE_W:CFG.PAGE_H,PAGE_H:CFG.PAGE_W});
+    // A′ 引擎全权排版:页号来自 aine page_flow(与解析同一响应),整块落页不劈段
+    gPages=Engine.layoutFromEngine(gNodes,res);
     renderNodes();
     nativeDiags={src:gSrc,ds:res.diags||[]};
     updateDiagBar();
@@ -72,10 +76,10 @@ function render(src,caret,done){
     console.error(e);
   });
 }
-// 只重排+重渲(不重新解析/不重应用文档设置)——横向等会话级覆盖用
+// 会话级覆盖(横向等)用:cfg 变了须交引擎按新页面模型重新分页,
+// 故走全量 render(重新解析+引擎排版),不再有本地第二套分页
 function renderKeep(){
-  gPages=Engine.layoutPages(gNodes);
-  renderNodes();
+  render(gSrc);
 }
 // 用现有 gNodes/gPages 重建纸面 DOM(本地解析与原生权威解析共用出口)
 function renderNodes(){
@@ -369,9 +373,7 @@ function incrRefresh(freshCaret){
         if(!replaceSegBlock(ops[o2].start+k2,ops[o2].nodes[k2]))return false;
       }
     }
-    var oldPages=gPages?gPages.length:0;
-    gPages=Engine.layoutPages(gNodes);
-    if(gPages.length!==oldPages)return false;
+    // 分页权威在引擎:文本级编辑不重分页(页数变化待下次全量刷新自然修正)
     renderOutline();
     renderStatus();
     if(caret)restoreCaret(caret);

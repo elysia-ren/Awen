@@ -48,6 +48,74 @@ fn segment_blocks_json(text: String) -> String {
     return blocks_to_json(st, text)
 }
 
+// 排版页分配 JSON(A' 引擎全权排版权威):
+// recs 与 blocks_to_json 的记录**同序同展开**(列表组按项展开,其余一节点
+// 一条),前端 gNodes[i] 直接按 recs[i] 落页。注释/docset 等无行节点沿用
+// 前一节点的页。flow 需与文档设置匹配的 ctx 计算(page_flow_with)。
+fn layout_recs_json(state: DocState, src: String, flow: PageFlowResult) -> String {
+    let spans = compute_spans(state, src)
+    let lines = src.split("\n")
+    // node_id → 首个版面行的页(每节点查一遍首现)
+    var first_pages: Vec<i32> = []
+    var first_ids: Vec<i32> = []
+    for pl in flow.placed {
+        var seen = false
+        var fi = 0
+        while fi < first_ids.len() {
+            if first_ids.get(fi) == pl.node_id { seen = true }
+            fi += 1
+        }
+        if !seen {
+            first_ids = first_ids.push(pl.node_id)
+            first_pages = first_pages.push(pl.page)
+        }
+    }
+    var recs: Vec<i32> = []
+    var last = 0
+    for node in state.nodes {
+        var has_span = false
+        var s = 0
+        var e = 0
+        for sp in spans {
+            if sp.node_id == node.id {
+                has_span = true
+                s = sp.start_line
+                e = sp.end_line + 1
+            }
+        }
+        if !has_span { continue }
+        // 该节点首页:无版面行(注释/docset)沿用 last
+        var pg = last
+        var fi2 = 0
+        while fi2 < first_ids.len() {
+            if first_ids.get(fi2) == node.id { pg = first_pages.get(fi2) }
+            fi2 += 1
+        }
+        last = pg
+        if node.kind == "list" {
+            // 与 blocks_to_json 完全相同的逐项展开条件
+            var i = s
+            while i < e {
+                let t = lines[i].trim()
+                if starts_with_at(t, 0, "- ") || is_ordered_item(t) {
+                    recs = recs.push(pg)
+                }
+                i += 1
+            }
+        } else {
+            recs = recs.push(pg)
+        }
+    }
+    var out = "{\"pages\":" + f"{flow.pages}" + ",\"recs\":["
+    var first = true
+    for r in recs {
+        if !first { out = out + "," }
+        first = false
+        out = out + f"{r}"
+    }
+    return out + "]}"
+}
+
 fn blocks_to_json(state: DocState, src: String) -> String {
     let spans = compute_spans(state, src)
     let lines = src.split("\n")

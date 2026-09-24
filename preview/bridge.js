@@ -15,10 +15,11 @@ window.Bridge={
   native:!!tauri,
   mode:tauri?'tauri':'browser',
 
-  // 源码 → {native:true, blocks[], diags[], outline[], pages}(Aine 权威解析)
-  parse:function(src){
+  // 源码 → {native:true, blocks[], diags[], outline[], pages, recs[]}(Aine 权威解析+排版)
+  // cfg:{pw,ph,mg,fp,ls} 页面模型(mm/pt/行距倍数);在场时引擎同次解析附带权威分页
+  parse:function(src,cfg){
     if(!tauri)return Promise.reject(new Error('非桌面环境'));
-    return tauri.core.invoke('core_parse',{src:src}).then(function(jsonText){
+    return tauri.core.invoke('core_parse',{src:src,cfg:cfg?JSON.stringify(cfg):null}).then(function(jsonText){
       var res=(typeof jsonText==='string')?JSON.parse(jsonText):jsonText;
       res.native=true;
       if(!res.diags)res.diags=[];

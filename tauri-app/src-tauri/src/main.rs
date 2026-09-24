@@ -116,10 +116,15 @@ fn aine_dir(app: &AppHandle) -> Result<PathBuf, String> {
 
 
 #[tauri::command]
-async fn core_parse(app: AppHandle, src: String) -> Result<String, String> {
-    // 常驻 Core(daemon)请求:op=parse
-    let req = serde_json::json!({ "id": 1, "op": "parse", "src": src }).to_string();
-    let line = daemon_call_retry(&app, &req)?;
+async fn core_parse(app: AppHandle, src: String, cfg: Option<String>) -> Result<String, String> {
+    // 常驻 Core(daemon)请求:op=parse;cfg 在场时引擎同次解析附带权威分页(A′)
+    let mut req = serde_json::json!({ "id": 1, "op": "parse", "src": src });
+    if let Some(c) = cfg {
+        let cfgv: serde_json::Value = serde_json::from_str(&c)
+            .map_err(|e| format!("cfg 不是合法 JSON:{e}"))?;
+        req["cfg"] = cfgv;
+    }
+    let line = daemon_call_retry(&app, &req.to_string())?;
     let v: serde_json::Value =
         serde_json::from_str(&line).map_err(|e| format!("daemon 响应解析失败:{e}"))?;
     v.get("result")

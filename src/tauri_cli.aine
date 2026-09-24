@@ -79,12 +79,29 @@ fn daemon_loop() {
             let src = match m.get("src") { Some(x) { x } None { "" } }
             var json = ""
             if src == "" {
-                json = "{\"blocks\":[],\"diags\":[],\"outline\":[]}"
+                json = "{\"blocks\":[],\"diags\":[],\"outline\":[],\"pages\":0,\"recs\":[]}"
             } else {
                 let o2 = lex(src)
                 let pr = parse(o2)
                 let st = build_document(pr, src)
                 json = blocks_to_json(st, src)
+                // A′ 引擎全权排版:cfg 在场时同一次解析顺带权威分页(零额外往返)
+                let cfgv = m.get("cfg")
+                match cfgv {
+                    Some(c) {
+                        let pw = (match c.get("pw") { Some(x) { x } None { 210 } }) + 0.0
+                        let ph = (match c.get("ph") { Some(x) { x } None { 297 } }) + 0.0
+                        let mg = (match c.get("mg") { Some(x) { x } None { 20 } }) + 0.0
+                        let fp = (match c.get("fp") { Some(x) { x } None { 11 } }) + 0.0
+                        let ls = (match c.get("ls") { Some(x) { x } None { 1.65 } }) + 0.0
+                        let ctx = page_flow_ctx_cfg(pw, ph, mg, fp, ls)
+                        let flow = page_flow_with(st, ctx)
+                        let lay = layout_recs_json(st, src, flow)
+                        // 拼接:剥掉 blocks_to_json 收尾 '}',接上 pages/recs
+                        json = json[0..(json.len() - 1)] + "," + lay[1..lay.len()]
+                    }
+                    None { }
+                }
             }
             result = json
         } else if op == "parse_blocks" {

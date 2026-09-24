@@ -51,57 +51,6 @@ function applyDocsets(nodes){
   recalc();
 }
 
-// ── 断行度量(镜像 layout_width.aine)──
-function isIdeo(c){return /[\u3400-\u4DBF\u4E00-\u9FFF]/.test(c)}
-function isLatn(c){return /[A-Za-z0-9]/.test(c)}
-function isCloseP(c){return /[。，、；？！」』）】》〉〕］｝]/.test(c)}
-function isOpenP(c){return /[「『（《【〈〔［｛]/.test(c)}
-
-function measureEm(text){
-  var w=0, prev='';
-  for(var i=0;i<text.length;i++){
-    var c=text[i], cw;
-    if(isIdeo(c))cw=1;
-    else if(isCloseP(c))cw=(prev&&isCloseP(prev))?0.5:1;
-    else if(isOpenP(c))cw=1;
-    else if(isLatn(c))cw=0.5;
-    else if(c===' ')cw=0.3;
-    else cw=0.5;
-    if(i>0&&((isIdeo(prev)||isCloseP(prev))&&isLatn(c)||(isLatn(prev)&&(isIdeo(c)||isCloseP(c)))))w+=0.125;
-    w+=cw; prev=c;
-  }
-  return w;
-}
-function tokenize(text){
-  var toks=[], cur='';
-  for(var i=0;i<text.length;i++){
-    var c=text[i];
-    if(isLatn(c)){ cur+=c; continue }
-    if(cur){ toks.push(cur); cur='' }
-    toks.push(c);
-  }
-  if(cur)toks.push(cur);
-  return toks;
-}
-// 贪心断行 + 禁则修正(镜像 layout_line_break;D-3 词边界)
-function breakLines(text){
-  var toks=tokenize(text), lines=[], cur='', curW=0;
-  for(var i=0;i<toks.length;i++){
-    var t=toks[i], tw=measureEm(t);
-    var isClose=t.length===1&&isCloseP(t);
-    var isOpen=t.length===1&&isOpenP(t);
-    if(curW+tw<=MAX_EM||cur===''){ cur+=t; curW+=tw }
-    else if(isClose){ cur+=t; lines.push(cur); cur=''; curW=0 }
-    else if(isOpen&&cur.length>1){
-      var last=cur.charAt(cur.length-1);
-      lines.push(cur.slice(0,-1));
-      cur=last+t; curW=measureEm(cur);
-    }else{ lines.push(cur); cur=t; curW=tw }
-  }
-  if(cur)lines.push(cur);
-  return lines.length?lines:[''];
-}
-
 // ── 行内工具 ──
 function escHtml(s){return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;')}
 function escAttr(s){return escHtml(s).replace(/"/g,'&quot;').replace(/'/g,'&#39;')}
@@ -400,60 +349,23 @@ function blockHtml(b){
   }
 }
 
-// ── 排版分页(像素级实测;依赖 DOM)──
-var _pxPerMm=null;
-function pxPerMm(){
-  if(_pxPerMm)return _pxPerMm;
-  var d=document.createElement('div');
-  d.style.cssText='position:absolute;visibility:hidden;height:100mm';
-  document.body.appendChild(d);
-  _pxPerMm=d.getBoundingClientRect().height/100;
-  document.body.removeChild(d);
-  return _pxPerMm;
+// ── 排版分页(A′ 引擎全权:aine op=parse 附带的 pages/recs 落块)──
+// 前端不再有第二套测量/分页策略;页号由引擎 page_flow 决定,整块渲染不劈段。
+function layoutCfg(){
+  return {pw:cfg.PAGE_W, ph:cfg.PAGE_H, mg:cfg.MARGIN, fp:cfg.FONT_PT, ls:cfg.LINE_H};
 }
-function layoutPages(blocks){
-  var mm=pxPerMm();
-  var capacity=(cfg.PAGE_H-2*cfg.MARGIN-8)*mm;
-  var m=document.createElement('div');
-  m.style.cssText='position:absolute;visibility:hidden;left:-9999px;top:0;width:'+(cfg.PAGE_W-2*cfg.MARGIN)+'mm;font-family:var(--serif);font-size:'+cfg.FONT_PT+'pt;line-height:'+cfg.LINE_H+';color:#303238';
-  document.body.appendChild(m);
-  var items=[];
-  for(var i=0;i<blocks.length;i++){
-    var b=blocks[i]; b.bid=i;
-    var el;
-    if(b.kind==='para'){
-      el=document.createElement('p');
-      el.innerHTML=fmtH(b.text);
-    }else{
-      var wrap=document.createElement('div');
-      wrap.innerHTML=blockHtml(b);
-      el=wrap.firstElementChild;
-    }
-    m.appendChild(el);
-    var h=el.getBoundingClientRect().height;
-    var pl=(b.kind==='para'||b.kind==='ul'||b.kind==='ol'||b.kind==='quote')?breakLines(displayText(b.text)):null;
-    items.push({b:b,h:h,lines:pl,lineH:h/Math.max(pl?pl.length:1,1)});
-    m.removeChild(el);
+function layoutFromEngine(nodes,res){
+  var n=(res&&res.pages)||0;
+  var pages=[];
+  for(var i=0;i<n;i++)pages.push([]);
+  var recs=(res&&res.recs)||[];
+  for(var k=0;k<nodes.length;k++){
+    nodes[k].bid=k;   // bid=节点下标(光标恢复/TOC/增量替换按它寻址,旧 layoutPages 同契约)
+    var pg=recs[k];
+    if(typeof pg!=='number'||pg<0)pg=0;
+    if(pg>=n)pg=n>0?n-1:0;
+    pages[pg].push({b:nodes[k],whole:true,h:0});
   }
-  document.body.removeChild(m);
-  var pages=[],cur=[],used=0;
-  var gapPxEach=0.55*cfg.FONT_PT*(96/72);
-  for(var k=0;k<items.length;k++){
-    var it=items[k];
-    if(it.h>capacity&&it.b.kind==='para'){
-      // 超页高段落整段独占一页,不再劈段:劈段会让 DOM 只持有段的部分内容,
-      // 序列化只回写可见部分=真数据丢失(页外内容静默消失)。
-      // 纸面纵向溢出由 sheet minHeight 承接,该段完整可见、可编辑、可序列化。
-      if(cur.length){pages.push(cur);cur=[];used=0}
-      cur.push({b:it.b,whole:true,h:it.h});
-      pages.push(cur);cur=[];used=0;
-      continue;
-    }
-    if(used>0&&used+it.h>capacity){pages.push(cur);cur=[];used=0}
-    cur.push({b:it.b,whole:true,h:it.h});
-    used+=it.h+gapPxEach;
-  }
-  if(cur.length)pages.push(cur);
   return pages;
 }
 
@@ -669,8 +581,8 @@ window.AwenEngine={
   // 行内 / 块渲染
   escHtml:escHtml, escAttr:escAttr, displayText:displayText, fmtH:fmtH, scopeCss:scopeCss,
   tableHtml:tableHtml, objHtml:objHtml, blockHtml:blockHtml,
-  // 分页(依赖 DOM 测量)
-  breakLines:breakLines, measureEm:measureEm, layoutPages:layoutPages,
+  // 分页(A′ 引擎权威;前端只落块)
+  layoutCfg:layoutCfg, layoutFromEngine:layoutFromEngine,
   // 序列化
   inlineSource:inlineSource, blockPrefix:blockPrefix,
   serializeBlockEl:serializeBlockEl, serializeAll:serializeAll,
