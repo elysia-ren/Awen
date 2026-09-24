@@ -502,20 +502,34 @@ fn unpack_awen(path: String, media_base: String, source_out: String) -> String {
     // 源码(syntax_bytes 界定头部之后的明文区)→ 写出
     let syntax = bytes_to_string(v[0..syntax_bytes])
     write_file(source_out, syntax)
-    // 资源落盘
+    // 资源落盘;SHA-256 截断哈希(16 hex)逐块校验,损坏资源拒绝解包。
+    // 旧版 8 hex 命名哈希的容器无校验能力,跳过(兼容)
     var i: i32 = 0
     var count: i32 = 0
+    var verified: i32 = 0
     while i < chunks.len() {
         let c = chunks.get(i)
         let name = match c.get("name") { Some(x) { x } None { "" } }
         let off = match c.get("offset") { Some(x) { x } None { 0 } }
         let len = match c.get("length") { Some(x) { x } None { 0 } }
+        let hash = match c.get("hash") { Some(x) { x } None { "" } }
         if len > 0 {
-            write_bytes(media_base + "/" + name, v[off..(off + len)])
+            let data = v[off..(off + len)]
+            if hash.len() == 18 {
+                let expect = hash[2..hash.len()]
+                let actual = sha256_64hex(data)
+                if actual != expect {
+                    return "{\"ok\":false,\"error\":\"hash mismatch:" + json_escape_q(name)
+                        + "\",\"chunks\":" + f"{count}" + ",\"verified\":" + f"{verified}" + "}"
+                }
+                verified += 1
+            }
+            write_bytes(media_base + "/" + name, data)
             count += 1
         }
         i += 1
     }
-    return "{\"ok\":true,\"chunks\":" + f"{count}" + ",\"document_id\":\"" + json_escape_q(doc_id)
+    return "{\"ok\":true,\"chunks\":" + f"{count}" + ",\"verified\":" + f"{verified}"
+        + ",\"document_id\":\"" + json_escape_q(doc_id)
         + "\",\"media_dir\":\"" + json_escape_q(media_base) + "\",\"source_out\":\"" + json_escape_q(source_out) + "\"}"
 }
