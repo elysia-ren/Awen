@@ -33,20 +33,36 @@ recalc();
 
 // 文档级设置生效:遍历 docset 节点,按源码顺序覆盖配置(源码即权威)。
 // 每次先重置默认——源码里没有对应行时,设置回落默认值。
-function applyDocsets(nodes){
-  var m;
+function applyDocsets(nodes,docsets){
   cfg.PAGE_W=210; cfg.PAGE_H=297; cfg.MARGIN=20; cfg.LINE_H=1.9;
   cfg.FONT_PT=11; cfg.FONT=''; cfg.FIRSTLINE=''; cfg.PARA_SPACING='0em';
-  for(var i=0;i<nodes.length;i++){
-    if(nodes[i].kind!=='docset')continue;
-    var t=nodes[i].text||'';
-    if(m=t.match(/^@\[(?:page|页面)\s+(\w+)\s*\]/)){ var sz=PAPER_SIZES[m[1]]; if(sz){cfg.PAGE_W=sz[0];cfg.PAGE_H=sz[1]} }
-    else if(m=t.match(/^@\[(?:margin|边距)\s+([\d.]+)\s*(?:mm)?\s*\]/)){ cfg.MARGIN=parseFloat(m[1]) }
-    else if(m=t.match(/^@\[(?:line-spacing|行距)\s+([\d.]+)\s*\]/)){ cfg.LINE_H=parseFloat(m[1]) }
-    else if(m=t.match(/^@\[(?:size|大小|字号)\s+([\d.]+)\s*(?:pt)?\s*\]/)){ cfg.FONT_PT=parseFloat(m[1]) }
-    else if(m=t.match(/^@\[(?:font|字体)\s+"([^"]+)"\s*\]/)){ cfg.FONT=m[1] }
-    else if(m=t.match(/^@\[(?:first-line|首行缩进|首行)\s+([\d.]+em)\s*\]/)){ cfg.FIRSTLINE=m[1] }
-    else if(m=t.match(/^@\[(?:para-spacing|段距|段落间距)\s+([\d.]+em|\d+)\s*\]/)){ cfg.PARA_SPACING=m[1].match(/em$/)?m[1]:m[1]+'em' }
+  // A′:设置由引擎结构化下发(docsets=[[英文名,参数]…],任意语言别名已在
+  // 引擎归一),前端不再按命令词猜——十语种写法天然生效
+  var ds=docsets||[];
+  for(var d=0;d<ds.length;d++){
+    var key=ds[d][0], arg=String(ds[d][1]==null?'':ds[d][1]).trim();
+    if(key==='page'){ var sz=PAPER_SIZES[arg]; if(sz){cfg.PAGE_W=sz[0];cfg.PAGE_H=sz[1]} }
+    else if(key==='margin'){ var mv=parseFloat(arg); if(!isNaN(mv))cfg.MARGIN=mv }
+    else if(key==='line-spacing'){ var lv=parseFloat(arg); if(!isNaN(lv))cfg.LINE_H=lv }
+    else if(key==='size'){ var fv=parseFloat(arg); if(!isNaN(fv))cfg.FONT_PT=fv }
+    else if(key==='font'){ cfg.FONT=arg.replace(/^"(.*)"$/,'$1') }
+    else if(key==='first-line'){ cfg.FIRSTLINE=arg.match(/em$/)?arg:arg+'em' }
+    else if(key==='para-spacing'){ cfg.PARA_SPACING=arg.match(/em$/)?arg:arg+'em' }
+  }
+  // 兜底:无 docsets(旧响应)时退回原文正则(中英)
+  if(!ds.length){
+    var m;
+    for(var i=0;i<nodes.length;i++){
+      if(nodes[i].kind!=='docset')continue;
+      var t=nodes[i].text||'';
+      if(m=t.match(/^@\[(?:page|页面)\s+(\w+)\s*\]/)){ var sz=PAPER_SIZES[m[1]]; if(sz){cfg.PAGE_W=sz[0];cfg.PAGE_H=sz[1]} }
+      else if(m=t.match(/^@\[(?:margin|边距)\s+([\d.]+)\s*(?:mm)?\s*\]/)){ cfg.MARGIN=parseFloat(m[1]) }
+      else if(m=t.match(/^@\[(?:line-spacing|行距)\s+([\d.]+)\s*\]/)){ cfg.LINE_H=parseFloat(m[1]) }
+      else if(m=t.match(/^@\[(?:size|大小|字号)\s+([\d.]+)\s*(?:pt)?\s*\]/)){ cfg.FONT_PT=parseFloat(m[1]) }
+      else if(m=t.match(/^@\[(?:font|字体)\s+"([^"]+)"\s*\]/)){ cfg.FONT=m[1] }
+      else if(m=t.match(/^@\[(?:first-line|首行缩进|首行)\s+([\d.]+em)\s*\]/)){ cfg.FIRSTLINE=m[1] }
+      else if(m=t.match(/^@\[(?:para-spacing|段距|段落间距)\s+([\d.]+em|\d+)\s*\]/)){ cfg.PARA_SPACING=m[1].match(/em$/)?m[1]:m[1]+'em' }
+    }
   }
   recalc();
 }

@@ -22,6 +22,8 @@ fn layout_is_fullwidth(c: String) -> bool {
 // 文字保持逐字断行以免整段无断点溢出)
 fn layout_is_word(c: String) -> bool {
     if cjk_is_latin(c) { return true }
+    if c >= "À" && c <= "ÿ" { return true }
+    if c >= "Ā" && c <= "ɏ" { return true }
     if c >= "Ά" && c <= "ώ" { return true }
     if c >= "Ѐ" && c <= "ӿ" { return true }
     if c >= "־" && c <= "׿" { return true }

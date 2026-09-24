@@ -135,6 +135,12 @@ fn mime_ext(mime: String) -> String {
     if mime == "image/jpeg" { return "jpg" }
     if mime == "image/gif" { return "gif" }
     if mime == "image/webp" { return "webp" }
+    if mime == "image/bmp" { return "bmp" }
+    if mime == "image/svg+xml" { return "svg" }
+    if mime == "image/avif" { return "avif" }
+    if mime == "image/x-icon" { return "ico" }
+    if mime == "image/gif" { return "gif" }
+    if mime == "image/webp" { return "webp" }
     if mime == "image/svg+xml" { return "svg" }
     return "bin"
 }
@@ -152,6 +158,12 @@ fn mime_of_name(name: String) -> String {
     }
     if ext == "png" { return "image/png" }
     if ext == "jpg" || ext == "jpeg" { return "image/jpeg" }
+    if ext == "gif" { return "image/gif" }
+    if ext == "webp" { return "image/webp" }
+    if ext == "bmp" { return "image/bmp" }
+    if ext == "svg" { return "image/svg+xml" }
+    if ext == "avif" { return "image/avif" }
+    if ext == "ico" { return "image/x-icon" }
     if ext == "gif" { return "image/gif" }
     if ext == "webp" { return "image/webp" }
     if ext == "svg" { return "image/svg+xml" }

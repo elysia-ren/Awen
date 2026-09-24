@@ -180,8 +180,12 @@ fn blocks_to_json(state: DocState, src: String) -> String {
                 }
                 recs = recs.push(block_rec(bkind, 0, s, e, join_span_lines(lines, s, e), lang))
             } else {
-                // obj 及未知:单行原文
-                recs = recs.push(block_rec("obj", 0, s, e, join_span_lines(lines, s, e), ""))
+                // doc-level 设置(任意语言别名)→ docset;其余 obj 单行原文
+                if is_doc_level(node.obj_cu.cmd) {
+                    recs = recs.push(block_rec("docset", 0, s, e, join_span_lines(lines, s, e), ""))
+                } else {
+                    recs = recs.push(block_rec("obj", 0, s, e, join_span_lines(lines, s, e), ""))
+                }
             }
         }
     }
@@ -217,6 +221,30 @@ fn blocks_to_json(state: DocState, src: String) -> String {
         fo = false
         out = out + "{\"level\":" + f"{node.level}"
         out = out + ",\"text\":\"" + json_escape(inline_marked_text(node.inline)) + "\"}"
+    }
+    out = out + "]"
+
+    // docsets 结构化下发(十语种别名在引擎归一为英文规范键,前端不再猜命令词)
+    out = out + ",\"docsets\":["
+    var fd2 = true
+    for node in state.nodes {
+        if node.kind != "obj" { continue }
+        if !is_doc_level(node.obj_cu.cmd) { continue }
+        var has_sp = false
+        for sp in spans {
+            if sp.node_id == node.id { has_sp = true }
+        }
+        if !has_sp { continue }
+        var args_j = ""
+        var ai = 0
+        while ai < node.obj_cu.args.len() {
+            if ai > 0 { args_j = args_j + " " }
+            args_j = args_j + arg_plain(node.obj_cu.args.get(ai))
+            ai += 1
+        }
+        if !fd2 { out = out + "," }
+        fd2 = false
+        out = out + "[\""+ cmd_name(node.obj_cu.cmd) +"\",\""+ json_escape(args_j) +"\"]"
     }
     out = out + "]}"
     return out

@@ -28,6 +28,12 @@ window.Bridge={
     });
   },
 
+  // 系统字体枚举(注册表 Fonts 项,机器上有啥给啥)
+  listFonts:function(){
+    if(!tauri)return Promise.resolve([]);
+    return tauri.core.invoke('core_list_fonts').then(function(r){ return r||[] },function(){ return [] });
+  },
+
   // 块级增量解析:只送脏段 [{bid,text}],返回 {nodes:[{bid,res:{blocks[]}}]}
   parseBlocks:function(blocks){
     if(!tauri)return Promise.reject(new Error('非桌面环境'));

@@ -1,6 +1,8 @@
 // awen-proto/src/registry.aine —— 显式命令白名单注册表(核心规范 §11)
-// 中英方言等价:每个命令的中文名与英文名在此唯一登记(§6.14),
+// 中英方言等价(§6.14):每个命令的中文名与英文名在此唯一登记,
 // 块级行与行内命令共用 lookup——注册即全链路生效(解析/闭合/白名单)。
+// 十语种别名(en/zh/es/de/ru/ja/fr/pt/ko/ar):主流书写语言的本地命令名,
+// 仅收单词形式(命令名 token 不含空格);同词异语映射同一命令无冲突。
 enum ExplicitCommand {
     Image
     Figure
@@ -32,33 +34,129 @@ enum ExplicitCommand {
 }
 
 fn lookup(name: String) -> Option<ExplicitCommand> {
-    if name == "image" || name == "图片" { return Some(Image) }
-    if name == "figure" || name == "插图" { return Some(Figure) }
-    if name == "table" || name == "表格" { return Some(Table) }
-    if name == "cell" || name == "单元格" { return Some(Cell) }
-    if name == "font" || name == "字体" { return Some(Font) }
-    if name == "size" || name == "大小" || name == "字号" { return Some(Size) }
-    if name == "color" || name == "颜色" { return Some(Color) }
-    if name == "u" || name == "underline" || name == "下划线" || name == "下划" { return Some(U) }
-    if name == "sup" || name == "上标" { return Some(Sup) }
-    if name == "sub" || name == "下标" { return Some(Sub) }
-    if name == "mark" || name == "底纹" { return Some(Mark) }
-    if name == "link" || name == "链接" { return Some(Link) }
-    if name == "ref" || name == "引用" { return Some(Ref) }
-    if name == "label" || name == "标签" { return Some(Label) }
-    if name == "footnote" || name == "脚注" { return Some(Footnote) }
-    if name == "toc" || name == "目录" { return Some(Toc) }
-    if name == "comment" || name == "批注" { return Some(Comment) }
-    if name == "page" || name == "页面" { return Some(Page) }
-    if name == "margin" || name == "边距" { return Some(Margin) }
-    if name == "theme" || name == "主题" { return Some(Theme) }
-    if name == "numbering" || name == "编号" { return Some(Numbering) }
-    if name == "line-spacing" || name == "行距" { return Some(LineSpacing) }
-    if name == "para-spacing" || name == "段距" || name == "段落间距" { return Some(ParaSpacing) }
-    if name == "first-line" || name == "首行缩进" || name == "首行" { return Some(FirstLine) }
-    if name == "bold" || name == "b" || name == "粗体" { return Some(Bold) }
-    if name == "math" || name == "m" || name == "数学" { return Some(Math) }
-    if name == "code" || name == "c" || name == "代码" { return Some(Code) }
+    // image 图片 imagen Bild изображение 画像 imagem 이미지 صورة
+    if name == "image" || name == "图片" || name == "imagen" || name == "Bild"
+        || name == "изображение" || name == "画像" || name == "imagem"
+        || name == "이미지" || name == "صورة" { return Some(Image) }
+    // figure 插图 figura Abbildung иллюстрация 図 그림 شكل
+    if name == "figure" || name == "插图" || name == "figura" || name == "Abbildung"
+        || name == "иллюстрация" || name == "図" || name == "그림"
+        || name == "شكل" { return Some(Figure) }
+    // table 表格 tabla Tabelle таблицا 表 tableau tabela 표 جدول
+    if name == "table" || name == "表格" || name == "tabla" || name == "Tabelle"
+        || name == "таблица" || name == "表" || name == "tableau"
+        || name == "tabela" || name == "표" || name == "جدول" { return Some(Table) }
+    // cell 单元格 celda Zelle ячейка セル cellule célula 셀 خلية
+    if name == "cell" || name == "单元格" || name == "celda" || name == "Zelle"
+        || name == "ячейка" || name == "セル" || name == "cellule"
+        || name == "célula" || name == "셀" || name == "خلية" { return Some(Cell) }
+    // font 字体 fuente Schrift шрифт フォント police fonte 글꼴 خط
+    if name == "font" || name == "字体" || name == "fuente" || name == "Schrift"
+        || name == "шрифт" || name == "フォント" || name == "police"
+        || name == "fonte" || name == "글꼴" || name == "خط" { return Some(Font) }
+    // size 字号 tamaño Größe размер サイズ taille tamanho 크기 حجم
+    if name == "size" || name == "大小" || name == "字号" || name == "tamaño"
+        || name == "Größe" || name == "размер" || name == "サイズ"
+        || name == "taille" || name == "tamanho" || name == "크기"
+        || name == "حجم" { return Some(Size) }
+    // color 颜色 color Farbe цвет 色 couleur cor 색 لون
+    if name == "color" || name == "颜色" || name == "Farbe" || name == "цвет"
+        || name == "色" || name == "couleur" || name == "cor" || name == "색"
+        || name == "لون" { return Some(Color) }
+    // u 下划线 subrayado Unterstreichung подчерк 下線 souligné sublinhado 밑줄 تسطير
+    if name == "u" || name == "underline" || name == "下划线" || name == "下划"
+        || name == "subrayado" || name == "Unterstreichung" || name == "подчерк"
+        || name == "下線" || name == "souligner" || name == "sublinhado"
+        || name == "밑줄" || name == "تسطير" { return Some(U) }
+    // sup 上标 superíndice hochgestellt надстрочный 上付き exposant sobrescrito 위첨자 مرتفع
+    if name == "sup" || name == "上标" || name == "superíndice"
+        || name == "hochgestellt" || name == "надстрочный" || name == "上付き"
+        || name == "exposant" || name == "sobrescrito" || name == "위첨자"
+        || name == "مرتفع" { return Some(Sup) }
+    // sub 下标 subíndice tiefgestellt подстрочный 下付き indice subscrito 아래첨자 منخفض
+    if name == "sub" || name == "下标" || name == "subíndice"
+        || name == "tiefgestellt" || name == "подстрочный" || name == "下付き"
+        || name == "indice" || name == "subscrito" || name == "아래첨자"
+        || name == "منخفض" { return Some(Sub) }
+    // mark 底纹 resaltado Markierung выделение ハイライト surlignage realce 형광 تظليل
+    if name == "mark" || name == "底纹" || name == "resaltado"
+        || name == "Markierung" || name == "выделение" || name == "ハイライト"
+        || name == "surlignage" || name == "realce" || name == "형광"
+        || name == "تظليل" { return Some(Mark) }
+    // link 链接 enlace ссылка リンク lien ligação 링크 رابط
+    if name == "link" || name == "链接" || name == "enlace" || name == "ссылка"
+        || name == "リンク" || name == "lien" || name == "ligação"
+        || name == "링크" || name == "رابط" { return Some(Link) }
+    // ref 引用 referencia Verweis 参照 référence referência 참조 مرجع
+    if name == "ref" || name == "引用" || name == "referencia" || name == "Verweis"
+        || name == "отсылка" || name == "参照" || name == "référence"
+        || name == "referência" || name == "참조" || name == "مرجع" { return Some(Ref) }
+    // label 标签 etiqueta Marke метка ラベル étiquette rótulo 레이블 علامة
+    if name == "label" || name == "标签" || name == "etiqueta" || name == "Marke"
+        || name == "метка" || name == "ラベル" || name == "étiquette"
+        || name == "rótulo" || name == "레이블" || name == "علامة"
+        { return Some(Label) }
+    // footnote 脚注 nota Fußnote сноска 脚注 note nota 각주 حاشية
+    if name == "footnote" || name == "脚注" || name == "nota" || name == "Fußnote"
+        || name == "сноска" || name == "note" || name == "각주"
+        || name == "حاشية" { return Some(Footnote) }
+    // toc 目录 índice Verzeichnis содержание 目次 sommaire sumário 목차 فهرس
+    if name == "toc" || name == "目录" || name == "índice"
+        || name == "Verzeichnis" || name == "содержание" || name == "目次"
+        || name == "sommaire" || name == "sumário" || name == "목차"
+        || name == "فهرس" { return Some(Toc) }
+    // comment 批注 comentario Kommentar комментарий コメント commentaire comentário 주석 تعليق
+    if name == "comment" || name == "批注" || name == "comentario"
+        || name == "Kommentar" || name == "комментарий" || name == "コメント"
+        || name == "comentário" || name == "주석" || name == "تعليق"
+        { return Some(Comment) }
+    // page 页面 página Seite страница ページ 페이지 صفحة
+    if name == "page" || name == "页面" || name == "página" || name == "Seite"
+        || name == "страница" || name == "ページ" || name == "페이지"
+        || name == "صفحة" { return Some(Page) }
+    // margin 边距 margen Rand поле 余白 marge margem 여백 هامش
+    if name == "margin" || name == "边距" || name == "margen" || name == "Rand"
+        || name == "поле" || name == "余白" || name == "marge"
+        || name == "margem" || name == "여백" || name == "هامش"
+        { return Some(Margin) }
+    // theme 主题 tema Design тема テーマ thème 테마 سمة
+    if name == "theme" || name == "主题" || name == "tema" || name == "Design"
+        || name == "тема" || name == "テーマ" || name == "thème"
+        || name == "테마" || name == "سمة" { return Some(Theme) }
+    // numbering 编号 numeración Numerierung нумерация 番号 numérotation numeração 번호 ترقيم
+    if name == "numbering" || name == "编号" || name == "numeración"
+        || name == "Numerierung" || name == "нумерация" || name == "番号"
+        || name == "numérotation" || name == "numeração" || name == "번호"
+        || name == "ترقيم" { return Some(Numbering) }
+    // line-spacing 行距 interlineado Zeilenabstand интерлиньяж 行間 interligne entrelinha 줄간격 تباعد
+    if name == "line-spacing" || name == "行距" || name == "interlineado"
+        || name == "Zeilenabstand" || name == "интерлиньяж" || name == "行間"
+        || name == "interligne" || name == "entrelinha" || name == "줄간격"
+        || name == "تباعد" { return Some(LineSpacing) }
+    // para-spacing 段距 espaciado Absatzabstand отбивка 間隔 espacement espaçamento 문단간격 فاصل
+    if name == "para-spacing" || name == "段距" || name == "段落间距"
+        || name == "espaciado" || name == "Absatzabstand" || name == "отбивка"
+        || name == "間隔" || name == "espacement" || name == "espaçamento"
+        || name == "문단간격" || name == "فاصل" { return Some(ParaSpacing) }
+    // first-line 首行缩进 sangría Einzug отступ 字下げ alinéa recuo 들여쓰기 بادئة
+    if name == "first-line" || name == "首行缩进" || name == "首行"
+        || name == "sangría" || name == "Einzug" || name == "отступ"
+        || name == "字下げ" || name == "alinéa" || name == "recuo"
+        || name == "들여쓰기" || name == "بادئة" { return Some(FirstLine) }
+    // bold 粗体 negrita Fett жирный 太字 gras negrito 굵게 غامق
+    if name == "bold" || name == "b" || name == "粗体" || name == "negrita"
+        || name == "Fett" || name == "жирный" || name == "太字"
+        || name == "gras" || name == "negrito" || name == "굵게"
+        || name == "غامق" { return Some(Bold) }
+    // math 数学 matemática Formel формула 数式 formule 수식 معادلة
+    if name == "math" || name == "m" || name == "数学" || name == "matemática"
+        || name == "Formel" || name == "формула" || name == "数式"
+        || name == "formule" || name == "수식" || name == "معادلة"
+        { return Some(Math) }
+    // code 代码 código код コード 코드 رمز
+    if name == "code" || name == "c" || name == "代码" || name == "código"
+        || name == "код" || name == "コード" || name == "코드"
+        || name == "رمز" { return Some(Code) }
     return None
 }
 
@@ -80,9 +178,14 @@ fn is_scoped(cmd: ExplicitCommand) -> bool {
 fn close_matches(cmd: ExplicitCommand, close_name: String) -> bool {
     if cmd == Code {
         return close_name == "c" || close_name == "code" || close_name == "代码"
+            || close_name == "código" || close_name == "код" || close_name == "コード"
+            || close_name == "코드" || close_name == "رمز"
     }
     if cmd == Math {
         return close_name == "m" || close_name == "math" || close_name == "数学"
+            || close_name == "matemática" || close_name == "Formel" || close_name == "формула"
+            || close_name == "数式" || close_name == "formule" || close_name == "수식"
+            || close_name == "معادلة"
     }
     return lookup(close_name) == Some(cmd)
 }
@@ -93,11 +196,42 @@ fn positional_arity(cmd: ExplicitCommand) -> Option<i32> {
         || cmd == ParaSpacing {
         return Some(1)
     }
-    if cmd == Bold || cmd == U || cmd == Sup || cmd == Sub || cmd == Mark || cmd == Math || cmd == Toc {
+    if cmd == Bold || cmd == U || cmd == Sup || cmd == Sub || cmd == Math || cmd == Toc {
         return Some(0)
     }
     if cmd == Code {
         return Some(1)
     }
     return None
+}
+
+// 命令 → 英文规范名(docsets 结构化下发用,前端设置消费此键)
+fn cmd_name(cmd: ExplicitCommand) -> String {
+    if cmd == Image { return "image" }
+    if cmd == Figure { return "figure" }
+    if cmd == Table { return "table" }
+    if cmd == Cell { return "cell" }
+    if cmd == Font { return "font" }
+    if cmd == Size { return "size" }
+    if cmd == Color { return "color" }
+    if cmd == U { return "u" }
+    if cmd == Sup { return "sup" }
+    if cmd == Sub { return "sub" }
+    if cmd == Mark { return "mark" }
+    if cmd == Link { return "link" }
+    if cmd == Ref { return "ref" }
+    if cmd == Label { return "label" }
+    if cmd == Footnote { return "footnote" }
+    if cmd == Toc { return "toc" }
+    if cmd == Comment { return "comment" }
+    if cmd == Page { return "page" }
+    if cmd == Margin { return "margin" }
+    if cmd == Theme { return "theme" }
+    if cmd == Numbering { return "numbering" }
+    if cmd == LineSpacing { return "line-spacing" }
+    if cmd == FirstLine { return "first-line" }
+    if cmd == ParaSpacing { return "para-spacing" }
+    if cmd == Bold { return "bold" }
+    if cmd == Math { return "math" }
+    return "code"
 }

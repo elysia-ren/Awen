@@ -306,3 +306,20 @@ body.show-marks .paper p::after{content:' b6';color:#d5d8dc;margin-left:2px}
   .stylebtn .s2,.stylebtn .s3,.stylebtn .s4{font-size:11px}
   .stylebtn .s1{font-size:11px}
 }
+
+/* ═══ 语法对照表 ═══ */
+.syntax-ref{position:fixed;inset:0;z-index:300;display:none;align-items:center;justify-content:center;background:rgba(15,23,42,.45)}
+.sr-card{background:#fff;border-radius:12px;width:min(880px,92vw);max-height:82vh;display:flex;flex-direction:column;box-shadow:0 20px 60px rgba(0,0,0,.25);overflow:hidden}
+.sr-head{display:flex;align-items:center;justify-content:space-between;padding:14px 18px;border-bottom:1px solid #e5e7eb}
+.sr-title{font-weight:600;font-size:15px;color:#1f2937}
+.sr-close{border:0;background:none;cursor:pointer;font-size:16px;color:#6b7280;padding:4px 8px;border-radius:6px}
+.sr-close:hover{background:#f3f4f6;color:#111}
+.sr-chips{display:flex;flex-wrap:wrap;gap:8px;padding:12px 18px;border-bottom:1px solid #e5e7eb}
+.sr-chip{border:1px solid #d1d5db;background:#fff;border-radius:999px;padding:4px 14px;cursor:pointer;font-size:13px;color:#374151}
+.sr-chip.on{background:var(--accent,#2563eb);border-color:var(--accent,#2563eb);color:#fff}
+.sr-body{overflow:auto;padding:0 18px 18px}
+.sr-table{width:100%;border-collapse:collapse;font-size:13px;margin-top:10px}
+.sr-table th,.sr-table td{border:1px solid #e5e7eb;padding:7px 10px;text-align:left;vertical-align:top}
+.sr-table th{background:#f9fafb;color:#374151;font-weight:600;position:sticky;top:0}
+.sr-table code{font-family:Consolas,monospace;font-size:12px;color:#1d4ed8;word-break:break-all}
+.sr-table td:last-child{color:#374151}
