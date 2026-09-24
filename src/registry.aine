@@ -21,6 +21,8 @@ enum ExplicitCommand {
     Footnote
     Toc
     Comment
+    Header
+    Footer
     Page
     Margin
     Theme
@@ -111,6 +113,8 @@ fn lookup(name: String) -> Option<ExplicitCommand> {
         || name == "comentário" || name == "주석" || name == "تعليق"
         { return Some(Comment) }
     // page 页面 página Seite страница ページ 페이지 صفحة
+    if name == "header" || name == "页眉" { return Some(Header) }
+    if name == "footer" || name == "页脚" { return Some(Footer) }
     if name == "page" || name == "页面" || name == "página" || name == "Seite"
         || name == "страница" || name == "ページ" || name == "페이지"
         || name == "صفحة" { return Some(Page) }
@@ -165,7 +169,7 @@ fn is_raw_block(cmd: ExplicitCommand) -> bool {
 }
 
 fn is_doc_level(cmd: ExplicitCommand) -> bool {
-    return cmd == Page || cmd == Margin || cmd == Font || cmd == Size
+    return cmd == Header || cmd == Footer || cmd == Page || cmd == Margin || cmd == Font || cmd == Size
         || cmd == LineSpacing || cmd == FirstLine || cmd == Theme || cmd == Numbering
         || cmd == Toc || cmd == ParaSpacing
 }
@@ -224,6 +228,8 @@ fn cmd_name(cmd: ExplicitCommand) -> String {
     if cmd == Footnote { return "footnote" }
     if cmd == Toc { return "toc" }
     if cmd == Comment { return "comment" }
+    if cmd == Header { return "header" }
+    if cmd == Footer { return "footer" }
     if cmd == Page { return "page" }
     if cmd == Margin { return "margin" }
     if cmd == Theme { return "theme" }

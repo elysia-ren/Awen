@@ -346,3 +346,8 @@ body.show-marks .paper p::after{content:' b6';color:#d5d8dc;margin-left:2px}
 /* ═══ 表格样式参数(开行内声明)═══ */
 .paper table.tbl-noborder th,.paper table.tbl-noborder td{border:none}
 .paper table.tbl-zebra tbody tr:nth-child(even) td{background:#f2f6fb}
+
+/* ═══ 页眉/页脚条(每页纸,文档级 @[header]/@[footer])═══ */
+.sheet{position:relative}
+.sheet .hdr{position:absolute;left:0;right:0;text-align:center;font-size:9pt;color:#555;overflow:hidden;white-space:nowrap;pointer-events:none}
+.sheet .ftr{position:absolute;left:0;right:0;text-align:center;font-size:9pt;color:#555;overflow:hidden;white-space:nowrap;pointer-events:none}

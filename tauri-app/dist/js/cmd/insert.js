@@ -93,3 +93,34 @@ function insertRawLine(line){
 }
 
 // 工具栏按钮按下不清除文字选区(Word 式行为)
+
+
+// ═══ 页眉/页脚/页码:文档级 @[header]/@[footer] 设置行(置顶)═══
+function upsertDocsetLine(cmdKey, text){
+  var NLg=String.fromCharCode(10);
+  var lines=gSrc.split(NLg);
+  var re=new RegExp('^@\\['+cmdKey+'(?:\\s|\\])');
+  var found=-1;
+  for(var i=0;i<lines.length;i++){ if(re.test(lines[i])){ found=i; break } }
+  var line=text===''?null:('@['+cmdKey+' '+text+']');
+  if(found>=0){ if(line===null){ lines.splice(found,1); } else { lines[found]=line; } }
+  else if(line!==null){ lines.unshift(line); }
+  else return;
+  setSrc(lines.join(NLg));
+}
+function insertHeaderBar(){
+  var m=gSrc.match(/^@\[header ([^\]]*)\]/m);
+  var t=prompt('页眉内容(显示在每页顶部):',m?m[1]:'');
+  if(t===null)return;
+  upsertDocsetLine('header',t);
+}
+function insertFooterBar(){
+  var m=gSrc.match(/^@\[footer ([^\]]*)\]/m);
+  var t=prompt('页脚内容(%p = 页码):',m?m[1]:'第 %p 页');
+  if(t===null)return;
+  upsertDocsetLine('footer',t);
+}
+function togglePageNumField(){
+  if(/@\[footer [^\]]*%p/.test(gSrc)){ upsertDocsetLine('footer',''); return }
+  upsertDocsetLine('footer','第 %p 页');
+}
