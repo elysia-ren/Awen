@@ -184,13 +184,50 @@ function syncMarks(checked){
   var on=document.body.classList.contains('show-marks');
   if(on!==checked)toggleMarks();
 }
-// 主题:浅色 / 护眼(深色待做,入口在 setTheme 外用 todo 提示)
+// 主题:浅色 / 护眼 / 深色(深色只压暗界面铬层,纸面保持白底)
 function setTheme(t){
   var app=document.querySelector('.app');
   app.classList.toggle('eyecare',t==='eyecare');
-  var l=document.getElementById('tc-light'),e=document.getElementById('tc-eye');
-  if(l)l.classList.toggle('on',t!=='eyecare');
+  app.classList.toggle('dark',t==='dark');
+  try{localStorage.setItem('awen-theme',t)}catch(e){}
+  var l=document.getElementById('tc-light'),e=document.getElementById('tc-eye'),d=document.getElementById('tc-dark');
+  if(l)l.classList.toggle('on',t!=='eyecare'&&t!=='dark');
   if(e)e.classList.toggle('on',t==='eyecare');
+  if(d)d.classList.toggle('on',t==='dark');
+}
+
+// ═══ 阅读视图:隐藏编辑铬层,只留纸面(Esc 或再点退出)═══
+function toggleReading(){
+  var app=document.querySelector('.app');
+  var on=app.classList.toggle('reading');
+  var b=document.getElementById('btn-reading');
+  if(b)b.classList.toggle('on',on);
+}
+
+// ═══ 界面缩放:只缩放铬层(标题栏/功能区/侧栏/状态栏),纸面走页宽缩放 ═══
+function applyUiZoom(pct){
+  var z=pct/100;
+  var app=document.querySelector('.app');
+  ['.titlebar','.ribbon','.sidebar','.statusbar','.tabbar'].forEach(function(sel){
+    app.querySelectorAll(sel).forEach(function(el){ el.style.zoom=z });
+  });
+  try{localStorage.setItem('awen-uizoom',String(pct))}catch(e){}
+}
+function setUiZoom(pct){
+  applyUiZoom(pct);
+  try{localStorage.setItem('awen-uizoom-pct',String(pct))}catch(e){}
+}
+
+// ═══ 页宽缩放:缩放显示视图纸面 ═══
+function setPageZoom(pct){
+  var pane=document.getElementById('display-pane');
+  if(pane)pane.style.zoom=pct/100;
+  try{localStorage.setItem('awen-pagezoom',String(pct))}catch(e){}
+}
+function togglePageZoom(){
+  var cur=parseFloat(getComputedStyle(document.getElementById('display-pane')).zoom||1);
+  var next=cur>=1.5?0.8:(cur>=1.2?1.5:(cur>=0.8?1.2:0.8));
+  setPageZoom(Math.round(next*100));
 }
 
 // ═══ 侧栏收起/展开 ═══

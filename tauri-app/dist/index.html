@@ -274,7 +274,7 @@
 <button class="btn-icon" id="vb-display" onclick="setMode('display')" title="页面视图"><i class="fa-solid fa-file"></i><span class="lbl">页面</span></button>
 <button class="btn-icon" id="vb-syntax" onclick="setMode('syntax')" title="语法视图"><i class="fa-solid fa-spell-check"></i><span class="lbl">语法</span></button>
 <button class="btn-icon" id="vb-split" onclick="setMode('split')" title="分屏"><i class="fa-solid fa-grip-lines-vertical"></i><span class="lbl">分屏</span></button>
-<button class="btn-icon badge" onclick="todo('阅读视图','规划中')" title="阅读视图(规划中)"><i class="fa-solid fa-book-open"></i><span class="lbl">阅读</span></button>
+<button class="btn-icon" id="btn-reading" onclick="toggleReading()" title="阅读视图"><i class="fa-solid fa-book-open"></i><span class="lbl">阅读</span></button>
 <button class="btn-icon badge" onclick="todo('大纲视图','规划中')" title="大纲视图(规划中)"><i class="fa-solid fa-list"></i><span class="lbl">大纲</span></button>
 <button class="btn-icon badge" onclick="todo('草稿视图','规划中')" title="草稿视图(规划中)"><i class="fa-solid fa-file-lines"></i><span class="lbl">草稿</span></button>
 </div><div class="rg-label">文档视图</div></div>
@@ -293,7 +293,7 @@
 <input type="number" id="zoom-view-custom" min="30" max="300" step="5" style="display:none;width:58px" class="sbtn2" title="缩放百分比 30-300" onchange="applyZoomCustom(this.value,'sel-zoom-view')">
 <button class="btn-icon badge" onclick="todo('单页显示','规划中')" title="单页(规划中)"><i class="fa-solid fa-file"></i><span class="lbl">单页</span></button>
 <button class="btn-icon badge" onclick="todo('多页显示','规划中')" title="多页(规划中)"><i class="fa-solid fa-files"></i><span class="lbl">多页</span></button>
-<button class="btn-icon badge" onclick="todo('页宽缩放','规划中')" title="按页宽缩放(规划中)"><i class="fa-solid fa-arrows-left-right"></i><span class="lbl">页宽</span></button>
+<button class="btn-icon" onclick="togglePageZoom()" title="页宽缩放(80/100/120/150%)"><i class="fa-solid fa-arrows-left-right"></i><span class="lbl">页宽</span></button>
 </div><div class="rg-label">缩放</div></div>
 <div class="rgroup"><div class="rg-body">
 <button class="btn-icon" onclick="setMode('split')" title="拆分窗口(同分屏)"><i class="fa-solid fa-grip-lines"></i><span class="lbl">拆分</span></button>
@@ -388,11 +388,11 @@
 <div class="sd-sec"><h4><i class="fa-solid fa-palette"></i>外观主题</h4>
 <div class="theme-cards">
 <button class="theme-card on" id="tc-light" onclick="setTheme('light')">浅色</button>
-<button class="theme-card dk" onclick="todo('深色主题','规划中')">深色</button>
+<button class="theme-card dk" id="tc-dark" onclick="setTheme('dark')">深色</button>
 <button class="theme-card ey" id="tc-eye" onclick="setTheme('eyecare')">护眼</button>
 </div>
-<div class="sd-row" style="margin-top:10px" onclick="todo('界面缩放','规划中')" title="规划中"><span>界面缩放</span>
-<div class="select-box" style="width:96px"><select onchange="todo('界面缩放','规划中')"><option>100% (默认)</option><option>125%</option><option>150%</option></select><i class="fa-solid fa-caret-down"></i></div></div>
+<div class="sd-row" style="margin-top:10px" title="界面缩放(只缩放界面,不影响纸面)"><span>界面缩放</span>
+<div class="select-box" style="width:96px"><select onchange="setUiZoom(parseInt(this.value))"><option value="100" selected>100% (默认)</option><option value="125">125%</option><option value="150">150%</option></select><i class="fa-solid fa-caret-down"></i></div></div>
 </div>
 <div class="sd-sec"><h4><i class="fa-solid fa-language"></i>语言设置</h4>
 <div class="sd-rows"><div class="sd-row"><span>界面语言</span>
