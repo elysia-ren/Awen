@@ -52,18 +52,29 @@ fn layout_squeezed_width(prev: String, c: String) -> f64 {
     return layout_em_width(c)
 }
 
-// 文本宽度(em):逐字 + 挤压 + 混排间距
+// 文本宽度(em):逐字 + 挤压 + 混排间距。
+// 分类逻辑与 layout_is_fullwidth/width 内联展开(解释器函数调用是热点,
+// 每字符 5 次调用砍成 0 次;改全角表时两处必须同步)
 fn layout_measure_em(text: String) -> f64 {
     var total = 0.0
     var prev = ""
     var i = 0
     while i < text.len() {
         let c = text[i]
-        total = total + layout_squeezed_width(prev, c)
+        var cw = 0.5
+        if cjk_is_ideograph(c) { cw = 1.0 }
+        else if c >= "、" && c <= "〿" { cw = 1.0 }
+        else if c >= "ぁ" && c <= "ヿ" { cw = 1.0 }
+        else if c >= "가" && c <= "힣" { cw = 1.0 }
+        else if c >= "ᄀ" && c <= "ᇿ" { cw = 1.0 }
+        else if c >= "！" && c <= "｝" { cw = 1.0 }
+        else if c >= "￠" && c <= "￦" { cw = 1.0 }
+        else if prev.len() > 0 && cjk_is_punct(prev) && cjk_is_punct(c) { cw = 0.5 }
+        total = total + cw
         if i + 1 < text.len() {
-            if layout_needs_mixed_spacing(c, text[i + 1]) {
-                total = total + 0.125
-            }
+            let c2 = text[i + 1]
+            if layout_is_fullwidth(c) && cjk_is_latin(c2) { total = total + 0.125 }
+            else if cjk_is_latin(c) && layout_is_fullwidth(c2) { total = total + 0.125 }
         }
         prev = c
         i += 1
