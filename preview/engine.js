@@ -278,7 +278,11 @@ function tableHtml(b){
     widths=wm[1].split(',').map(function(x){return parseFloat(x)}).filter(function(x){return!isNaN(x)&&x>0});
     if(!widths.length)widths=null;
   }
-  var h='<table data-open="'+escAttr(openLine)+'"';
+  // 表格样式参数(开行内声明,序列化经 data-open 保真):border:none 无框;zebra 斑马纹
+  var tcls='';
+  if(/border:\s*none/i.test(openLine))tcls+=' tbl-noborder';
+  if(/(^|\s)zebra(\s|\]|$)/i.test(openLine))tcls+=' tbl-zebra';
+  var h='<table data-open="'+escAttr(openLine)+'"'+(tcls?' class="'+tcls+'"':'');
   if(aligns)h+=' data-aligns="'+escAttr(aligns.join(','))+'"';
   h+='>';
   if(widths){
