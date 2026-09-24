@@ -145,3 +145,28 @@ fn font_width_table_binary_search() -> Result<i32, String> {
     assert(layout_measure_w("ab", ctx2) == 1.0, "空表应回退均匀估宽")
     Ok(0)
 }
+
+@test
+fn table_geometry_row_wrap() -> Result<i32, String> {
+    // 表格几何:长单元格(需换行)的表比短单元格表占用更多版面行
+    var longcell = ""
+    var rep = 0
+    while rep < 10 {
+        longcell = longcell + "这是一段非常长的单元格内容,用于测试表格几何的换行估算。"
+        rep += 1
+    }
+    let short = "@[table s]\n| a |\n| --- |\n| 1 |\n@[/table]\n"
+    let long = "@[table L]\n| " + longcell + " |\n| --- |\n| 1 |\n@[/table]\n"
+    let st_s = build_document(parse(lex(short)), short)
+    let st_l = build_document(parse(lex(long)), long)
+    let ctx = page_flow_ctx_cfg(210.0, 297.0, 20.0, 11.0, 1.9)
+    let f_s = page_flow_with(st_s, ctx)
+    let f_l = page_flow_with(st_l, ctx)
+    var ls = 0
+    var ll = 0
+    for b in f_s.boxes { ls = ls + b.lines }
+    for b in f_l.boxes { ll = ll + b.lines }
+    assert(ll > ls, f"长单元格表行数 {ll} 应大于短表 {ls}")
+    assert(f_l.pages >= 1, "长表文档至少一页")
+    Ok(0)
+}
