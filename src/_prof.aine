@@ -1,0 +1,69 @@
+// 临时剖析驱动:管线分阶段计时(用后即删)。stage=lex|parse|build|spans|json|flow
+module diag;
+module registry;
+module fullwidth;
+module escape;
+module explicit;
+module lightweight;
+module lexer;
+module parser;
+module document;
+module mapping;
+module refs;
+module theme;
+module render;
+module incremental;
+module pipeline;
+module cjk;
+module layout;
+module layout_width;
+module page_flow;
+module json_export;
+module validate;
+module toc;
+module diff;
+module inspect;
+module export_html;
+module heading_tree;
+module numbering;
+module container;
+module fmt;
+module export_md;
+module seed;
+module incremental_update;
+module core_blocks;
+fn main() {
+    var stage = "flow"
+    if cli_args.len() > 0 { stage = cli_args.get(0) }
+    var src = read_file("build/cli_in.awen")
+    var mark = "done:" + stage
+    let o = lex(src)
+    if stage == "lex" {
+        write_file("build/_prof_out.txt", mark)
+        return 0
+    }
+    let pr = parse(o)
+    if stage == "parse" {
+        write_file("build/_prof_out.txt", mark)
+        return 0
+    }
+    let st = build_document(pr, src)
+    if stage == "build" {
+        write_file("build/_prof_out.txt", mark)
+        return 0
+    }
+    let spans = compute_spans(st, src)
+    if stage == "spans" {
+        write_file("build/_prof_out.txt", mark)
+        return 0
+    }
+    let json = blocks_to_json(st, src)
+    if stage == "json" {
+        write_file("build/_prof_out.txt", mark)
+        return 0
+    }
+    let ctx = page_flow_ctx_cfg(210.0, 297.0, 20.0, 11.0, 1.9)
+    let flow = page_flow_with(st, ctx)
+    let recs = layout_recs_json(st, src, flow)
+    write_file("build/_prof_out.txt", mark + " pages=" + f"{flow.pages}")
+}

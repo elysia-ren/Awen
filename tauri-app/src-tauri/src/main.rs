@@ -38,6 +38,8 @@ struct AineSession {
 }
 
 static DAEMON: Mutex<Option<AineSession>> = Mutex::new(None);
+// 全量解析结果缓存(请求串 → 响应):size-1,同源码同配置秒回
+static PARSE_CACHE: Mutex<Option<(String, String)>> = Mutex::new(None);
 
 fn daemon_spawn(app: &AppHandle) -> Result<AineSession, String> {
     let dir = aine_dir(app)?;
@@ -124,13 +126,30 @@ async fn core_parse(app: AppHandle, src: String, cfg: Option<String>) -> Result<
             .map_err(|e| format!("cfg 不是合法 JSON:{e}"))?;
         req["cfg"] = cfgv;
     }
-    let line = daemon_call_retry(&app, &req.to_string())?;
+    let req_str = req.to_string();
+    // 结果缓存:同 请求(源码+cfg)的重复全量解析直接秒回(切标签/撤销
+    // 回同态/重复打开),大文档收益显著。size-1,新内容自然逐出。
+    {
+        let cache = PARSE_CACHE.lock().unwrap();
+        if let Some((k, v)) = cache.as_ref() {
+            if *k == req_str {
+                return Ok(v.clone());
+            }
+        }
+    }
+    let line = daemon_call_retry(&app, &req_str)?;
     let v: serde_json::Value =
         serde_json::from_str(&line).map_err(|e| format!("daemon 响应解析失败:{e}"))?;
-    v.get("result")
+    let result = v
+        .get("result")
         .and_then(|x| x.as_str())
         .map(|s| s.to_string())
-        .ok_or_else(|| "daemon 响应缺 result".to_string())
+        .ok_or_else(|| "daemon 响应缺 result".to_string())?;
+    {
+        let mut cache = PARSE_CACHE.lock().unwrap();
+        *cache = Some((req_str, result.clone()));
+    }
+    Ok(result)
 }
 
 /// 系统字体枚举:注册表 Fonts 项的值名即字体显示名(去掉 "(TrueType)" 类
@@ -265,15 +284,10 @@ async fn core_batch_resource(data_uris: Vec<String>, media_dir: String) -> Resul
                     &tmp.display().to_string(),
                 ])
                 .output();
-            match &out {
-                Ok(o) if !o.status.success() => {
-                    // 失败现场转储(调试后移除)
-                    let _ = std::fs::write("C:\\Users\\Elysia\\AppData\\Local\\Temp\\wmf_debug_ps1.txt", &WMF_CONVERT_PS1);
-                    let _ = std::fs::write("C:\\Users\\Elysia\\AppData\\Local\\Temp\\wmf_debug_err.txt", &o.stderr);
-                    let _ = std::fs::write("C:\\Users\\Elysia\\AppData\\Local\\Temp\\wmf_debug_out.txt", &o.stdout);
+            if let Ok(o) = &out {
+                if !o.status.success() {
                     eprintln!("wmf 批转失败 status={:?} stderr={}", o.status, String::from_utf8_lossy(&o.stderr));
                 }
-                _ => {}
             }
             // 转换成功的替换为 png 引用;失败的清空(前端兜底文本占位)
             for (raw, hash16) in &wmf_pending {
@@ -294,14 +308,6 @@ async fn core_batch_resource(data_uris: Vec<String>, media_dir: String) -> Resul
                     refs[i] = String::new();
                 }
             }
-            // 调试:保留现场(修复后移除)
-            let dbg = std::path::Path::new("C:/Users/Elysia/AppData/Local/Temp");
-            let read_probe = wmf_pending.first().map(|(raw, _)| {
-                let pp = tmp.join(format!("{}.png", raw));
-                (pp.display().to_string(), std::fs::read(&pp).map(|b| b.len()).map_err(|e| e.to_string()))
-            });
-            let _ = std::fs::write(dbg.join("wmf_debug_status.txt"), format!("status={:?}\nrefs={:?}\npending={:?}\nread_probe={:?}\n", out, refs, wmf_pending, read_probe));
-            let _ = std::fs::write(dbg.join("wmf_debug_dir.txt"), format!("{:?}", std::fs::read_dir(&tmp).map(|rd| rd.filter_map(|e| e.ok()).map(|e| e.file_name().to_string_lossy().to_string()).collect::<Vec<String>>())));
             let _ = std::fs::remove_dir_all(&tmp);
         }
         Ok(refs)

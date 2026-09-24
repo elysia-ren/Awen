@@ -215,20 +215,19 @@ fn page_flow_node(ctx: FlowCtx, node: SemNode, page: i32, y: f64, out: Vec<Place
         // 乘 1.25 系数低估会重新引发"页面塞太满→纸面拉长"
         let total_w = layout_measure_em(text) * 1.25
         let lines_n = ceil_ratio(total_w, ctx.max_em)
-        var o = out
+        // 光标直接推进,不产逐行 PlacedLine(recs 只需页号,省 5 万次 Vec push)
         var p = page
         var yy = y
-        var n = 0
         var li = 0
         while li < lines_n {
-            let r = page_flow_put(ctx, p, yy, id, "…", o)
-            o = r.placed
-            p = r.page
-            yy = r.y
-            n = n + r.lines
+            yy = yy + ctx.line_h
+            if yy + ctx.line_h > ctx.content_h {
+                p = p + 1
+                yy = 0.0
+            }
             li += 1
         }
-        return FlowOneOut { page: p, y: yy, lines: n, placed: o, box_node: id, box_start: box_start, box_end: p, box_lines: n }
+        return FlowOneOut { page: p, y: yy, lines: lines_n, placed: out, box_node: id, box_start: box_start, box_end: p, box_lines: lines_n }
     }
 
     if node.kind == "heading" || node.kind == "para" || node.kind == "quote" {
