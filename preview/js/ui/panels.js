@@ -323,3 +323,81 @@ function toggleRibbonCollapse(){
   r.style.display=ribbonCollapsed?'none':'block';
   document.getElementById('btn-collapse').style.transform=ribbonCollapsed?'rotate(180deg)':'';
 }
+
+// ═══ 引用管理面板:标签/交叉引用/脚注/表格 目录与跳转 ═══
+function refScan(){
+  var src=gSrc, NLg=String.fromCharCode(10);
+  var labels=[],refs=[],fns=[],tbls=[];
+  var seenL={},seenR={},seenT={};
+  var re=/@\[(?:label|标签)\s+([^\]\s]+)\]/g,m;
+  while((m=re.exec(src))!==null){ if(!seenL[m[1]]){seenL[m[1]]=1;labels.push(m[1])} }
+  var re2=/@\[(?:ref|引用)\s+([^\]\s]+)\]/g;
+  while((m=re2.exec(src))!==null){ if(!seenR[m[1]]){seenR[m[1]]=1;refs.push(m[1])} }
+  var re3=/@\[(?:footnote|脚注)\s+(\d+)\s+([^\]]+)\]/g;
+  while((m=re3.exec(src))!==null){ fns.push({n:m[1],text:m[2]}) }
+  var re4=/@\[table\s+([^\]\s]+)/g;
+  while((m=re4.exec(src))!==null){ if(!seenT[m[1]]){seenT[m[1]]=1;tbls.push(m[1])} }
+  return {labels:labels,refs:refs,fns:fns,tbls:tbls};
+}
+function refJump(kind,name){
+  var sel='';
+  if(kind==='label')sel='#display-pane .inline-label[data-cmd*="label '+name+'"]';
+  else if(kind==='ref')sel='#display-pane .inline-ref[data-cmd*="ref '+name+'"],#display-pane .inline-ref[data-cmd*="引用 '+name+'"]';
+  else if(kind==='fn')sel='#display-pane sup.fn[data-cmd*="footnote '+name+' "],#display-pane sup.fn[data-cmd*="脚注 '+name+' "]';
+  else if(kind==='table')sel='#display-pane table[data-open*="'+name+'"]';
+  var el=document.querySelector(sel);
+  if(!el){
+    // 兜底:块级标签等以占位形式渲染,按文本搜索定位
+    var els=[...document.querySelectorAll('#display-pane [data-bid]')];
+    els.some(function(e2){ if(e2.textContent.indexOf(name)>=0){ el=e2; return true } return false });
+  }
+  if(!el)return '未在纸面找到';
+  el.scrollIntoView({behavior:'smooth',block:'center'});
+  el.classList.add('ref-flash');
+  setTimeout(function(){el.classList.remove('ref-flash')},1200);
+  return 'ok';
+}
+function openRefManager(mode){
+  var d=document.getElementById('refmgr');
+  if(!d){
+    d=document.createElement('div');
+    d.id='refmgr'; d.className='refmgr';
+    d.innerHTML='<div class="rm-card"><div class="rm-head"><span class="rm-title"></span><button class="rm-close" onclick="document.getElementById(\'refmgr\').style.display=\'none\'"><i class="fa-solid fa-xmark"></i></button></div><div class="rm-body" id="rm-body"></div></div>';
+    d.addEventListener('click',function(e){ if(e.target===d)d.style.display='none' });
+    document.body.appendChild(d);
+  }
+  var data=refScan();
+  var titles={refs:'交叉引用',fns:'脚注管理',tbls:'表目录'};
+  d.querySelector('.rm-title').textContent=titles[mode]||'引用管理';
+  var h='';
+  if(mode==='refs'){
+    h+='<div class="rm-sec">标签(引用目标)</div>';
+    if(!data.labels.length)h+='<div class="rm-empty">文档中还没有 @[label 标签] 标签</div>';
+    data.labels.forEach(function(l){
+      var n=data.refs.indexOf(l)>=0?' (已引用)':' (未引用)';
+      h+='<div class="rm-row" onclick=\'refJump("label","'+l+'")\'>📌 '+l+n+'</div>';
+    });
+    h+='<div class="rm-sec">交叉引用</div>';
+    if(!data.refs.length)h+='<div class="rm-empty">文档中还没有 @[ref 标签] 引用</div>';
+    data.refs.forEach(function(x){
+      var ok=data.labels.indexOf(x)>=0;
+      h+='<div class="rm-row'+(ok?'':' rm-bad')+'" onclick=\'refJump("ref","'+x+'")\'>↦ '+x+(ok?'':' <b>⚠ 目标标签缺失</b>')+'</div>';
+    });
+  }
+  if(mode==='fns'){
+    h+='<div class="rm-sec">脚注('+data.fns.length+')</div>';
+    if(!data.fns.length)h+='<div class="rm-empty">文档中还没有 @[footnote 编号 内容] 脚注</div>';
+    data.fns.forEach(function(f){
+      h+='<div class="rm-row" onclick=\'refJump("fn","'+f.n+' ")\'>['+f.n+'] '+f.text+'</div>';
+    });
+  }
+  if(mode==='tbls'){
+    h+='<div class="rm-sec">表格('+data.tbls.length+')</div>';
+    if(!data.tbls.length)h+='<div class="rm-empty">文档中还没有表格</div>';
+    data.tbls.forEach(function(t){
+      h+='<div class="rm-row" onclick=\'refJump("table","'+t+'")\'>📋 '+t+'</div>';
+    });
+  }
+  document.getElementById('rm-body').innerHTML=h;
+  d.style.display='flex';
+}

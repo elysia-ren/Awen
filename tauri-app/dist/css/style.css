@@ -357,3 +357,18 @@ body.show-marks .paper p::after{content:' b6';color:#d5d8dc;margin-left:2px}
 .sheet.linenums{counter-reset:ln}
 .sheet.linenums .paper>[data-bid]{position:relative;counter-increment:ln}
 .sheet.linenums .paper>[data-bid]::before{content:counter(ln);position:absolute;left:-8mm;top:0;font-size:8.5pt;color:#98a0aa}
+
+/* ═══ 引用管理面板 ═══ */
+.refmgr{position:fixed;inset:0;z-index:300;display:none;align-items:center;justify-content:center;background:rgba(15,23,42,.45)}
+.rm-card{background:#fff;border-radius:12px;width:min(560px,92vw);max-height:78vh;display:flex;flex-direction:column;box-shadow:0 20px 60px rgba(0,0,0,.25);overflow:hidden}
+.rm-head{display:flex;align-items:center;justify-content:space-between;padding:14px 18px;border-bottom:1px solid #e5e7eb}
+.rm-title{font-weight:600;font-size:15px;color:#1f2937}
+.rm-close{border:0;background:none;cursor:pointer;font-size:16px;color:#6b7280;padding:4px 8px;border-radius:6px}
+.rm-close:hover{background:#f3f4f6;color:#111}
+.rm-body{overflow:auto;padding:10px 18px 16px}
+.rm-sec{font-weight:600;font-size:13px;color:#374151;margin:12px 0 6px}
+.rm-row{padding:6px 10px;border-radius:6px;cursor:pointer;font-size:13px;color:#374151}
+.rm-row:hover{background:#eef2ff}
+.rm-row.rm-bad{color:#b91c1c;background:#fef2f2}
+.rm-empty{color:#9ca3af;font-size:13px;padding:6px 0}
+.ref-flash{outline:3px solid #f59e0b;border-radius:4px;transition:outline-color 1s}
