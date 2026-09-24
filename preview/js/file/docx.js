@@ -33,21 +33,31 @@ function importDocx(){
         })
       };
       mammoth.convertToHtml({arrayBuffer:rd.result},opts).then(function(res){
-        var src=htmlToAwen(res.value);
-        // 文档里的图片立即资源化进媒体目录,源码只留 media/ 引用
+        // wmf/emf 是浏览器不支持的矢量格式(公式编辑器产物),先在 HTML 层
+        // 占位化:否则上千个 wmf 全转 data URI,HTML 膨胀十几 MB 且渲染全破图
+        var hadVec=(res.value.match(/data:image\/(?:x-)?(?:wmf|emf)/g)||[]).length;
+        var html=res.value.replace(/<img[^>]*src="data:image\/(?:x-)?(?:wmf|emf)[^"]*"[^>]*>/g,'[公式或矢量图,未能转换]');
+        var src=htmlToAwen(html);
+        // 图片批量资源化进媒体目录,源码只留 media/ 引用(去重+一次 IPC+单遍替换)
         return tagMediaDir().then(function(dir){
-          var jobs=[];
           var re=/"(data:image\/[^;]+;base64,[A-Za-z0-9+\/=]+)"/g;
-          var found=[];var mm;
-          while((mm=re.exec(src))!==null)found.push(mm[1]);
-          found.forEach(function(uri){
-            jobs.push(Bridge.dataUriResource(uri,dir).then(function(r2){
-              src=src.replace('"'+uri+'"','"'+r2.ref+'"');
-            }));
+          var uniq={},order=[],mm;
+          while((mm=re.exec(src))!==null){
+            var uri=mm[1];
+            if(uniq[uri]===undefined){ uniq[uri]=order.length; order.push(uri) }
+          }
+          document.getElementById('st-diag').textContent='导入中:资源化 '+order.length+' 张图片…';
+          return Bridge.batchResource(order,dir).then(function(refs){
+            var map={};
+            order.forEach(function(u,i){ if(refs[i])map[u]=refs[i] });
+            src=src.replace(/"(data:image\/[^;]+;base64,[A-Za-z0-9+\/=]+)"/g,function(m0,u){
+              return map[u]?('"'+map[u]+'"'):m0;
+            });
+            return {src:src,imgs:order.length,vec:hadVec};
           });
-          return Promise.all(jobs).then(function(){return src});
         });
-      }).then(function(src){
+      }).then(function(r){
+        var src=r.src;
         var name=f.name.replace(/\.docx$/i,'');
         inp.remove();
         var reuse=false;
@@ -63,6 +73,10 @@ function importDocx(){
         else addFileTab(name,null);
         currentFilePath=null;
         updateTitle(); markClean();
+        setTimeout(function(){
+          document.getElementById('st-diag').textContent='诊断 ✓';
+        },1200);
+        alert('导入完成:图片 '+r.imgs+' 张已入包'+(r.vec?(';'+r.vec+' 个公式/矢量图未转换,已留占位'):''));
       }).catch(function(e){ inp.remove(); alert('DOCX 解析失败:'+e.message) });
     };
     rd.readAsArrayBuffer(f);
