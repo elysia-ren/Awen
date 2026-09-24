@@ -51,6 +51,9 @@ function render(src,caret,done){
         if(curSrc!==gSrc){
           gSrc=curSrc;
           recordHist(curSrc,true);
+          // 显→语同步:守卫期推进的 gSrc 也要落语法框(此前只等全量渲染,分屏下语法侧滞后)
+          var taH=document.getElementById('syntax-src');
+          if(taH&&currentMode!=='display'&&taH.value!==gSrc)taH.value=gSrc;
           scheduleNativeRefresh(saveCaret());
         }
       }
@@ -60,7 +63,7 @@ function render(src,caret,done){
     var caretNow=saveCaret();
     gNodes=Engine.ingestNative(res.blocks||[],gSrc);
     gSegCache=buildSegCache(gSrc,gNodes);
-    Engine.applyDocsets(gNodes);   // 文档级 @[page/margin/...] 设置生效(源码即权威)
+    Engine.applyDocsets(gNodes,res.docsets);   // 文档级设置生效(引擎结构化下发,十语种别名归一)
     CFG=Engine.getConfig();
     if(window.__orient==='landscape')Engine.setPage({PAGE_W:CFG.PAGE_H,PAGE_H:CFG.PAGE_W});
     // A′ 引擎全权排版:页号来自 aine page_flow(与解析同一响应),整块落页不劈段
@@ -85,7 +88,9 @@ function renderKeep(){
 function renderNodes(){
   var pane=document.getElementById('display-pane');
   pane.innerHTML='';
-  for(var p=0;p<gPages.length;p++){
+  // 空文档也显示一张空白纸(Word 行为),不再是空空如也
+  var pageList=gPages.length?gPages:[[]];
+  for(var p=0;p<pageList.length;p++){
     var sheet=document.createElement('div');
     sheet.className='sheet';
     sheet.style.width=CFG.PAGE_W+'mm';
@@ -99,8 +104,8 @@ function renderNodes(){
     paper.style.setProperty('--fl',CFG.FIRSTLINE||'0em');
     paper.style.setProperty('--ps',CFG.PARA_SPACING||'0em');
     paper.dataset.page=p;
-    for(var k=0;k<gPages[p].length;k++){
-      var item=gPages[p][k], b=item.b;
+    for(var k=0;k<pageList[p].length;k++){
+      var item=pageList[p][k], b=item.b;
       if(b.kind==='toc'){
         // 目录块:按标题节点生成,深度取 depth 参数,点击跳转
         var dep=parseInt((b.text.match(/depth:\s*(\d+)/)||[0,6])[1]);

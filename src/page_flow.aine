@@ -40,6 +40,8 @@ struct FlowCtx {
     content_h: f64
     gap_lines: f64
     img_h: f64
+    // 块间距(与前端块间 gap 一致,校准引擎容量与真实纸面)
+    gap_mm: f64
 }
 
 fn page_flow_ctx() -> FlowCtx {
@@ -51,6 +53,7 @@ fn page_flow_ctx() -> FlowCtx {
         content_h: content_height(pm),
         gap_lines: 1.0,
         img_h: 40.0,
+        gap_mm: font * 0.55 * 0.352778,
     }
 }
 
@@ -59,12 +62,15 @@ fn page_flow_ctx() -> FlowCtx {
 // 数值经 +0.0 提升 f64(json_decode 的整数是 i32 标注,直接绑 f64 字段会炸)。
 fn page_flow_ctx_cfg(page_w: f64, page_h: f64, margin: f64, font_pt: f64, line_sp: f64) -> FlowCtx {
     let mm = font_pt * 0.352778
+    // content_h 预留一行:估宽与真实字形有偏差,宁可提前分页
+    // 也不让纸面物理溢出(溢出=用户看到的"页面越输越长")
     return FlowCtx {
         line_h: mm * line_sp,
         max_em: (page_w - margin * 2.0) / mm,
-        content_h: page_h - margin * 2.0,
+        content_h: page_h - margin * 2.0 - mm * line_sp,
         gap_lines: 1.0,
         img_h: 40.0,
+        gap_mm: font_pt * 0.55 * 0.352778,
     }
 }
 
@@ -85,6 +91,15 @@ fn page_flow_with(state: DocState, ctx: FlowCtx) -> PageFlowResult {
         y = r.y
         if r.lines >= 0 {
             boxes = boxes.push(NodeBox { node_id: node.id, start_page: r.box_start, end_page: r.box_end, lines: r.box_lines })
+        }
+        // 块间距:前端每块之间有 0.55*字号 的视觉间隙,引擎容量必须同计,
+        // 否则引擎估的一页装不下真实纸面 → 纸面物理溢出(页面越输越长)
+        if r.lines >= 0 {
+            y = y + ctx.gap_mm
+            if y + ctx.line_h > ctx.content_h {
+                page = page + 1
+                y = 0.0
+            }
         }
         if node.kind == "para" && para_sp > 0.0 {
             y = y + para_sp

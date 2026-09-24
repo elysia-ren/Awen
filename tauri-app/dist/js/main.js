@@ -4,6 +4,22 @@
   document.querySelectorAll('[data-icon]').forEach(function(el){
     el.innerHTML=ICONS[el.dataset.icon]||'';
   });
+  // 系统字体:机器上有啥给啥(注册表枚举),追加到写死的常用组之后
+  if(window.Bridge&&Bridge.listFonts){
+    Bridge.listFonts().then(function(fonts){
+      if(!fonts||!fonts.length)return;
+      var sel=document.getElementById('sel-font');
+      if(!sel)return;
+      var g=document.createElement('optgroup');
+      g.label='系统字体';
+      fonts.forEach(function(f){
+        var o=document.createElement('option');
+        o.value=f; o.textContent=f;
+        g.appendChild(o);
+      });
+      sel.appendChild(g);
+    });
+  }
   var src=DEFAULT_SRC;
   // 崩溃恢复:存在自动保存草稿则直接恢复
   var auto=loadAutosave();

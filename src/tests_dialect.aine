@@ -9,9 +9,10 @@ fn dialect_docset_page_cn() -> Result<i32, String> {
     let src = "@[页面 B5]\n\n正文甲。\n"
     let state = build_document(parse(lex(src)), src)
     let json = blocks_to_json(state, src)
-    assert(json.contains("\"kind\":\"obj\""), "页面 docset 应为 obj 记录:" + json)
+    assert(json.contains("\"kind\":\"docset\""), "页面 docset 应为 docset 记录:" + json)
     assert(json.contains("@[页面 B5]"), "页面 docset 原文应保留")
     assert(json.contains("正文甲。"), "正文不得被吞")
+    assert(json.contains("\"docsets\":[[\"page\",\"B5\"]]"), "docsets 应归一为英文键:" + json)
     assert(!json.contains("未注册"), "不得报未注册命令")
     Ok(0)
 }

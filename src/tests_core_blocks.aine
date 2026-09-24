@@ -271,7 +271,7 @@ fn layout_ctx_cfg_formula() -> Result<i32, String> {
     let expect_em = (210.0 - 40.0) / (12.0 * 0.352778)
     assert(ctx.line_h > expect_lh - 0.0001 && ctx.line_h < expect_lh + 0.0001, "line_h 公式不符")
     assert(ctx.max_em > expect_em - 0.01 && ctx.max_em < expect_em + 0.01, "max_em 公式不符")
-    assert(ctx.content_h > 256.9 && ctx.content_h < 257.1, "content_h 公式不符")
+    assert(ctx.content_h > 248.4 && ctx.content_h < 248.6, "content_h 公式不符(应预留一行)")
     Ok(0)
 }
 

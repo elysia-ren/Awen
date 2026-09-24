@@ -133,6 +133,42 @@ async fn core_parse(app: AppHandle, src: String, cfg: Option<String>) -> Result<
         .ok_or_else(|| "daemon 响应缺 result".to_string())
 }
 
+/// 系统字体枚举:注册表 Fonts 项的值名即字体显示名(去掉 "(TrueType)" 类
+/// 后缀),机器上有啥给啥,前端字体下拉不再写死。HKLM 全机 + HKCU 当前用户。
+#[tauri::command]
+async fn core_list_fonts() -> Result<Vec<String>, String> {
+    tauri::async_runtime::spawn_blocking(move || {
+        let mut names: Vec<String> = Vec::new();
+        let hives = [
+            r"HKLM\SOFTWARE\Microsoft\Windows NT\CurrentVersion\Fonts",
+            r"HKCU\SOFTWARE\Microsoft\Windows NT\CurrentVersion\Fonts",
+        ];
+        for hive in hives {
+            let out = std::process::Command::new("reg").args(["query", hive]).output();
+            if let Ok(o) = out {
+                let text = String::from_utf8_lossy(&o.stdout).to_string();
+                for line in text.lines() {
+                    let line = line.trim();
+                    if line.starts_with("HKEY_") || !line.contains('(') {
+                        continue
+                    }
+                    let name = line.split("    ").next().unwrap_or("").trim();
+                    if let Some(pos) = name.find(" (") {
+                        let family = name[..pos].trim().to_string();
+                        if !family.is_empty() && !names.contains(&family) {
+                            names.push(family);
+                        }
+                    }
+                }
+            }
+        }
+        names.sort_by_key(|n| n.to_lowercase());
+        Ok(names)
+    })
+    .await
+    .map_err(|e| format!("任务调度失败:{e}"))?
+}
+
 /// 块级增量解析:前端只送脏段 [{bid,text}],daemon 每段独立走权威管线,
 /// 返回 [{bid,res}]。O(脏块) 替代 O(全文),打字停顿后的大文档刷新走这里。
 #[tauri::command]
@@ -644,6 +680,7 @@ fn main() {
         .invoke_handler(tauri::generate_handler![
             core_parse,
             core_parse_blocks,
+            core_list_fonts,
             core_open_dialog,
             core_save_dialog,
             core_read_file,
