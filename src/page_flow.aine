@@ -441,6 +441,9 @@ fn page_node_sig(n: SemNode) -> String {
         for it in n.list_items { s = s + "|" + page_inline_sig(it) }
     }
     if n.kind == "table" {
+        // 开行参数(widths 列宽等)影响几何,必须入签名
+        for a in n.obj_cu.args { s = s + "|t" + arg_plain(a) }
+        for kv in n.obj_cu.attrs { s = s + "|t" + kv.key + "=" + arg_plain(kv.val) }
         for cell in n.tbl_header { s = s + "|" + page_inline_sig(cell) }
         for r in n.tbl_rows {
             for cell in r { s = s + "|" + page_inline_sig(cell) }
@@ -765,16 +768,37 @@ fn page_flow_incremental_fast(state: DocState, prev: PageFlowResult, ctx: FlowCt
         }
     }
     // 恢复点:首变节点在上一轮的起始页 + 页内精确纵向位置
-    // (start_y 是该节点原本在那一页的起点;前缀不变 ⇒ 该光标仍有效)
-    var page = prev.end_page
-    var y = prev.end_y
+    // (start_y 是该节点原本在那一页的起点;前缀不变 ⇒ 该光标仍有效)。
+    // 首变节点自身无盒(批注/文档级设置等未占位节点)时,回退到最近的
+    // 带盒前驱、把重排起点一并回退——绝不能用上一轮文档末尾的光标。
+    var page = 0
+    var y = 0.0
+    var found_resume = false
     var bi = 0
     while bi < prev.boxes.len() {
         if prev.boxes[bi].node_id == start_ix + 1 {
             page = prev.boxes[bi].start_page
             y = prev.boxes[bi].start_y
+            found_resume = true
         }
         bi += 1
+    }
+    if !found_resume {
+        var bb = prev.boxes.len() - 1
+        while bb >= 0 {
+            if prev.boxes[bb].node_id < start_ix + 1 {
+                page = prev.boxes[bb].start_page
+                y = prev.boxes[bb].start_y
+                start_ix = prev.boxes[bb].node_id - 1
+                found_resume = true
+                break
+            }
+            bb -= 1
+        }
+    }
+    if !found_resume {
+        page = 0
+        y = 0.0
     }
     // 首变之前的盒原样保留
     var boxes: Vec<NodeBox> = []

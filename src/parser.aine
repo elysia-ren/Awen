@@ -21,7 +21,7 @@ enum DocNode {
     HRule
     Obj(CommandUse)
     RawBlk(ExplicitCommand, Option<String>, Vec<String>)
-    TblNode(Option<Vec<Vec<Inline>>>, Vec<Vec<Vec<Inline>>>, bool)
+    TblNode(Option<Vec<Vec<Inline>>>, Vec<Vec<Vec<Inline>>>, bool, CommandUse)
     CommentNode(String)
 }
 
@@ -255,7 +255,7 @@ fn parse(lex_out: LexOutput) -> ParseResult {
                     }
                     data_rows = shifted2
                 }
-                nodes.push(TblNode(header, data_rows, has_delim))
+                nodes.push(TblNode(header, data_rows, has_delim, u))
                 i = j
                 continue
             }
@@ -315,7 +315,7 @@ fn count_nodes(nodes: Vec<DocNode>, kind: String) -> i32 {
             RawBlk(cmd, lang, lines) {
                 if kind == "raw" { n += 1 }
             }
-            TblNode(header, rows, has_delim) {
+            TblNode(header, rows, has_delim, open_cu) {
                 if kind == "table" { n += 1 }
             }
             CommentNode(content) {

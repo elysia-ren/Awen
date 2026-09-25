@@ -234,3 +234,50 @@ fn incremental_fast_matches_full() -> Result<i32, String> {
     }
     Ok(0)
 }
+
+@test
+fn incremental_unboxed_first_change() -> Result<i32, String> {
+    // P0 补洞:首变节点是未占位节点(批注)时,恢复点必须回退到最近的
+    // 带盒前驱——此前回退上一轮文档末尾,中段批注变化会错位
+    let ctx = page_flow_ctx_cfg(210.0, 297.0, 20.0, 11.0, 1.9)
+    var src1 = "# 批注变化\n\n"
+    var i: i32 = 0
+    while i < 20 {
+        src1 = src1 + "这是第" + f"{i}" + "段内容。\n\n"
+        if i == 5 { src1 = src1 + "@[comment 旧批注]\n\n" }
+        i += 1
+    }
+    let st1 = build_document(parse(lex(src1)), src1)
+    let f0 = page_flow_with(st1, ctx)
+    let f1 = page_flow_incremental_fast(st1, f0, ctx)
+    // 只改中段批注文字(首变节点=批注,无盒)
+    var src2 = "# 批注变化\n\n"
+    i = 0
+    while i < 20 {
+        src2 = src2 + "这是第" + f"{i}" + "段内容。\n\n"
+        if i == 5 { src2 = src2 + "@[comment 新批注文字完全不同]\n\n" }
+        i += 1
+    }
+    let st2 = build_document(parse(lex(src2)), src2)
+    let f2 = page_flow_incremental_fast(st2, f1, ctx)
+    let f3 = page_flow_with(st2, ctx)
+    assert(f2.pages == f3.pages, f"批注变化:增量页数 {f2.pages} 应等于全量 {f3.pages}")
+    var k: i32 = 0
+    while k < f2.boxes.len() && k < f3.boxes.len() {
+        assert(f2.boxes[k].start_page == f3.boxes[k].start_page, f"盒 {k} 起始页不一致")
+        k += 1
+    }
+    Ok(0)
+}
+
+@test
+fn table_widths_sig_sensitive() -> Result<i32, String> {
+    // P0 补洞:表格开行参数(widths)入签名——列宽变化必须触发增量重排
+    let src_a = "@[table t]\n| 甲 | 乙 |\n| --- | --- |\n| 1 | 2 |\n@[/table]\n"
+    let src_b = "@[table t widths: 30,70]\n| 甲 | 乙 |\n| --- | --- |\n| 1 | 2 |\n@[/table]\n"
+    let st_a = build_document(parse(lex(src_a)), src_a)
+    let st_b = build_document(parse(lex(src_b)), src_b)
+    assert(st_a.nodes.len() == st_b.nodes.len(), "节点数应相同")
+    assert(page_node_sig(st_a.nodes[0]) != page_node_sig(st_b.nodes[0]), "widths 变化必须反映在表格签名中")
+    Ok(0)
+}
