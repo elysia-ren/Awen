@@ -118,9 +118,10 @@ fn aine_dir(app: &AppHandle) -> Result<PathBuf, String> {
 
 
 #[tauri::command]
-async fn core_parse(app: AppHandle, src: String, cfg: Option<String>) -> Result<String, String> {
-    // 常驻 Core(daemon)请求:op=parse;cfg 在场时引擎同次解析附带权威分页(A′)
-    let mut req = serde_json::json!({ "id": 1, "op": "parse", "src": src });
+async fn core_parse(app: AppHandle, src: String, cfg: Option<String>, doc: Option<String>) -> Result<String, String> {
+    // 常驻 Core(daemon)请求:op=parse;cfg 在场时引擎同次解析附带权威分页(A′);
+    // doc 标识文档,daemon 增量排版状态按文档隔离
+    let mut req = serde_json::json!({ "id": 1, "op": "parse", "src": src, "doc": doc.unwrap_or_default() });
     if let Some(c) = cfg {
         let cfgv: serde_json::Value = serde_json::from_str(&c)
             .map_err(|e| format!("cfg 不是合法 JSON:{e}"))?;
@@ -635,10 +636,10 @@ async fn core_font_widths(family: String, chars: Vec<String>) -> Result<String, 
 /// 增量排版:daemon 复用上一轮未变前缀的流,只重排首变之后的尾段,
 /// 返回 {pages,recs}(与 op=parse 的分页部分同构)。cfg 必传。
 #[tauri::command]
-async fn core_relayout(app: AppHandle, src: String, cfg: String) -> Result<String, String> {
+async fn core_relayout(app: AppHandle, src: String, cfg: String, doc: Option<String>) -> Result<String, String> {
     let cfgv: serde_json::Value =
         serde_json::from_str(&cfg).map_err(|e| format!("cfg 不是合法 JSON:{e}"))?;
-    let req = serde_json::json!({ "id": 1, "op": "relayout", "src": src, "cfg": cfgv }).to_string();
+    let req = serde_json::json!({ "id": 1, "op": "relayout", "src": src, "cfg": cfgv, "doc": doc.unwrap_or_default() }).to_string();
     let line = daemon_call_retry(&app, &req)?;
     let v: serde_json::Value =
         serde_json::from_str(&line).map_err(|e| format!("daemon 响应解析失败:{e}"))?;

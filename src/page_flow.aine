@@ -17,6 +17,8 @@ struct NodeBox {
     start_page: i32
     end_page: i32
     lines: i32
+    // 节点起始纵向光标(mm;增量排版按它恢复页内精确位置)
+    start_y: f64
 }
 
 struct PageFlowResult {
@@ -50,6 +52,8 @@ struct FlowCtx {
     wf_start_s: String
     wf_end_s: String
     wf_ws: Vec<f64>
+    // 正文字号(mm;para-spacing 的 em 换算按它,不再固定 11pt)
+    font_mm: f64
 }
 
 fn page_flow_ctx() -> FlowCtx {
@@ -66,6 +70,7 @@ fn page_flow_ctx() -> FlowCtx {
         wf_start_s: "",
         wf_end_s: "",
         wf_ws: [],
+        font_mm: font * 0.352778,
     }
 }
 
@@ -92,12 +97,13 @@ fn page_flow_ctx_cfg_w(page_w: f64, page_h: f64, margin: f64, font_pt: f64, line
         wf_start_s: wf_s,
         wf_end_s: wf_e,
         wf_ws: wf_w,
+        font_mm: mm,
     }
 }
 
 // 全量排版(显式上下文);page_flow(state) 保持默认 A4 旧签名不动
 fn page_flow_with(state: DocState, ctx: FlowCtx) -> PageFlowResult {
-    let para_sp = doc_para_spacing_mm(state)
+    let para_sp = doc_para_spacing_mm(state, ctx.font_mm)
     var page = 0
     var y = 0.0
     var placed: Vec<PlacedLine> = []
@@ -108,12 +114,13 @@ fn page_flow_with(state: DocState, ctx: FlowCtx) -> PageFlowResult {
         if ctx.fast == 0 {
             sigs = sigs.push(page_node_sig(node))
         }
+        let y0 = y
         let r = page_flow_node(ctx, node, page, y, placed)
         placed = r.placed
         page = r.page
         y = r.y
         if r.lines >= 0 {
-            boxes = boxes.push(NodeBox { node_id: node.id, start_page: r.box_start, end_page: r.box_end, lines: r.box_lines })
+            boxes = boxes.push(NodeBox { node_id: node.id, start_page: r.box_start, end_page: r.box_end, lines: r.box_lines, start_y: y0 })
         }
         // 块间距:前端每块之间有 0.55*字号 的视觉间隙,引擎容量必须同计,
         // 否则引擎估的一页装不下真实纸面 → 纸面物理溢出(页面越输越长)
@@ -391,24 +398,63 @@ fn page_flow_node(ctx: FlowCtx, node: SemNode, page: i32, y: f64, out: Vec<Place
     return FlowOneOut { page: r.page, y: r.y, lines: 1, placed: r.placed, box_node: id, box_start: box_start, box_end: r.page, box_lines: 1 }
 }
 
-// 节点内容签名(§42 稳定点判定;覆盖一切影响版面的内容)
+// 行内版面签名:与 inline_marked_text 的区别是保留 Scoped 命令与
+// RawInline/Command 的命令名与参数(样式改变宽度,必须进签名);
+// 不能直接改 inline_marked_text——fast 排版用它测宽,标记会污染宽度
+fn page_inline_sig(items: Vec<Inline>) -> String {
+    var out = ""
+    for it in items {
+        match it {
+            AwTxt(s2) { out = out + s2 }
+            IBold(c) { out = out + "**" + page_inline_sig(c) + "**" }
+            Italic(c) { out = out + "_" + page_inline_sig(c) + "_" }
+            Strike(c) { out = out + "~~" + page_inline_sig(c) + "~~" }
+            CodeSpan(s3) { out = out + "`" + s3 + "`" }
+            Scoped(cmd, c) {
+                out = out + "@[" + cmd_name(cmd) + "]" + page_inline_sig(c) + "@[/" + cmd_name(cmd) + "]"
+            }
+            RawInline(cmd, lang, content) {
+                out = out + "@<" + cmd_name(cmd) + "|" + content + ">"
+            }
+            Command(u) {
+                out = out + "@[" + u.name_raw
+                for a in u.args { out = out + "|" + arg_plain(a) }
+                for kv in u.attrs { out = out + "|" + kv.key + "=" + arg_plain(kv.val) }
+                out = out + "]"
+            }
+        }
+    }
+    return out
+}
+
+// 节点版面签名(§42 稳定点判定;P0 修正:覆盖一切影响几何的内容)
+// 样式(size/font/粗斜等 Scoped)与 obj 参数/属性(图片 width/align)
+// 全部入签名——纯文本相同的两个节点版面可能完全不同。
 fn page_node_sig(n: SemNode) -> String {
     var s = n.kind + "/" + f"{n.level}"
-    s = s + "|" + inline_plain(n.inline)
+    s = s + "|" + page_inline_sig(n.inline)
     if n.kind == "comment" { s = s + "|" + n.comment_text }
     if n.kind == "raw" {
         for l in n.raw_lines { s = s + "|" + l }
     }
     if n.kind == "list" {
-        for it in n.list_items { s = s + "|" + inline_plain(it) }
+        for it in n.list_items { s = s + "|" + page_inline_sig(it) }
     }
     if n.kind == "table" {
-        for cell in n.tbl_header { s = s + "|" + inline_plain(cell) }
+        for cell in n.tbl_header { s = s + "|" + page_inline_sig(cell) }
         for r in n.tbl_rows {
-            for cell in r { s = s + "|" + inline_plain(cell) }
+            for cell in r { s = s + "|" + page_inline_sig(cell) }
         }
     }
-    if n.kind == "obj" { s = s + "|" + n.obj_cu.name_raw }
+    if n.kind == "obj" {
+        s = s + "|" + n.obj_cu.name_raw
+        for a in n.obj_cu.args { s = s + "|" + arg_plain(a) }
+        for kv in n.obj_cu.attrs { s = s + "|" + kv.key + "=" + arg_plain(kv.val) }
+        match n.obj_cu.content {
+            Some(c) { s = s + "|" + c }
+            None { }
+        }
+    }
     return s
 }
 
@@ -422,7 +468,7 @@ fn page_flow_count_lines(placed: Vec<PlacedLine>, page: i32) -> i32 {
 
 // F-4 段间距:从源码扫描 @[para-spacing X](em/mm/纯数值→em),返回 mm
 // 多个设置行取最后一个;未找到返回 0
-fn doc_para_spacing_mm(state: DocState) -> f64 {
+fn doc_para_spacing_mm(state: DocState, font_mm: f64) -> f64 {
     // F-4 段间距:扫源码取最后一个 @[para-spacing X](mm/em/纯数值→em)
     let lines = state.source.split("\n")
     var val = 0.0
@@ -437,7 +483,7 @@ fn doc_para_spacing_mm(state: DocState) -> f64 {
             if tail2 == "mm" {
                 val = inner[0 .. inner.len() - 2].to_f64()
             } else {
-                val = inner.to_f64() * 11.0 * 0.352778
+                val = inner.to_f64() * font_mm
             }
         }
         i += 1
@@ -448,8 +494,8 @@ fn doc_para_spacing_mm(state: DocState) -> f64 {
 
 // 全量排版(M5-a)
 fn page_flow(state: DocState) -> PageFlowResult {
-    let para_sp = doc_para_spacing_mm(state)
     let ctx = page_flow_ctx()
+    let para_sp = doc_para_spacing_mm(state, ctx.font_mm)
     var page = 0
     var y = 0.0
     var placed: Vec<PlacedLine> = []
@@ -458,12 +504,13 @@ fn page_flow(state: DocState) -> PageFlowResult {
 
     for node in state.nodes {
         sigs = sigs.push(page_node_sig(node))
+        let y0 = y
         let r = page_flow_node(ctx, node, page, y, placed)
         placed = r.placed
         page = r.page
         y = r.y
         if r.lines >= 0 {
-            boxes = boxes.push(NodeBox { node_id: node.id, start_page: r.box_start, end_page: r.box_end, lines: r.box_lines })
+            boxes = boxes.push(NodeBox { node_id: node.id, start_page: r.box_start, end_page: r.box_end, lines: r.box_lines, start_y: y0 })
         }
         // F-4 段间距:段落之后追加额外间距(跨页则截断到下一页首)
         if node.kind == "para" && para_sp > 0.0 {
@@ -633,13 +680,14 @@ fn page_flow_incremental(state: DocState, prev: PageFlowResult) -> PageFlowResul
                 }
             }
         }
+        let y0 = y
         let r = page_flow_node(ctx, nodes[m], page, y, placed)
         placed = r.placed
         page = r.page
         y = r.y
         if r.lines >= 0 {
             recomputed = recomputed + r.lines
-            boxes = boxes.push(NodeBox { node_id: nodes[m].id, start_page: r.box_start, end_page: r.box_end, lines: r.box_lines })
+            boxes = boxes.push(NodeBox { node_id: nodes[m].id, start_page: r.box_start, end_page: r.box_end, lines: r.box_lines, start_y: y0 })
         }
         m = m + 1
     }
@@ -716,14 +764,15 @@ fn page_flow_incremental_fast(state: DocState, prev: PageFlowResult, ctx: FlowCt
             end_y: prev.end_y,
         }
     }
-    // 恢复点:首变节点在上一轮的起始页,页首 y=0
+    // 恢复点:首变节点在上一轮的起始页 + 页内精确纵向位置
+    // (start_y 是该节点原本在那一页的起点;前缀不变 ⇒ 该光标仍有效)
     var page = prev.end_page
     var y = prev.end_y
     var bi = 0
     while bi < prev.boxes.len() {
         if prev.boxes[bi].node_id == start_ix + 1 {
             page = prev.boxes[bi].start_page
-            y = 0.0
+            y = prev.boxes[bi].start_y
         }
         bi += 1
     }
@@ -737,14 +786,15 @@ fn page_flow_incremental_fast(state: DocState, prev: PageFlowResult, ctx: FlowCt
         b2 += 1
     }
     // 尾段 fast 重排(含 F-4 段间距,与 page_flow_with 同口径)
-    let para_sp = doc_para_spacing_mm(state)
+    let para_sp = doc_para_spacing_mm(state, ctx.font_mm)
     var m = start_ix
     while m < nodes.len() {
+        let y0 = y
         let r = page_flow_node(ctx, nodes[m], page, y, [])
         page = r.page
         y = r.y
         if r.lines >= 0 {
-            boxes = boxes.push(NodeBox { node_id: nodes[m].id, start_page: r.box_start, end_page: r.box_end, lines: r.box_lines })
+            boxes = boxes.push(NodeBox { node_id: nodes[m].id, start_page: r.box_start, end_page: r.box_end, lines: r.box_lines, start_y: y0 })
             y = y + ctx.gap_mm
             if y + ctx.line_h > ctx.content_h {
                 page = page + 1

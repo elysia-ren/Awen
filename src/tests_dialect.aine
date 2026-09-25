@@ -170,3 +170,67 @@ fn table_geometry_row_wrap() -> Result<i32, String> {
     assert(f_l.pages >= 1, "长表文档至少一页")
     Ok(0)
 }
+
+@test
+fn layout_sig_style_sensitive() -> Result<i32, String> {
+    // P0 修正:版面签名必须对样式敏感——纯文本相同、字号不同 ⇒ 签名不同
+    let src_a = "甲段。\n\n乙段内容完全一样。\n"
+    let src_b = "甲段。\n\n@[size 20]乙段内容完全一样。@[/size]\n"
+    let st_a = build_document(parse(lex(src_a)), src_a)
+    let st_b = build_document(parse(lex(src_b)), src_b)
+    assert(st_a.nodes.len() == st_b.nodes.len(), "两文档节点数应相同")
+    var i: i32 = 0
+    var differ = false
+    while i < st_a.nodes.len() {
+        if page_node_sig(st_a.nodes[i]) != page_node_sig(st_b.nodes[i]) { differ = true }
+        i += 1
+    }
+    assert(differ, "样式差异必须反映在版面签名中")
+    // obj 参数敏感:图片 width 变化 ⇒ 签名变化
+    let src_c = "@[image \"x.png\" width 50%]\n"
+    let src_d = "@[image \"x.png\" width 90%]\n"
+    let st_c = build_document(parse(lex(src_c)), src_c)
+    let st_d = build_document(parse(lex(src_d)), src_d)
+    assert(page_node_sig(st_c.nodes[0]) != page_node_sig(st_d.nodes[0]), "图片参数变化必须反映在签名中")
+    Ok(0)
+}
+
+@test
+fn incremental_fast_matches_full() -> Result<i32, String> {
+    // P0 修正:增量排版(start_y 恢复)结果必须与全量逐盒等价
+    let ctx = page_flow_ctx_cfg(210.0, 297.0, 20.0, 11.0, 1.9)
+    var src1 = "# 等价测试\n\n"
+    var i: i32 = 0
+    while i < 20 {
+        src1 = src1 + "这是第" + f"{i}" + "段内容,用于构建多页文档前缀。\n\n"
+        i += 1
+    }
+    let st1 = build_document(parse(lex(src1)), src1)
+    let f0 = page_flow_with(st1, ctx)
+    // 第一轮:prev 签名为空 → 全量重算并填充签名
+    let f1 = page_flow_incremental_fast(st1, f0, ctx)
+    // 修改中段文本 + 追加两段
+    var src2 = "# 等价测试\n\n"
+    i = 0
+    while i < 20 {
+        if i == 10 {
+            src2 = src2 + "这一段在中途被修改了,内容明显不同,测试前缀复用与恢复点。\n\n"
+        } else {
+            src2 = src2 + "这是第" + f"{i}" + "段内容,用于构建多页文档前缀。\n\n"
+        }
+        i += 1
+    }
+    src2 = src2 + "追加的段落甲。\n\n追加的段落乙。\n"
+    let st2 = build_document(parse(lex(src2)), src2)
+    let f2 = page_flow_incremental_fast(st2, f1, ctx)
+    let f3 = page_flow_with(st2, ctx)
+    assert(f2.pages == f3.pages, f"增量页数 {f2.pages} 应等于全量 {f3.pages}")
+    assert(f2.boxes.len() == f3.boxes.len(), f"盒数 {f2.boxes.len()} 应等于 {f3.boxes.len()}")
+    var k: i32 = 0
+    while k < f2.boxes.len() {
+        assert(f2.boxes[k].node_id == f3.boxes[k].node_id && f2.boxes[k].start_page == f3.boxes[k].start_page,
+            f"盒 {k} 起始页不一致:增量 {f2.boxes[k].start_page} vs 全量 {f3.boxes[k].start_page}")
+        k += 1
+    }
+    Ok(0)
+}
