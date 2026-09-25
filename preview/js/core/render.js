@@ -1,6 +1,14 @@
 // 渲染:每张 A4 纸一个整体可编辑区(render 走 Bridge.parse 权威解析)(自单文件版拆出;传统 script,全局变量直接共享)
 // ═══ 渲染:每张 A4 纸一个整体可编辑区(原生 Enter/Delete)═══
 var gSrc='', gPages=[], gNodes=[];
+// 当前文档标识(daemon 增量排版状态按文档隔离;多标签互不覆盖)
+function currentDocId(){
+  if(typeof activeFile!=='undefined'&&activeFile>=0&&typeof openFiles!=='undefined'&&openFiles[activeFile]){
+    if(!openFiles[activeFile].id)openFiles[activeFile].id='doc-'+Date.now()+'-'+Math.floor(Math.random()*1000000);
+    return openFiles[activeFile].id;
+  }
+  return 'doc-singleton';
+}
 // 渲染入口(异步):源码 → Aine 权威解析 → ingest → 分页 → DOM
 // seq 防过期:新请求发出后,旧响应丢弃
 var renderSeq=0;
@@ -10,8 +18,8 @@ var renderPending=false;
 // 超长 data URI 送引擎解析前替换为占位引用(aine 解释器对几百 KB 的
 // 行内字符串会长时间无响应),块结构不受影响;解析返回后按映射把原文
 // 恢复进块文本供渲染。gSrc 不做替换。
-function parseSafe(src,cfg){
-  if(src.length<20000||src.indexOf('"data:image/')<0)return Bridge.parse(src,cfg);
+function parseSafe(src,cfg,doc){
+  if(src.length<20000||src.indexOf('"data:image/')<0)return Bridge.parse(src,cfg,doc);
   var out=src,map={},n=0;
   var re=/"data:image\/[^;"]{400,}"/g;
   out=out.replace(re,function(m){
@@ -19,8 +27,8 @@ function parseSafe(src,cfg){
     map[k]=m.slice(1,-1);
     return '"'+k+'"';
   });
-  if(n===0)return Bridge.parse(src,cfg);
-  return Bridge.parse(out,cfg).then(function(res){
+  if(n===0)return Bridge.parse(src,cfg,doc);
+  return Bridge.parse(out,cfg,doc).then(function(res){
     (res.blocks||[]).forEach(function(b){
       if(!b.text)return;
       Object.keys(map).forEach(function(k){
@@ -37,8 +45,8 @@ function render(src,caret,done){
   var seq=++renderSeq;
   var cfgReq=Engine.layoutCfg();
   if(window.__orient==='landscape'){var t=cfgReq.pw;cfgReq.pw=cfgReq.ph;cfgReq.ph=t}
-      if(window.gWidths&&window.gWidths.font===(CFG.FONT||''))cfgReq.widths=window.gWidths.data;   // undefined 键不会写入 JSON(null 会送 daemon 崩)
-  parseSafe(src,cfgReq).then(function(res){
+      if(window.gWidths&&window.gWidths.font===(CFG.FONT||'')){cfgReq.widths=window.gWidths.data;cfgReq.widths.k=(window.gWidths.data.w||[]).join(',')}   // undefined 键不会写入 JSON(null 会送 daemon 崩)
+  parseSafe(src,cfgReq,currentDocId()).then(function(res){
     if(seq!==renderSeq)return;
     // 打字会话进行中或有未落盘编辑、或光标停在空段上:不重建纸面(重建会把
     // 光标恢复到旧快照位置,窗口期内的输入错位——即"输入回退")。改为"纸面为准":
@@ -395,8 +403,8 @@ function applyRelayout(){
   if(window.composing||Date.now()-(window.lastPaperInputAt||0)<800)return;
   var cfgReq=Engine.layoutCfg();
   if(window.__orient==='landscape'){var t=cfgReq.pw;cfgReq.pw=cfgReq.ph;cfgReq.ph=t}
-      if(window.gWidths&&window.gWidths.font===(CFG.FONT||''))cfgReq.widths=window.gWidths.data;   // undefined 键不会写入 JSON(null 会送 daemon 崩)
-  Bridge.relayout(gSrc,cfgReq).then(function(res){
+      if(window.gWidths&&window.gWidths.font===(CFG.FONT||'')){cfgReq.widths=window.gWidths.data;cfgReq.widths.k=(window.gWidths.data.w||[]).join(',')}   // undefined 键不会写入 JSON(null 会送 daemon 崩)
+  Bridge.relayout(gSrc,cfgReq,currentDocId()).then(function(res){
     if(window.composing||Date.now()-(window.lastPaperInputAt||0)<800)return;
     var newPages=Engine.layoutFromEngine(gNodes,res);
     // 对比页分配是否变化(bid 序列逐页比对)

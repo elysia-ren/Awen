@@ -67,17 +67,32 @@ fn json_escape_str(s: String) -> String {
 // ── 常驻 Core 模式(daemon):stdin 每行一个请求 JSON,stdout 每行一个响应 ──
 // 消灭每次解析的进程启动成本;进程由壳层拉起并看护,崩溃自动重启。
 // 请求:{"id":N,"op":"parse|pack|unpack",...};响应:{"id":N,"ok":true,"result":"..."}
+
+// 增量排版状态(按文档隔离:多标签各自持有一份,互不覆盖)
+struct DaemonLayoutState {
+    doc: String
+    flow: PageFlowResult
+    cfgn: Vec<f64>
+    wfs: String
+    wfk: String
+}
+
 fn daemon_loop() {
-    // 增量排版状态(daemon 常驻,跨请求保留):上一轮 fast 流 + cfg 五参数 + 宽表快照
-    var g_prev_flow: Vec<PageFlowResult> = []
-    var g_prev_cfgn: Vec<f64> = []
-    var g_prev_wfs = ""
+    var states: Vec<DaemonLayoutState> = []
     while true {
         let line = read_line()
         if line == "" { break }
         let m = json_decode(line)
         let id = match m.get("id") { Some(x) { x } None { 0 } }
         let op = match m.get("op") { Some(x) { x } None { "" } }
+        let doc = match m.get("doc") { Some(x) { x } None { "" } }
+        // 定位本文档状态槽(无则 -1)
+        var si: i32 = -1
+        var q = 0
+        while q < states.len() {
+            if states.get(q).doc == doc { si = q }
+            q += 1
+        }
         var result = ""
         if op == "parse" {
             let src = match m.get("src") { Some(x) { x } None { "" } }
@@ -100,12 +115,14 @@ fn daemon_loop() {
                         let ls = (match c.get("ls") { Some(x) { x } None { 1.65 } }) + 0.0
                         var wf_s = ""
                         var wf_e = ""
+                        var wf_k = ""
                         var wf_ws: Vec<f64> = []
                         let wobj = c.get("widths")
                         match wobj {
                             Some(wv) {
                                 wf_s = match wv.get("s") { Some(x) { x } None { "" } }
                                 wf_e = match wv.get("e") { Some(x) { x } None { "" } }
+                                wf_k = match wv.get("k") { Some(x) { x } None { "" } }
                                 let warr = match wv.get("w") { Some(x) { x } None { [] } }
                                 var wi = 0
                                 while wi < warr.len() {
@@ -120,13 +137,12 @@ fn daemon_loop() {
                         let lay = layout_recs_json(st, src, flow)
                         // 拼接:剥掉 blocks_to_json 收尾 '}',接上 pages/recs
                         json = json[0..(json.len() - 1)] + "," + lay[1..lay.len()]
-                        // 留存本轮流供增量排版复用
-                        g_prev_cfgn = [pw, ph, mg, fp, ls]
-                        g_prev_wfs = wf_s
-                        if g_prev_flow.len() == 0 {
-                            g_prev_flow = g_prev_flow.push(flow)
+                        // 留存本轮流供增量排版复用(按文档)
+                        let ns = DaemonLayoutState { doc: doc, flow: flow, cfgn: [pw, ph, mg, fp, ls], wfs: wf_s, wfk: wf_k }
+                        if si < 0 {
+                            states = states.push(ns)
                         } else {
-                            g_prev_flow[0] = flow
+                            states[si] = ns
                         }
                     }
                     None { }
@@ -151,12 +167,14 @@ fn daemon_loop() {
                 let ls = (match cfgv.get("ls") { Some(x) { x } None { 1.65 } }) + 0.0
                 var wf_s = ""
                 var wf_e = ""
+                var wf_k = ""
                 var wf_ws: Vec<f64> = []
                 let wobj = cfgv.get("widths")
                 match wobj {
                     Some(wv) {
                         wf_s = match wv.get("s") { Some(x) { x } None { "" } }
                         wf_e = match wv.get("e") { Some(x) { x } None { "" } }
+                        wf_k = match wv.get("k") { Some(x) { x } None { "" } }
                         let warr = match wv.get("w") { Some(x) { x } None { [] } }
                         var wi = 0
                         while wi < warr.len() {
@@ -167,21 +185,20 @@ fn daemon_loop() {
                     None { }
                 }
                 let ctx = page_flow_ctx_cfg_w(pw, ph, mg, fp, ls, wf_s, wf_e, wf_ws)
-                // cfg 五参数+宽表与上一轮一致才走增量;否则全量
-                var same_cfg = g_prev_cfgn.len() == 5 && wf_s == g_prev_wfs
+                // cfg 五参数+宽表(s 与 k 双比对)与上一轮一致才走增量;否则全量
+                var same_cfg = si >= 0 && states.get(si).cfgn.len() == 5 && wf_s == states.get(si).wfs && wf_k == states.get(si).wfk
                 if same_cfg {
-                    same_cfg = pw == g_prev_cfgn.get(0) && ph == g_prev_cfgn.get(1) && mg == g_prev_cfgn.get(2) && fp == g_prev_cfgn.get(3) && ls == g_prev_cfgn.get(4)
+                    same_cfg = pw == states.get(si).cfgn.get(0) && ph == states.get(si).cfgn.get(1) && mg == states.get(si).cfgn.get(2) && fp == states.get(si).cfgn.get(3) && ls == states.get(si).cfgn.get(4)
                 }
                 var flow = page_flow_with(st, ctx)
-                if same_cfg && g_prev_flow.len() > 0 {
-                    flow = page_flow_incremental_fast(st, g_prev_flow[0], ctx)
+                if same_cfg {
+                    flow = page_flow_incremental_fast(st, states.get(si).flow, ctx)
                 }
-                g_prev_cfgn = [pw, ph, mg, fp, ls]
-                g_prev_wfs = wf_s
-                if g_prev_flow.len() == 0 {
-                    g_prev_flow = g_prev_flow.push(flow)
+                let ns = DaemonLayoutState { doc: doc, flow: flow, cfgn: [pw, ph, mg, fp, ls], wfs: wf_s, wfk: wf_k }
+                if si < 0 {
+                    states = states.push(ns)
                 } else {
-                    g_prev_flow[0] = flow
+                    states[si] = ns
                 }
                 result = layout_recs_json(st, src, flow)
             }
