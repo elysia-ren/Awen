@@ -269,7 +269,7 @@ fn build_node(node: DocNode, nodes: Vec<SemNode>, next_id: i32, parent: i32, sou
             }
             acc_nodes = acc_nodes.push(sem)
         }
-        TblNode(header_opt, rows, has_delim) {
+        TblNode(header_opt, rows, has_delim, open_cu) {
             // DocNode 的 tbl_header 是 Option(§15 表格无表头时为 None);
             // SemNode 统一为 Vec,空 Vec 表示无表头
             var header: Vec<Vec<Inline>> = []
@@ -292,7 +292,7 @@ fn build_node(node: DocNode, nodes: Vec<SemNode>, next_id: i32, parent: i32, sou
                 tbl_header: header,
                 tbl_rows: rows,
                 tbl_has_delim: has_delim,
-                obj_cu: CommandUse { cmd: Code, name_raw: "", args: [], attrs: [], content: None },
+                obj_cu: open_cu,
                 comment_text: "",
                 list_ordered: false,
                 list_items: [],
