@@ -408,35 +408,21 @@ function emptyParaUnderCaret(){
 var gSegCache=[];      // [{text,start,count}] 与 gNodes 对齐(全文渲染后重建)
 var incrSeq=0;         // 增量会话序号:全量 render/新增量都会使其过期
 
-// gSrc → 段列表(与引擎 blank_run 语义一致:K 空行 → floor(K/2) 空段;
-// 结尾 \n 的幻影行剪掉,与 lexer 对齐),再把 gNodes 按行基归段:
-// start=段首行号(分段定位用),nodeStart=段内首节点的 gNodes 下标(拼接用)
+// gSrc → 段缓存(与 serializeSegments 的 DOM 分段严格 1:1):
+// 每个有 span 的节点一段(text=节点源码行,start=srcStart,nodeStart=gNodes
+// 下标,count=1)。旧版按空行重切源码段——列表组被合成一段,而 DOM 逐项
+// 一块,长度永远失配 → 含列表文档增量链路整体失效(每次编辑都回退全量)。
+// 空段的 span 是空行对(join 出 "\n"),归一为 '' 与 DOM 序列化一致。
 function buildSegCache(src,nodes){
   var lines=src.split('\n');
   if(lines.length&&src.length>0&&lines[lines.length-1]==='')lines.pop();
-  var isBlank=function(l){return l.trim()===''};
-  var segs=[],i=0;
-  while(i<lines.length){
-    if(isBlank(lines[i])){
-      var rs=i;
-      while(i<lines.length&&isBlank(lines[i]))i++;
-      var pairs=Math.floor((i-rs)/2);
-      for(var j=0;j<pairs;j++)segs.push({text:'',start:rs+2*j,nodeStart:-1,count:0});
-    }else{
-      var st=i;
-      while(i<lines.length&&!isBlank(lines[i]))i++;
-      segs.push({text:lines.slice(st,i).join('\n'),start:st,nodeStart:-1,count:0});
-    }
-  }
-  var si=0;
+  var segs=[];
   for(var k=0;k<nodes.length;k++){
-    var ns=nodes[k].srcStart;
-    if(ns==null||ns<0)continue;
-    while(si<segs.length-1&&ns>=((si+1<segs.length)?segs[si+1].start:Infinity))si++;
-    if(si<segs.length){
-      if(segs[si].count===0)segs[si].nodeStart=k;
-      segs[si].count++;
-    }
+    var ns=nodes[k].srcStart,ne=nodes[k].srcEnd;
+    if(ns==null||ns<0||ne==null||ne<0||ne<ns)continue;
+    var text=lines.slice(ns,ne).join('\n');
+    if(text.replace(/\n/g,'')==='')text='';
+    segs.push({text:text,start:ns,nodeStart:k,count:1});
   }
   return segs;
 }
@@ -524,13 +510,16 @@ function incrRefresh(freshCaret){
   var lines=sg.lines,segs=sg.segs;
   var cache=gSegCache;
   if(!cache.length||cache.length!==segs.length)return false;
+  // 空白归一:空段 DOM 序列化是 "\n"(空行对 join),缓存侧归一为 '',
+  // 口径不一致会把所有空段判成脏段 → 引擎返回 0 recs → finish 必败回退全量
+  var norm=function(t){return (t||'').replace(/\n/g,'')};
   var dirty=[];
-  for(var i=0;i<segs.length;i++){ if(segs[i].text!==cache[i].text)dirty.push(i) }
+  for(var i=0;i<segs.length;i++){ if(norm(segs[i].text)!==norm(cache[i].text))dirty.push(i) }
   if(!dirty.length)return true;
   // 空段本地合成(空段引擎解析结果为空,不进请求)
   var reqs=[],localMap={};
   dirty.forEach(function(di){
-    if(segs[di].text===''){
+    if(norm(segs[di].text)===''){
       // 空段:span 就是空行对,节点本地合成(引擎对空文本返回空 blocks)
       localMap[di]=[{kind:'para',level:0,srcStart:segs[di].l0,srcEnd:segs[di].l1,text:'',lang:''}];
     }else reqs.push({bid:String(di),text:segs[di].text});

@@ -66,14 +66,19 @@ fn build_document(pr: ParseResult, source: String) -> DocState {
 }
 
 // 增量版：id_base>0 时 ID 从 id_base 起分配（ID 稳定策略步骤②）
+// 性能:build_node 只返回"本调用新建的节点",调用方在局部 Vec 上 push
+// (解释器 COW 快路径 O(1))——旧版把累积 Vec 经参数逐层传拷贝,539 节点
+// 时是 O(n²) 整体拷贝,build 阶段 175ms;局部累积后降到个位数 ms。
 fn build_document_with_id_base(pr: ParseResult, source: String, id_base: i32) -> DocState {
     var nodes: Vec<SemNode> = []
     var next_id: i32 = id_base + 1
     var diags = pr.diags
 
     for node in pr.nodes {
-        let result = build_node(node, nodes, next_id, -1, source, diags)
-        nodes = result.nodes
+        let result = build_node(node, next_id, -1, source, diags)
+        for new_node in result.nodes {
+            nodes = nodes.push(new_node)
+        }
         next_id = result.next_id
         diags = result.diags
     }
@@ -92,8 +97,8 @@ struct BuildResult {
     diags: Vec<Diagnostic>
 }
 
-fn build_node(node: DocNode, nodes: Vec<SemNode>, next_id: i32, parent: i32, source: String, diags: Vec<Diagnostic>) -> BuildResult {
-    var acc_nodes = nodes
+fn build_node(node: DocNode, next_id: i32, parent: i32, source: String, diags: Vec<Diagnostic>) -> BuildResult {
+    var created: Vec<SemNode> = []
     var acc_id = next_id
     var acc_diags = diags
     let my_id = acc_id
@@ -122,11 +127,13 @@ fn build_node(node: DocNode, nodes: Vec<SemNode>, next_id: i32, parent: i32, sou
                 list_items: [],
                 quote_depth: 0,
             }
-            acc_nodes = acc_nodes.push(sem)
+            created = created.push(sem)
             // 递归构建子节点
             for child in children {
-                let cr = build_node(child, acc_nodes, acc_id, my_id, source, acc_diags)
-                acc_nodes = cr.nodes
+                let cr = build_node(child, acc_id, my_id, source, acc_diags)
+                for child_node in cr.nodes {
+                    created = created.push(child_node)
+                }
                 acc_id = cr.next_id
                 acc_diags = cr.diags
             }
@@ -153,7 +160,7 @@ fn build_node(node: DocNode, nodes: Vec<SemNode>, next_id: i32, parent: i32, sou
                 list_items: [],
                 quote_depth: 0,
             }
-            acc_nodes = acc_nodes.push(sem)
+            created = created.push(sem)
         }
         ListGroup(ordered, items, ln) {
             let sem = SemNode {
@@ -177,7 +184,7 @@ fn build_node(node: DocNode, nodes: Vec<SemNode>, next_id: i32, parent: i32, sou
                 list_items: items,
                 quote_depth: 0,
             }
-            acc_nodes = acc_nodes.push(sem)
+            created = created.push(sem)
         }
         QuoteBlk(depth, inline, ln) {
             let sem = SemNode {
@@ -201,7 +208,7 @@ fn build_node(node: DocNode, nodes: Vec<SemNode>, next_id: i32, parent: i32, sou
                 list_items: [],
                 quote_depth: depth,
             }
-            acc_nodes = acc_nodes.push(sem)
+            created = created.push(sem)
         }
         HRule(ln) {
             let sem = SemNode {
@@ -225,7 +232,7 @@ fn build_node(node: DocNode, nodes: Vec<SemNode>, next_id: i32, parent: i32, sou
                 list_items: [],
                 quote_depth: 0,
             }
-            acc_nodes = acc_nodes.push(sem)
+            created = created.push(sem)
         }
         Obj(u, ln) {
             let sem = SemNode {
@@ -249,7 +256,7 @@ fn build_node(node: DocNode, nodes: Vec<SemNode>, next_id: i32, parent: i32, sou
                 list_items: [],
                 quote_depth: 0,
             }
-            acc_nodes = acc_nodes.push(sem)
+            created = created.push(sem)
         }
         RawBlk(cmd, lang, lines, ln) {
             let sem = SemNode {
@@ -273,7 +280,7 @@ fn build_node(node: DocNode, nodes: Vec<SemNode>, next_id: i32, parent: i32, sou
                 list_items: [],
                 quote_depth: 0,
             }
-            acc_nodes = acc_nodes.push(sem)
+            created = created.push(sem)
         }
         TblNode(header_opt, rows, has_delim, open_cu, ln) {
             // DocNode 的 tbl_header 是 Option(§15 表格无表头时为 None);
@@ -304,7 +311,7 @@ fn build_node(node: DocNode, nodes: Vec<SemNode>, next_id: i32, parent: i32, sou
                 list_items: [],
                 quote_depth: 0,
             }
-            acc_nodes = acc_nodes.push(sem)
+            created = created.push(sem)
         }
         CommentNode(content, ln) {
             let sem = SemNode {
@@ -328,12 +335,12 @@ fn build_node(node: DocNode, nodes: Vec<SemNode>, next_id: i32, parent: i32, sou
                 list_items: [],
                 quote_depth: 0,
             }
-            acc_nodes = acc_nodes.push(sem)
+            created = created.push(sem)
         }
         DocRoot(children) { }
     }
 
-    return BuildResult { nodes: acc_nodes, next_id: acc_id, diags: acc_diags }
+    return BuildResult { nodes: created, next_id: acc_id, diags: acc_diags }
 }
 
 // ── 查询辅助 ────────────────────────────────────────────────

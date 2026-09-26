@@ -69,12 +69,16 @@ fn json_escape_str(s: String) -> String {
 // 请求:{"id":N,"op":"parse|pack|unpack",...};响应:{"id":N,"ok":true,"result":"..."}
 
 // 增量排版状态(按文档隔离:多标签各自持有一份,互不覆盖)
+// psrc/plex 是上一轮全文与 lex 结果:relayout 用 incremental_lex 只重扫
+// 脏区(真增量解析),结构被破坏时自动退回全量。
 struct DaemonLayoutState {
     doc: String
     flow: PageFlowResult
     cfgn: Vec<f64>
     wfs: String
     wfk: String
+    psrc: String
+    plex: LexOutput
 }
 
 fn daemon_loop() {
@@ -103,8 +107,7 @@ fn daemon_loop() {
                 let o2 = lex(src)
                 let pr = parse(o2)
                 let st = build_document(pr, src)
-                json = blocks_to_json(st, src)
-                // A′ 引擎全权排版:cfg 在场时同一次解析顺带权威分页(零额外往返)
+                json = blocks_to_json(st, src)                // A′ 引擎全权排版:cfg 在场时同一次解析顺带权威分页(零额外往返)
                 let cfgv = m.get("cfg")
                 match cfgv {
                     Some(c) {
@@ -137,8 +140,8 @@ fn daemon_loop() {
                         let lay = layout_recs_json(st, src, flow)
                         // 拼接:剥掉 blocks_to_json 收尾 '}',接上 pages/recs
                         json = json[0..(json.len() - 1)] + "," + lay[1..lay.len()]
-                        // 留存本轮流供增量排版复用(按文档)
-                        let ns = DaemonLayoutState { doc: doc, flow: flow, cfgn: [pw, ph, mg, fp, ls], wfs: wf_s, wfk: wf_k }
+                        // 留存本轮流供增量排版复用(按文档);psrc/plex 是增量 lex 基线
+                        let ns = DaemonLayoutState { doc: doc, flow: flow, cfgn: [pw, ph, mg, fp, ls], wfs: wf_s, wfk: wf_k, psrc: src, plex: o2 }
                         if si < 0 {
                             states = states.push(ns)
                         } else {
@@ -150,16 +153,36 @@ fn daemon_loop() {
             }
             result = json
         } else if op == "relayout" {
-            // 增量排版:全量重解析后,排版复用上一轮未变前缀(签名比较),
-            // 只重排首变之后的尾段——返回与 op=parse 同构的 pages/recs
+            // 增量排版:解析走 incremental_lex(脏区重扫,失败退全量),
+            // 排版复用上一轮未变前缀(签名比较)只重排尾段——返回与 op=parse 同构的 pages/recs
+            let tq0 = now_ms()
             let src = match m.get("src") { Some(x) { x } None { "" } }
             let cfgv = match m.get("cfg") { Some(x) { x } None { 0 } }
             if src == "" {
                 result = "{\"pages\":0,\"recs\":[]}"
             } else {
-                let o2 = lex(src)
+                let tq1 = now_ms()
+                // 真增量解析:有上一轮基线且该文档 cfg 槽位在,先试增量 lex;
+                // 成功就绝不再跑全量 lex(空壳初始化,失败才补全量)
+                var o2 = LexOutput { blocks: [], diags: [] }
+                var incr_used = false
+                if si >= 0 {
+                    let base = states.get(si)
+                    if base.psrc.len() > 0 {
+                        let inc = incremental_lex(base.plex, base.psrc, src)
+                        if !inc.fallback {
+                            o2 = inc.out
+                            incr_used = true
+                        }
+                    }
+                }
+                if !incr_used {
+                    o2 = lex(src)
+                }
+                let tq2 = now_ms()
                 let pr = parse(o2)
                 let st = build_document(pr, src)
+                let tq3 = now_ms()
                 let pw = (match cfgv.get("pw") { Some(x) { x } None { 210 } }) + 0.0
                 let ph = (match cfgv.get("ph") { Some(x) { x } None { 297 } }) + 0.0
                 let mg = (match cfgv.get("mg") { Some(x) { x } None { 20 } }) + 0.0
@@ -190,17 +213,33 @@ fn daemon_loop() {
                 if same_cfg {
                     same_cfg = pw == states.get(si).cfgn.get(0) && ph == states.get(si).cfgn.get(1) && mg == states.get(si).cfgn.get(2) && fp == states.get(si).cfgn.get(3) && ls == states.get(si).cfgn.get(4)
                 }
-                var flow = page_flow_with(st, ctx)
+                // cfg 一致走增量 fast(复用前缀盒+尾段重推);否则全量。
+                // 二选一:旧写法先无条件跑全量再丢结果,白烧一次排版(~2s)
+                let tq4 = now_ms()
                 if same_cfg {
-                    flow = page_flow_incremental_fast(st, states.get(si).flow, ctx)
-                }
-                let ns = DaemonLayoutState { doc: doc, flow: flow, cfgn: [pw, ph, mg, fp, ls], wfs: wf_s, wfk: wf_k }
-                if si < 0 {
-                    states = states.push(ns)
+                    let flow = page_flow_incremental_fast(st, states.get(si).flow, ctx)
+                    let ns = DaemonLayoutState { doc: doc, flow: flow, cfgn: [pw, ph, mg, fp, ls], wfs: wf_s, wfk: wf_k, psrc: src, plex: o2 }
+                    if si < 0 {
+                        states = states.push(ns)
+                    } else {
+                        states[si] = ns
+                    }
+                    var lay = layout_recs_json(st, src, flow)
+                    if incr_used {
+                        let tq5 = now_ms()
+                        lay = lay[0..(lay.len() - 1)] + ",\"incr\":1,\"t\":[" + f"{tq1 - tq0}" + "," + f"{tq2 - tq1}" + "," + f"{tq3 - tq2}" + "," + f"{tq4 - tq3}" + "," + f"{tq5 - tq4}" + "]}"
+                    }
+                    result = lay
                 } else {
-                    states[si] = ns
+                    let flow = page_flow_with(st, ctx)
+                    let ns = DaemonLayoutState { doc: doc, flow: flow, cfgn: [pw, ph, mg, fp, ls], wfs: wf_s, wfk: wf_k, psrc: src, plex: o2 }
+                    if si < 0 {
+                        states = states.push(ns)
+                    } else {
+                        states[si] = ns
+                    }
+                    result = layout_recs_json(st, src, flow)
                 }
-                result = layout_recs_json(st, src, flow)
             }
         } else if op == "parse_blocks" {
             // 块级增量解析:只解析前端送来的脏段,每段独立走完整权威管线。

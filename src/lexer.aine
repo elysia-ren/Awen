@@ -256,3 +256,221 @@ fn lex_command_line(chars: String, lineno: i32, diags: Vec<Diagnostic>, raw: Opt
         }
     }
 }
+
+
+// ── 增量 lex(daemon relayout 真增量)────────────────────────
+// 复用上一轮 LexOutput:只对"脏区"(变更行向两侧扩到 raw/table 状态干净点)
+// 重扫,前缀块原样保留、尾段块行号平移。结构被破坏(脏区结束时 raw/table
+// 仍未闭合)时返回 fallback=true,调用方退回全量 lex——正确性优先。
+
+struct LexIncremental {
+    out: LexOutput
+    reused_blocks: i32
+    relexed_lines: i32
+    fallback: bool
+}
+
+// 上一轮每行处理前的状态(bit0=in_raw,bit1=in_table);无块的行继承前态。
+// 末尾多推一项:下标 n_lines = 文档 EOF 前的状态(纯追加场景用)。
+fn lex_line_states(blocks: Vec<LexedBlock>, n_lines: i32) -> Vec<i32> {
+    var st: Vec<i32> = []
+    var raw = 0
+    var tab = 0
+    var bi: i32 = 0
+    var li: i32 = 0
+    while li < n_lines {
+        st = st.push(raw + tab * 2)
+        while bi < blocks.len() && blocks.get(bi).line == li {
+            match blocks.get(bi).block {
+                RawLine(_) { raw = 1 }
+                RawOpen(_, _) { raw = 1 }
+                RawClose(_) { raw = 0 }
+                TableOpen(_) { tab = 1 }
+                TableRow(_, _) { tab = 1 }
+                TableClose { tab = 0 }
+                _ { }
+            }
+            bi += 1
+        }
+        li += 1
+    }
+    st = st.push(raw + tab * 2)
+    return st
+}
+
+fn incremental_lex(prev: LexOutput, old_src: String, new_src: String) -> LexIncremental {
+    let old_lines = old_src.split("\n")
+    let new_lines = new_src.split("\n")
+    var old_n = old_lines.len()
+    var new_n = new_lines.len()
+    if old_n > 0 && old_src.len() > 0 && old_lines[old_n - 1] == "" { old_n -= 1 }
+    if new_n > 0 && new_src.len() > 0 && new_lines[new_n - 1] == "" { new_n -= 1 }
+
+    // 前向找首变行 first;后向配对相同后缀得 delta(行数差)。
+    // 中段:旧行 [first, old_mid_end) ↔ 新行 [first, new_mid_end),
+    // new_mid_end = max(ni+1, first) 防止删行时前后缀在新坐标重叠。
+    var first = -1
+    var i = 0
+    while i < old_n && i < new_n {
+        if old_lines[i] != new_lines[i] {
+            first = i
+            break
+        }
+        i += 1
+    }
+    if first < 0 {
+        if old_n == new_n {
+            return LexIncremental { out: prev, reused_blocks: prev.blocks.len(), relexed_lines: 0, fallback: false }
+        }
+        first = if old_n < new_n { old_n } else { new_n }
+    }
+    var oi = old_n - 1
+    var ni = new_n - 1
+    while oi >= first && ni >= first {
+        if old_lines[oi] != new_lines[ni] { break }
+        oi -= 1
+        ni -= 1
+    }
+    let delta = ni - oi
+    var new_mid_end = ni + 1
+    if new_mid_end < first { new_mid_end = first }
+    var old_mid_end = new_mid_end - delta
+
+    // 状态数组:脏区向两侧扩到 raw/table 干净点(st 有 old_n+1 项)
+    let st = lex_line_states(prev.blocks, old_n)
+    var start = first
+    while start > 0 {
+        if st.get(start) == 0 { break }
+        start -= 1
+    }
+    var end_old = old_mid_end
+    while end_old < old_n {
+        if st.get(end_old) == 0 { break }
+        end_old += 1
+    }
+    let end_new = end_old + delta
+
+    // 重扫脏区(行号平移到全局坐标在拼接时做)
+    var region_lines: Vec<String> = []
+    var ri = start
+    while ri < end_new {
+        region_lines = region_lines.push(new_lines[ri])
+        ri += 1
+    }
+    // 区域首尾是真空行时,join 出的结尾 \n 会被 lex 的幻影行剥除逻辑吃掉;
+    // 末尾加哨兵行(独立 Paragraph 块)保住真空行,lex 后剥掉最后一块
+    var region_src = ""
+    ri = 0
+    while ri < region_lines.len() {
+        if ri > 0 { region_src = region_src + "\n" }
+        region_src = region_src + region_lines[ri]
+        ri += 1
+    }
+    var sentinel = false
+    if region_lines.len() > 0 {
+        region_src = region_src + "\nawen region end sentinel 7f3a"
+        sentinel = true
+    }
+    var reg = lex(region_src)
+    if sentinel && reg.blocks.len() > 0 {
+        var kept: Vec<LexedBlock> = []
+        var kb = 0
+        while kb < reg.blocks.len() - 1 {
+            kept = kept.push(reg.blocks.get(kb))
+            kb += 1
+        }
+        var kdiag: Vec<Diagnostic> = []
+        var kd = 0
+        while kd < reg.diags.len() {
+            let dsv = reg.diags.get(kd)
+            if dsv.line < region_lines.len() {
+                kdiag = kdiag.push(dsv)
+            }
+            kd += 1
+        }
+        reg = LexOutput { blocks: kept, diags: kdiag }
+    }
+    if region_lines.len() == 0 {
+        reg = LexOutput { blocks: [], diags: [] }
+    }
+
+    // 验证:脏区必须自闭合(状态干净收尾),否则结构被编辑破坏,退全量
+    var vraw = false
+    var vtab = false
+    var vi = 0
+    while vi < reg.blocks.len() {
+        match reg.blocks.get(vi).block {
+            RawLine(_) { vraw = true }
+            RawOpen(_, _) { vraw = true }
+            RawClose(_) { vraw = false }
+            TableOpen(_) { vtab = true }
+            TableRow(_, _) { vtab = true }
+            TableClose { vtab = false }
+            _ { }
+        }
+        vi += 1
+    }
+    var unclosed = false
+    var di = 0
+    while di < reg.diags.len() {
+        let msg = reg.diags.get(di).message
+        if msg.contains("未闭合") { unclosed = true }
+        di += 1
+    }
+    if vraw || vtab || unclosed {
+        return LexIncremental { out: prev, reused_blocks: 0, relexed_lines: 0, fallback: true }
+    }
+
+    // 拼接:前缀 + 脏区(行号 +start)+ 尾段(行号 +delta)
+    var blocks: Vec<LexedBlock> = []
+    var diags: Vec<Diagnostic> = []
+    var reused = 0
+    // 有序三段拼接:前缀(start 前)→ 脏区重扫块(行号 +start)→ 尾段(+delta)
+    var bi = 0
+    while bi < prev.blocks.len() {
+        let b = prev.blocks[bi]
+        if b.line < start {
+            blocks = blocks.push(b)
+            reused += 1
+        } else {
+            break
+        }
+        bi += 1
+    }
+    var ki = 0
+    while ki < reg.blocks.len() {
+        let b2 = reg.blocks.get(ki)
+        blocks = blocks.push(LexedBlock { line: b2.line + start, block: b2.block })
+        ki += 1
+    }
+    while bi < prev.blocks.len() {
+        let b = prev.blocks[bi]
+        if b.line >= end_old {
+            blocks = blocks.push(LexedBlock { line: b.line + delta, block: b.block })
+            reused += 1
+        }
+        bi += 1
+    }
+    di = 0
+    while di < prev.diags.len() {
+        let d = prev.diags[di]
+        if d.line < start {
+            diags = diags.push(d)
+        } else if d.line >= end_old {
+            diags = diags.push(Diagnostic { severity: d.severity, message: d.message, line: d.line + delta, hint: d.hint })
+        }
+        di += 1
+    }
+    di = 0
+    while di < reg.diags.len() {
+        let d2 = reg.diags.get(di)
+        diags = diags.push(Diagnostic { severity: d2.severity, message: d2.message, line: d2.line + start, hint: d2.hint })
+        di += 1
+    }
+    return LexIncremental {
+        out: LexOutput { blocks: blocks, diags: diags },
+        reused_blocks: reused,
+        relexed_lines: end_new - start,
+        fallback: false,
+    }
+}

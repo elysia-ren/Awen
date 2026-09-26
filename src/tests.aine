@@ -46,6 +46,7 @@ module tests_inline_span;
 module tests_editor;
 module tests_core_api;
 module tests_lex;
+module tests_incremental_lex;
 module tests_integration;
 module tests_fmt_inspect;
 module tests_parse;

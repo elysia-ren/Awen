@@ -1,0 +1,64 @@
+// bench_phases.aine —— 大文档流水线相位计时(lex/parse/build/flow)
+// 运行: aine run src/bench_phases.aine(源码从 build/bench_src.awen 读)
+module diag;
+module registry;
+module fullwidth;
+module escape;
+module explicit;
+module lightweight;
+module lexer;
+module parser;
+module document;
+module mapping;
+module refs;
+module theme;
+module render;
+module incremental;
+module pipeline;
+module cjk;
+module layout;
+module layout_width;
+module page_flow;
+module json_export;
+module validate;
+module toc;
+module diff;
+module inspect;
+module export_html;
+module heading_tree;
+module numbering;
+module container;
+module fmt;
+module export_md;
+module seed;
+module incremental_update;
+module core_blocks;
+
+fn main() {
+    let src = read_file("build/bench_src.awen")
+    if src.contains("[read_file error") {
+        print("no build/bench_src.awen")
+        return
+    }
+    let t0 = now_ms()
+    let out = lex(src)
+    let t1 = now_ms()
+    let pr = parse(out)
+    let t2 = now_ms()
+    let st = build_document(pr, src)
+    let t3 = now_ms()
+    let ctx = page_flow_ctx_cfg_w(210.0, 297.0, 20.0, 11.0, 1.65, "", "", [])
+    let flow = page_flow_with(st, ctx)
+    let t4 = now_ms()
+    let lay = layout_recs_json(st, src, flow)
+    let t5 = now_ms()
+
+    let nl = src.split("\n").len()
+    print(f"src_lines={nl} nodes={st.nodes.len()} pages={flow.pages.len()}")
+    print(f"lex      = {t1 - t0} ms")
+    print(f"parse    = {t2 - t1} ms")
+    print(f"build    = {t3 - t2} ms")
+    print(f"flow     = {t4 - t3} ms")
+    print(f"recs_json= {t5 - t4} ms")
+    print(f"TOTAL    = {t5 - t0} ms")
+}
