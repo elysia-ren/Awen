@@ -119,10 +119,11 @@ fn find_node_end(lines: Vec<String>, start: i32, node: SemNode) -> i32 {
         return start
     }
     if node.kind == "table" {
-        // 表格:找到 @[/table] 行
+        // 表格:找到闭合行(中英方言 @[/table] 与 @[/表格] 同效)
         var i = start + 1
         while i < lines.len() {
-            if lines[i].trim() == "@[/table]" {
+            let t2 = lines[i].trim()
+            if t2 == "@[/table]" || t2 == "@[/表格]" {
                 return i
             }
             i += 1

@@ -268,7 +268,10 @@ fn layout_recs_json(state: DocState, src: String, flow: PageFlowResult) -> Strin
         first_pages = first_pages.push(b.start_page)
     }
     var recs: Vec<i32> = []
+    var rec_ids: Vec<i32> = []
+    var tfrags: Vec<String> = []
     var last = 0
+    var last_rec = 0
     for node in state.nodes {
         var has_span = false
         var s = 0
@@ -296,11 +299,41 @@ fn layout_recs_json(state: DocState, src: String, flow: PageFlowResult) -> Strin
                 let t = lines[i].trim()
                 if starts_with_at(t, 0, "- ") || is_ordered_item(t) {
                     recs = recs.push(pg)
+                    rec_ids = rec_ids.push(node.id)
                 }
                 i += 1
             }
         } else {
             recs = recs.push(pg)
+            rec_ids = rec_ids.push(node.id)
+        }
+        // 表格跨页片段:placed 中本节点的 "|row|" 行级标记 → 按页分组
+        if node.kind == "table" {
+            var fr_page = -1
+            var fr_first = -1
+            var fr_last = -1
+            var fr_open = false
+            for pl in flow.placed {
+                if pl.node_id != node.id { continue }
+                if pl.text != "|row|" { continue }
+                if !fr_open {
+                    fr_page = pl.page
+                    fr_first = fr_last
+                    if fr_first < 0 { fr_first = 0 }
+                    fr_open = true
+                    fr_last = fr_first
+                } else if pl.page != fr_page {
+                    tfrags = tfrags.push(f"{recs.len() - 1}" + "," + f"{fr_page}" + "," + f"{fr_first}" + "," + f"{fr_last}")
+                    fr_page = pl.page
+                    fr_first = fr_last + 1
+                    fr_last = fr_first
+                } else {
+                    fr_last += 1
+                }
+            }
+            if fr_open {
+                tfrags = tfrags.push(f"{recs.len() - 1}" + "," + f"{fr_page}" + "," + f"{fr_first}" + "," + f"{fr_last}")
+            }
         }
     }
     var out = "{\"pages\":" + f"{flow.pages}" + ",\"recs\":["
@@ -309,6 +342,14 @@ fn layout_recs_json(state: DocState, src: String, flow: PageFlowResult) -> Strin
         if !first { out = out + "," }
         first = false
         out = out + f"{r}"
+    }
+    // 表格跨页片段:[gNodes 下标, 页, 首行, 末行](行序=表头+数据行)
+    out = out + "],\"tfrags\":["
+    var ft = true
+    for t in tfrags {
+        if !ft { out = out + "," }
+        ft = false
+        out = out + "[" + t + "]"
     }
     return out + "]}"
 }
