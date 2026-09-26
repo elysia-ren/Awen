@@ -14,7 +14,7 @@ enum Inline {
     IBold(Vec<Inline>)
     Italic(Vec<Inline>)
     Strike(Vec<Inline>)
-    Scoped(ExplicitCommand, Vec<Inline>)
+    Scoped(ExplicitCommand, String, Vec<Inline>)
     CodeSpan(String)
     Command(CommandUse)
     RawInline(ExplicitCommand, Option<String>, String)
@@ -45,7 +45,7 @@ fn inline_plain(items: Vec<Inline>) -> String {
                 recurse = c
                 has_recurse = true
             }
-            Scoped(cmd, c) {
+            Scoped(cmd, sa, c) {
                 recurse = c
                 has_recurse = true
             }
@@ -83,7 +83,7 @@ fn inline_marked_text(items: Vec<Inline>) -> String {
             Italic(c) { out = out + "_" + inline_marked_text(c) + "_" }
             Strike(c) { out = out + "~~" + inline_marked_text(c) + "~~" }
             CodeSpan(s) { out = out + "`" + s + "`" }
-            Scoped(cmd, c) { out = out + inline_marked_text(c) }
+            Scoped(cmd, sa, c) { out = out + inline_marked_text(c) }
             RawInline(cmd, lang, content) { out = out + content }
             Command(u) { out = out + "@[" + u.name_raw + "]" }
         }
@@ -115,7 +115,7 @@ fn inline_display_text(items: Vec<Inline>) -> String {
                 recurse = c
                 has_recurse = true
             }
-            Scoped(cmd, c) {
+            Scoped(cmd, sa, c) {
                 recurse = c
                 has_recurse = true
             }
@@ -563,7 +563,23 @@ fn lw_atomize(chars: String, line_no: i32, diags: Vec<Diagnostic>) -> AtomOut {
 
 struct Frame {
     kind: Option<MarkerKind>
+    // 开命令参数原文(如 red / 20 / "Times";Scoped 闭合时携带)
+    args: String
     children: Vec<Inline>
+}
+
+// 开命令的参数原文(args+attrs 空格连接;无则空串)
+fn scu_args(u: CommandUse) -> String {
+    var out = ""
+    for a in u.args {
+        if out.len() > 0 { out = out + " " }
+        out = out + arg_plain(a)
+    }
+    for kv in u.attrs {
+        if out.len() > 0 { out = out + " " }
+        out = out + kv.key + "=" + arg_plain(kv.val)
+    }
+    return out
 }
 
 fn lw_vec_set(v: Vec<Frame>, idx: i32, f: Frame) -> Vec<Frame> {
@@ -689,7 +705,7 @@ fn lw_frames_contain(frames: Vec<Frame>, kind: MarkerKind) -> bool {
 }
 
 fn lw_resolve(atoms: Vec<LwAtom>, diags: Vec<Diagnostic>, line_no: i32) -> ScanOut {
-    var frames: Vec<Frame> = [Frame { kind: None, children: [] }]
+    var frames: Vec<Frame> = [Frame { kind: None, args: "", children: [] }]
     var diags2 = diags
     var aborted = false
     for atom in atoms {
@@ -750,28 +766,28 @@ fn lw_resolve(atoms: Vec<LwAtom>, diags: Vec<Diagnostic>, line_no: i32) -> ScanO
             let fi = frames.len() - 1
             let f = frames[fi]
             let new_children = f.children.push(AwTxt(a_text))
-            let new_f = Frame { kind: f.kind, children: new_children }
+            let new_f = Frame { kind: f.kind, args: f.args, children: new_children }
             frames = lw_vec_set(frames, fi, new_f)
         } else if a_type == 2 {
             let fi = frames.len() - 1
             let f = frames[fi]
             let new_children = f.children.push(CodeSpan(a_code))
-            let new_f = Frame { kind: f.kind, children: new_children }
+            let new_f = Frame { kind: f.kind, args: f.args, children: new_children }
             frames = lw_vec_set(frames, fi, new_f)
         } else if a_type == 6 {
             let fi = frames.len() - 1
             let f = frames[fi]
             let new_children = f.children.push(RawInline(a_rawseg_cmd, a_rawseg_lang, a_rawseg_content))
-            let new_f = Frame { kind: f.kind, children: new_children }
+            let new_f = Frame { kind: f.kind, args: f.args, children: new_children }
             frames = lw_vec_set(frames, fi, new_f)
         } else if a_type == 4 {
             if a_opens {
-                frames.push(Frame { kind: Some(MkExplicit(a_cu.cmd)), children: [] })
+                frames.push(Frame { kind: Some(MkExplicit(a_cu.cmd)), args: scu_args(a_cu), children: [] })
             } else {
                 let fi = frames.len() - 1
                 let f = frames[fi]
                 let new_children = f.children.push(Command(a_cu))
-                let new_f = Frame { kind: f.kind, children: new_children }
+                let new_f = Frame { kind: f.kind, args: f.args, children: new_children }
                 frames = lw_vec_set(frames, fi, new_f)
             }
         } else if a_type == 5 {
@@ -782,8 +798,8 @@ fn lw_resolve(atoms: Vec<LwAtom>, diags: Vec<Diagnostic>, line_no: i32) -> ScanO
                 frames = lw_vec_drop_last(frames)
                 let fi = frames.len() - 1
                 let pf = frames[fi]
-                let new_children = pf.children.push(Scoped(a_close_cmd, f.children))
-                let new_f = Frame { kind: pf.kind, children: new_children }
+                let new_children = pf.children.push(Scoped(a_close_cmd, f.args, f.children))
+                let new_f = Frame { kind: pf.kind, args: pf.args, children: new_children }
                 frames = lw_vec_set(frames, fi, new_f)
             } else if lw_frames_contain(frames, kind) {
                 diags2.push(diag_warning("行内标记交叉", line_no))
@@ -793,7 +809,7 @@ fn lw_resolve(atoms: Vec<LwAtom>, diags: Vec<Diagnostic>, line_no: i32) -> ScanO
                 let fi = frames.len() - 1
                 let f = frames[fi]
                 let new_children = f.children.push(AwTxt(a_close_lit))
-                let new_f = Frame { kind: f.kind, children: new_children }
+                let new_f = Frame { kind: f.kind, args: f.args, children: new_children }
                 frames = lw_vec_set(frames, fi, new_f)
             }
         } else if a_type == 3 {
@@ -811,21 +827,21 @@ fn lw_resolve(atoms: Vec<LwAtom>, diags: Vec<Diagnostic>, line_no: i32) -> ScanO
                 } else if a_kind == MkStrike {
                     node = Strike(f.children)
                 } else if a_kind == MkExplicit(a_close_cmd) {
-                    node = Scoped(a_close_cmd, f.children)
+                    node = Scoped(a_close_cmd, f.args, f.children)
                 }
                 let new_children = pf.children.push(node)
-                let new_f = Frame { kind: pf.kind, children: new_children }
+                let new_f = Frame { kind: pf.kind, args: pf.args, children: new_children }
                 frames = lw_vec_set(frames, fi, new_f)
             } else if a_can_close && lw_frames_contain(frames, a_kind) {
                 diags2.push(diag_warning("行内标记交叉", line_no))
                 aborted = true
             } else if a_can_open {
-                frames.push(Frame { kind: Some(a_kind), children: [] })
+                frames.push(Frame { kind: Some(a_kind), args: "", children: [] })
             } else {
                 let fi = frames.len() - 1
                 let f = frames[fi]
                 let new_children = f.children.push(AwTxt(a_literal))
-                let new_f = Frame { kind: f.kind, children: new_children }
+                let new_f = Frame { kind: f.kind, args: f.args, children: new_children }
                 frames = lw_vec_set(frames, fi, new_f)
             }
         }

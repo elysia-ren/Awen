@@ -176,6 +176,7 @@ function scanCmdClose(s,from){
 function recToNode(nb){
   var raw=(nb.text||'').split('\n');
   var b={kind:nb.kind,level:nb.level||0,srcStart:nb.srcStart,srcEnd:nb.srcEnd};
+  if(nb.html)b.html=nb.html;   // 统一语义:引擎渲染 HTML 权威,fmtH 回退
   var k=nb.kind;
   if(k==='heading'){
     b.text=raw.join(' ').replace(/^\s*#+\s*/,'');
@@ -353,11 +354,11 @@ function objHtml(b){
 // ── 块 → HTML ──
 function blockHtml(b){
   switch(b.kind){
-    case 'heading':return'<h'+b.level+'>'+fmtH(b.text)+'</h'+b.level+'>';
+    case 'heading':return'<h'+b.level+'>'+(b.html||fmtH(b.text))+'</h'+b.level+'>';
     case 'hr':return'<hr>';
     case 'ul':return'<ul'+(b.level?' style="margin-left:'+(b.level*2)+'em"':'')+'><li>'+fmtH(b.text)+'</li></ul>';
     case 'ol':return'<ol'+(b.level?' style="margin-left:'+(b.level*2)+'em"':'')+'><li>'+fmtH(b.text)+'</li></ol>';
-    case 'quote':return'<blockquote><p>'+fmtH(b.text)+'</p></blockquote>';
+    case 'quote':return'<blockquote><p>'+(b.html||fmtH(b.text))+'</p></blockquote>';
     case 'table':return tableHtml(b);
     case 'obj':return objHtml(b);
     case 'code':return'<div class="codeblock" contenteditable="false"><div class="code-lang">'+escHtml(b.lang||'')+'</div><pre><code>'+escHtml(b.text)+'</code></pre></div>';
@@ -372,7 +373,7 @@ function blockHtml(b){
       var inner=innerLines.map(function(l){return'<div>'+fmtH(l)+'</div>'}).join('');
       return'<div data-kind="scope" data-cmd="'+escAttr(open)+'" data-close="'+escAttr(close)+'" style="'+escAttr(css)+'">'+inner+'</div>';
     }
-    default:return'<p>'+fmtH(b.text)+'</p>';
+    default:return'<p>'+(b.html||fmtH(b.text))+'</p>';
   }
 }
 

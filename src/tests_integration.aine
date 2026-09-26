@@ -81,7 +81,7 @@ fn collect_inline(items: Vec<Inline>, out: Vec<ExplicitCommand>) -> Vec<Explicit
             IBold(c) { acc = collect_inline(c, acc) }
             Italic(c) { acc = collect_inline(c, acc) }
             Strike(c) { acc = collect_inline(c, acc) }
-            Scoped(cmd, c) {
+            Scoped(cmd, sa, c) {
                 acc.push(cmd)
                 acc = collect_inline(c, acc)
             }
@@ -1223,7 +1223,7 @@ fn integration_render_multiple_scoped_types() -> Result<i32, String> {
         if node.kind == "para" {
             for item in node.inline {
                 match item {
-                    Scoped(cmd, c) {
+                    Scoped(cmd, sa, c) {
                         if cmd == U { found_u = true }
                         if cmd == Color { found_color = true }
                         if cmd == Font { found_font = true }

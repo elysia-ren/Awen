@@ -99,6 +99,12 @@ fn ex_scan_balanced(s: String, start: i32) -> Option<Balanced> {
 }
 
 fn read_value(s: String, start: i32) -> Result<ValParsed, ParseErr> {
+    return read_value_c(s, start, false)
+}
+
+// allow_colon=true 时原子值可含冒号(属性值位置:URL 的 https:// 等);
+// 键位置与位置参数仍以冒号分隔(默认 false,行为不变)
+fn read_value_c(s: String, start: i32, allow_colon: bool) -> Result<ValParsed, ParseErr> {
     let raw_c = s[start]
     let q_opt = fw_normalize_in_command(raw_c)
     let quote = match q_opt {
@@ -123,7 +129,7 @@ fn read_value(s: String, start: i32) -> Result<ValParsed, ParseErr> {
         return Err(ParseErr { msg: "字符串未闭合", hint: None })
     }
     var i = start
-    while i < s.len() && ex_is_atom_char(s[i]) {
+    while i < s.len() && (ex_is_atom_char(s[i]) || (allow_colon && s[i] == ":")) {
         i += 1
     }
     if i == start {
@@ -206,7 +212,7 @@ fn parse_header(s: String, at: i32) -> Result<HeaderParsed, ParseErr> {
             if fw_is_ideo_space(s[j]) {
                 return Err(space_err())
             }
-            let vvp = read_value(s, j)?
+            let vvp = read_value_c(s, j, true)?
             j = j + vvp.consumed
             attrs.push(KVPair { key: arg_plain(tok), val: vvp.arg })
             i = j

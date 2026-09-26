@@ -25,7 +25,7 @@ fn export_html_inline(items: Vec<Inline>) -> String {
             Italic(c) { out = out + "<em>" + export_html_inline(c) + "</em>" }
             Strike(c) { out = out + "<del>" + export_html_inline(c) + "</del>" }
             CodeSpan(s) { out = out + "<code>" + html_escape(s) + "</code>" }
-            Scoped(cmd, c) {
+            Scoped(cmd, sa, c) {
                 var tag = "span"
                 match cmd {
                     Bold { tag = "strong" }
