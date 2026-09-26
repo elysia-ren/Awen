@@ -305,3 +305,40 @@ fn render_item_html_field() -> Result<i32, String> {
     assert(!j3.contains("<strong>"), "转义星号不得渲染 strong")
     Ok(0)
 }
+
+@test
+fn table_cn_close_span() -> Result<i32, String> {
+    // 中文闭合 @[/表格] 的表格 span 必须覆盖全部行(v1.3 半截修复补洞)
+    let src = "@[表格 t]\n| 甲 |\n| --- |\n| 1 |\n@[/表格]\n"
+    let state = build_document(parse(lex(src)), src)
+    let json = blocks_to_json(state, src)
+    assert(json.contains("| 1 |"), "表格 text 应含数据行:" + json)
+    let spans = compute_spans(state, src)
+    var e = -1
+    for sp in spans { e = sp.end_line }
+    assert(e >= 4, f"表格 span 应到闭合行,得到 {e}")
+    Ok(0)
+}
+
+@test
+fn table_tfrags_span_pages() -> Result<i32, String> {
+    // Layout Fragment:长表格行级页分配 → tfrags 多片段且行序连续
+    var src = "@[表格 t]\n| 名称 | 数量 |\n| --- | --- |\n"
+    var i: i32 = 0
+    while i < 60 {
+        src = src + "| 项目" + f"{i}" + " | " + f"{i * 7}" + " |\n"
+        i += 1
+    }
+    src = src + "@[/table]\n"
+    let st = build_document(parse(lex(src)), src)
+    let ctx = page_flow_ctx_cfg(210.0, 297.0, 20.0, 11.0, 1.9)
+    let flow = page_flow_with(st, ctx)
+    assert(flow.pages >= 2, f"60 行表应跨页,得到 {flow.pages} 页")
+    // 行级标记连续覆盖 61 行(表头+60)
+    var rows = 0
+    for pl in flow.placed {
+        if pl.text == "|row|" { rows += 1 }
+    }
+    assert(rows == 61, f"行标记应 61,得到 {rows}")
+    Ok(0)
+}

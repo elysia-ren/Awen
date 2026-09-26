@@ -231,6 +231,7 @@ function renderNodes(){
   updateGutter();
   var ta=document.getElementById('syntax-src');
   if(ta&&ta.value!==gSrc)ta.value=gSrc;
+  splitTableFragments();
   // 同步文档级设置控件(每次渲染后,切文档/改源码均保持一致)
   var fl=document.getElementById('btn-firstline');
   if(fl)fl.classList.toggle('on',gSrc.indexOf('@[first-line')>=0);
@@ -249,6 +250,92 @@ function renderNodes(){
   }
 }
 function gapEl(){ var g=document.createElement('div'); g.className='gap'; g.contentEditable='false'; return g }
+
+// ═══ 表格跨页片段(Layout Fragment):主表留在起始页,续表(重复表头)进后续页 ═══
+// 行→页分配来自引擎 tfrags(行级几何);序列化时续表数据行合并回主表段,行永不丢
+function splitTableFragments(){
+  var tables=document.querySelectorAll('#display-pane table');
+  tables.forEach(function(tbl){
+    var bid=tbl.closest('[data-bid]')?.dataset.bid || tbl.dataset.bid;
+    var node=null;
+    for(var i=0;i<gNodes.length;i++){ if(String(gNodes[i].bid)===String(bid)){ node=gNodes[i]; break } }
+    if(!node||!node.tfrags||node.tfrags.length<2)return;
+    var frags=node.tfrags;   // [[page,firstRow,lastRow],…]
+    var allRows=[...tbl.querySelectorAll('tr')];
+    var f0=frags[0][2];
+    for(var r0=0;r0<=f0 && r0<allRows.length;r0++)allRows[r0].dataset.frag='0';
+    if(allRows.length<frags.reduce(function(a,f){return a+f[2]-f[1]+1},0))return;
+    // 逐片段搬移:行 [first..last] 移入目标页的续表
+    var prevEl=tbl;
+    for(var f=1;f<frags.length;f++){
+      var targetPage=frags[f][0], firstRow=frags[f][1], lastRow=frags[f][2];
+      var paper=document.querySelector('#display-pane .paper[data-page="'+targetPage+'"]');
+      if(!paper)continue;
+      var cont=document.createElement('table');
+      cont.setAttribute('data-bid',String(bid));
+      cont.setAttribute('data-frag-cont','1');
+      if(tbl.dataset.open)cont.dataset.open=tbl.dataset.open;
+      cont.className=tbl.className;   // 斑马纹/无框等样式参数随续表
+      var openRow=allRows[0].querySelector('td,th')?'':'';
+      // 重复表头(渲染副本,序列化跳过)
+      var headClone=allRows[0].cloneNode(true);
+      headClone.dataset.fragHead='1';
+      cont.appendChild(headClone);
+      for(var ri=firstRow;ri<=lastRow && ri<allRows.length;ri++){
+        allRows[ri].dataset.frag=String(f);
+        cont.appendChild(allRows[ri]);
+      }
+      var wrap=document.createElement('div');
+      wrap.appendChild(cont);
+      // 插到目标页最前(引擎把表后块排在续表之后)
+      var firstBlock=paper.querySelector('[data-bid]');
+      paper.insertBefore(wrap.firstChild, firstBlock);
+      var gap=gapEl();
+      paper.insertBefore(gap, cont.nextSibling);
+      prevEl=cont;
+    }
+  });
+  // 浏览器真高校正:引擎估行高未含行内边距/续表重复表头,按实测溢出
+  // 把溢出页最后一个表格行移入下一片段表顶部(行序升序,源码零丢失)
+  var guard=0;
+  // CSS 长度单位定义:mm 恒等于 96/25.4 px——不能用溢出的 paper 自测(循环论证)
+  var pxPerMm=96/25.4;
+  var pagePx=CFG.PAGE_H*pxPerMm;
+  while(guard++<60){
+    var papers=[...document.querySelectorAll('.paper')];
+    var moved=false;
+    for(var pi=0;pi<papers.length-1;pi++){
+      var sheet=papers[pi].parentElement;
+      if(sheet.getBoundingClientRect().height<=pagePx+2)continue;
+      var tbls=[...papers[pi].querySelectorAll('table')];
+      var srcTbl=tbls[tbls.length-1];
+      if(!srcTbl)continue;
+      var bEl=srcTbl.closest('[data-bid]');
+      if(!bEl)continue;
+      var node=null;
+      for(var ni=0;ni<gNodes.length;ni++){if(String(gNodes[ni].bid)===String(bEl.dataset.bid)){node=gNodes[ni];break}}
+      if(!node||!node.tfrags||node.tfrags.length<2)continue;
+      var dataRows=[...srcTbl.querySelectorAll('tr')].filter(function(t2){return !t2.dataset.fragHead});
+      var lastTr=dataRows[dataRows.length-1];
+      if(!lastTr||lastTr.dataset.frag===undefined)continue;
+      var f=+lastTr.dataset.frag;
+      if(f+1>=node.tfrags.length)continue;
+      var allT=[...document.querySelectorAll('#display-pane table[data-bid="'+bEl.dataset.bid+'"]')];
+      var nextTbl=null, nextFirst=null;
+      for(var ti=0;ti<allT.length && !nextTbl;ti++){
+        var cand=allT[ti];
+        var nf=[...cand.querySelectorAll('tr')].find(function(t3){return t3.dataset.frag===String(f+1)});
+        if(nf){nextTbl=cand;nextFirst=nf}
+      }
+      if(!nextTbl||!nextFirst)continue;
+      lastTr.dataset.frag=String(f+1);
+      nextTbl.insertBefore(lastTr, nextFirst);
+      moved=true;
+      break;
+    }
+    if(!moved)break;
+  }
+}
 function makeBlock(b,item){
   var html;
   if(item.whole||item.l0===undefined){
@@ -357,9 +444,11 @@ function buildSegCache(src,nodes){
 // 单块原位替换:按 bid 找到元素,用新节点重渲后原地换掉。
 // 跨页截断段(l0/l1)与非块元素不处理 → 返回 false 触发全量。
 function replaceSegBlock(idx,node){
+  if(node.tfrags&&node.tfrags.length>1)return false;   // 跨页表格:走全量(续表 DOM 无法原位替换)
   var el=document.querySelector('#display-pane [data-bid="'+idx+'"]');
   if(!el||el.classList.contains('gap'))return false;
   if(el.dataset.l0!==undefined)return false;
+  if(el.dataset.kind==='table'&&document.querySelector('#display-pane table[data-frag-cont][data-bid="'+idx+'"]'))return false;   // 已拆分表格:回退全量
   var nel;
   try{ nel=makeBlock(node,{whole:true}) }catch(e){ return false }
   if(!nel||nel.nodeType!==1)return false;

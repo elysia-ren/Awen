@@ -233,31 +233,59 @@ fn page_flow_node(ctx: FlowCtx, node: SemNode, page: i32, y: f64, out: Vec<Place
             var p = page
             var yy = y
             var n = 0
+            // 每行推一条行级 placed(页号=行首所在页,行内跨页光标手动推进)
+            // ——layout_recs_json 据此生成表格跨页片段(tfrags)
+            var last_marker_page = -1
             if node.tbl_header.len() > 0 {
                 let rl = table_row_lines(ctx, node.tbl_header, colw)
-                var q = 0
+                let rp = page_flow_put(ctx, p, yy, id, "|row|", o)
+                o = rp.placed
+                p = rp.page
+                yy = rp.y
+                n = n + rl
+                var q = 1
                 while q < rl {
-                    let rp = page_flow_put(ctx, p, yy, id, "|…|", o)
-                    o = rp.placed
-                    p = rp.page
-                    yy = rp.y
-                    n = n + rp.lines
+                    yy = yy + ctx.line_h
+                    if yy + ctx.line_h > ctx.content_h {
+                        p = p + 1
+                        yy = 0.0
+                    }
                     q += 1
+                }
+                // 行内边距校准:浏览器表格行含 padding+border ≈ +2.2mm
+                yy = yy + 2.2
+                if yy + ctx.line_h > ctx.content_h {
+                    p = p + 1
+                    yy = 0.0
                 }
             }
             for row in node.tbl_rows {
                 let rl = table_row_lines(ctx, row, colw)
-                var q2 = 0
+                // 表格续到新页:页首重复表头占一行(与前端渲染一致)
+                if last_marker_page >= 0 && p > last_marker_page {
+                    yy = ctx.line_h
+                }
+                last_marker_page = p
+                let rp2 = page_flow_put(ctx, p, yy, id, "|row|", o)
+                o = rp2.placed
+                p = rp2.page
+                yy = rp2.y
+                n = n + rl
+                var q2 = 1
                 while q2 < rl {
-                    let rp2 = page_flow_put(ctx, p, yy, id, "|…|", o)
-                    o = rp2.placed
-                    p = rp2.page
-                    yy = rp2.y
-                    n = n + rp2.lines
+                    yy = yy + ctx.line_h
+                    if yy + ctx.line_h > ctx.content_h {
+                        p = p + 1
+                        yy = 0.0
+                    }
                     q2 += 1
                 }
+                yy = yy + 2.2
+                if yy + ctx.line_h > ctx.content_h {
+                    p = p + 1
+                    yy = 0.0
+                }
             }
-            n = n + 0
             return FlowOneOut { page: p, y: yy, lines: n, placed: o, box_node: id, box_start: box_start, box_end: p, box_lines: n }
         } else if node.kind == "hr" {
             text = "――――――――――"

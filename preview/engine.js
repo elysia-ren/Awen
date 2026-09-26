@@ -194,7 +194,7 @@ function recToNode(nb){
     // 行区间含 @[table]…@[/table] 定界行:只取 | 行;open 行取原生第一行
     b.rows=raw.map(function(l){return l.trim()}).filter(function(l){return l.charAt(0)==='|'});
     var openLine='';
-    for(var oi=0;oi<raw.length;oi++){ if(/^@\[table/.test(raw[oi].trim())){openLine=raw[oi].trim();break} }
+    for(var oi=0;oi<raw.length;oi++){ if(/^@\[(?:table|表格)/.test(raw[oi].trim())){openLine=raw[oi].trim();break} }
     b.open=openLine||'@[table demo]';
   }else if(k==='code'){
     b.lang=(raw[0]||'').replace(/^@\[c (\w+)\].*/,'$1');
@@ -394,6 +394,19 @@ function layoutFromEngine(nodes,res){
     if(pg>=n)pg=n>0?n-1:0;
     pages[pg].push({b:nodes[k],whole:true,h:0});
   }
+  // 表格跨页片段:引擎行级页分配 → 节点携带 tfrags=[[页,首行,末行],…]
+  // 同一表格多片段必须合并(后者覆盖前者是 bug)
+  var tfs=(res&&res.tfrags)||[];
+  var tfmap={};
+  for(var t=0;t<tfs.length;t++){
+    var ix=tfs[t][0];
+    if(!tfmap[ix])tfmap[ix]=[];
+    tfmap[ix].push(tfs[t].slice(1));
+  }
+  for(var key in tfmap){
+    var n2=nodes[+key];
+    if(n2)n2.tfrags=tfmap[key];
+  }
   return pages;
 }
 
@@ -527,7 +540,10 @@ function serializeBlockEl(el){
         lines.push('|'+delim.join('|')+'|');
       }
     });
-    lines.push('@[/table]');
+    // 闭合标签保真:从 data-open 方言推导(@[表格 t] → @[/表格])
+    var openName=(el.dataset.open||'@[table]').match(/^@\[([^\s\]]+)/);
+    var closeTag='@[/'+((openName&&openName[1])||'table')+']';
+    lines.push(closeTag);
   }
   else{
     var t2=inlineSource(el).replace(/\n+$/,'');
@@ -560,6 +576,32 @@ function serializeSegments(){
         lines.push(el.dataset.raw||el.textContent);
         segs[segs.length-1].l1=lines.length;
         segs[segs.length-1].text=el.dataset.raw||el.textContent;
+      }
+      else if(el.dataset.fragCont!==undefined){
+        // 续表片段:数据行追加到主表段(重复表头与 open/delim 跳过)
+        if(segs.length&&segs[segs.length-1].kind==='table'){
+          var crows=[];
+          el.querySelectorAll('tr').forEach(function(tr){
+            if(tr.dataset.fragHead)return;   // 重复表头是渲染副本
+            var cells2=[];
+            tr.querySelectorAll('th,td').forEach(function(c){
+              var txt=inlineSource(c).trim();
+              var cc=c.getAttribute('data-cell-cmd');
+              cells2.push(cc?cc+txt+'@[/cell]':txt);
+            });
+            crows.push('| '+cells2.join(' | ')+' |');
+          });
+          var seg=segs[segs.length-1];
+          var closeLine=lines.pop();   // 主表段末尾闭合行:弹出,续表行插其前
+          seg.l1=lines.length;
+          for(var ci=0;ci<crows.length;ci++)lines.push(crows[ci]);
+          lines.push(closeLine);
+          seg.l1=lines.length;
+          seg.text=lines.slice(seg.l0,seg.l1).join('\n');
+          prevKind='table';
+          return;
+        }
+        // 孤儿续表(无主表段):按普通表格序列化
       }
       else{
         // 原生 Enter 拆出的新块没有 data-bid,按通用规则识别类型
