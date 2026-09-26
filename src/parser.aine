@@ -12,17 +12,18 @@
 
 // ── 文档树节点 ─────────────────────────────────────────────
 
+// ①增量基础：每个节点携带源码起始行(0基,来自LexedBlock.line)
 enum DocNode {
     DocRoot(Vec<DocNode>)
-    Section(i32, Vec<Inline>, Vec<DocNode>)
-    Para(Vec<Inline>)
-    ListGroup(bool, Vec<Vec<Inline>>)
-    QuoteBlk(i32, Vec<Inline>)
-    HRule
-    Obj(CommandUse)
-    RawBlk(ExplicitCommand, Option<String>, Vec<String>)
-    TblNode(Option<Vec<Vec<Inline>>>, Vec<Vec<Vec<Inline>>>, bool, CommandUse)
-    CommentNode(String)
+    Section(i32, Vec<Inline>, Vec<DocNode>, i32)
+    Para(Vec<Inline>, i32)
+    ListGroup(bool, Vec<Vec<Inline>>, i32)
+    QuoteBlk(i32, Vec<Inline>, i32)
+    HRule(i32)
+    Obj(CommandUse, i32)
+    RawBlk(ExplicitCommand, Option<String>, Vec<String>, i32)
+    TblNode(Option<Vec<Vec<Inline>>>, Vec<Vec<Vec<Inline>>>, bool, CommandUse, i32)
+    CommentNode(String, i32)
 }
 
 struct ParseResult {
@@ -60,12 +61,12 @@ fn extract_quote(blk: Block) -> QuoteData {
 // K 连续空行 → floor(K/2) 个 Para([]);奇数个的最后一行是普通分隔。
 // 空段是真实节点(可跨全量渲染存活),由 mapping 给 span、serializeAll
 // 以「2 空行/空段」配平回写。
-fn push_empty_paras(nodes: Vec<DocNode>, run: i32) -> Vec<DocNode> {
+fn push_empty_paras(nodes: Vec<DocNode>, run: i32, line: i32) -> Vec<DocNode> {
     var out = nodes
     var n = run / 2
     var i = 0
     while i < n {
-        out = out.push(Para([]))
+        out = out.push(Para([], line))
         i += 1
     }
     return out
@@ -104,7 +105,7 @@ fn parse(lex_out: LexOutput) -> ParseResult {
                 list_items.push(lid.inline)
             } else {
                 if in_list {
-                    nodes.push(ListGroup(list_ordered, list_items))
+                    nodes.push(ListGroup(list_ordered, list_items, blocks[i].line))
                     list_items = []
                 }
                 list_ordered = lid.ordered
@@ -117,7 +118,7 @@ fn parse(lex_out: LexOutput) -> ParseResult {
 
         // 非列表项:刷出待定列表组
         if in_list {
-            nodes.push(ListGroup(list_ordered, list_items))
+            nodes.push(ListGroup(list_ordered, list_items, blocks[i].line))
             list_items = []
             in_list = false
         }
@@ -128,7 +129,7 @@ fn parse(lex_out: LexOutput) -> ParseResult {
             _ { false }
         }
         if !cur_is_para && has_pending {
-            nodes.push(Para(merged_inline))
+            nodes.push(Para(merged_inline, blocks[i].line))
             merged_inline = []
             has_pending = false
         }
@@ -139,7 +140,7 @@ fn parse(lex_out: LexOutput) -> ParseResult {
             _ { false }
         }
         if !is_blank && blank_run > 0 {
-            nodes = push_empty_paras(nodes, blank_run)
+            nodes = push_empty_paras(nodes, blank_run, blocks[i].line)
             blank_run = 0
         }
 
@@ -150,7 +151,7 @@ fn parse(lex_out: LexOutput) -> ParseResult {
         }
         if is_quote {
             let qd = extract_quote(blk)
-            nodes.push(QuoteBlk(qd.depth, qd.inline))
+            nodes.push(QuoteBlk(qd.depth, qd.inline, blocks[i].line))
             i += 1
             continue
         }
@@ -158,7 +159,7 @@ fn parse(lex_out: LexOutput) -> ParseResult {
         // 其余块类型
         match blk {
             Heading(level, inline) {
-                nodes.push(Section(level, inline, []))
+                nodes.push(Section(level, inline, [], blocks[i].line))
             }
             Paragraph(inline) {
                 // §14: 物理换行不是排版换行 → 合并行内内容
@@ -168,7 +169,7 @@ fn parse(lex_out: LexOutput) -> ParseResult {
                 has_pending = true
             }
             Divider {
-                nodes.push(HRule)
+                nodes.push(HRule(blocks[i].line))
             }
             BlkObject(u) {
                 if u.cmd == Comment {
@@ -176,9 +177,9 @@ fn parse(lex_out: LexOutput) -> ParseResult {
                         Some(c) { c }
                         None { "" }
                     }
-                    nodes.push(CommentNode(content))
+                    nodes.push(CommentNode(content, blocks[i].line))
                 } else {
-                    nodes.push(Obj(u))
+                    nodes.push(Obj(u, blocks[i].line))
                 }
             }
             RawOpen(cmd, lang) {
@@ -203,7 +204,7 @@ fn parse(lex_out: LexOutput) -> ParseResult {
                 if !found_close {
                     diags.push(diag_error("Raw Block 未闭合", blocks[i].line))
                 }
-                nodes.push(RawBlk(cmd, lang, content_lines))
+                nodes.push(RawBlk(cmd, lang, content_lines, blocks[i].line))
                 i = j
                 continue
             }
@@ -255,7 +256,7 @@ fn parse(lex_out: LexOutput) -> ParseResult {
                     }
                     data_rows = shifted2
                 }
-                nodes.push(TblNode(header, data_rows, has_delim, u))
+                nodes.push(TblNode(header, data_rows, has_delim, u, blocks[i].line))
                 i = j
                 continue
             }
@@ -274,15 +275,18 @@ fn parse(lex_out: LexOutput) -> ParseResult {
     }
 
     if in_list {
-        nodes.push(ListGroup(list_ordered, list_items))
+        let last_ln = if blocks.len() > 0 { blocks[blocks.len() - 1].line } else { 0 }
+        nodes.push(ListGroup(list_ordered, list_items, last_ln))
     }
     // 刷出末尾未关闭的合并段落
     if has_pending {
-        nodes.push(Para(merged_inline))
+        let last_ln = if blocks.len() > 0 { blocks[blocks.len() - 1].line } else { 0 }
+        nodes.push(Para(merged_inline, last_ln))
     }
     // 文末空行(lexer 已剪掉最后一行)→ 空段结算
     if blank_run > 0 {
-        nodes = push_empty_paras(nodes, blank_run)
+        let last_ln = if i > 0 { blocks[i - 1].line } else { 0 }
+        nodes = push_empty_paras(nodes, blank_run, last_ln)
     }
 
     return ParseResult { nodes: nodes, diags: diags }
@@ -294,31 +298,31 @@ fn count_nodes(nodes: Vec<DocNode>, kind: String) -> i32 {
     var n = 0
     for node in nodes {
         match node {
-            ListGroup(ordered, items) {
+            ListGroup(ordered, items, _ln) {
                 if kind == "list" { n += 1 }
             }
-            Section(level, inline, children) {
+            Section(level, inline, children, _ln) {
                 if kind == "section" { n += 1 }
             }
-            QuoteBlk(depth, inline) {
+            QuoteBlk(depth, inline, _ln) {
                 if kind == "quote" { n += 1 }
             }
-            Para(inline) {
+            Para(inline, _ln) {
                 if kind == "para" { n += 1 }
             }
-            HRule {
+            HRule(_ln) {
                 if kind == "hr" { n += 1 }
             }
-            Obj(u) {
+            Obj(u, _ln) {
                 if kind == "obj" { n += 1 }
             }
-            RawBlk(cmd, lang, lines) {
+            RawBlk(cmd, lang, lines, _ln) {
                 if kind == "raw" { n += 1 }
             }
-            TblNode(header, rows, has_delim, open_cu) {
+            TblNode(header, rows, has_delim, open_cu, _ln) {
                 if kind == "table" { n += 1 }
             }
-            CommentNode(content) {
+            CommentNode(content, _ln) {
                 if kind == "comment" { n += 1 }
             }
             DocRoot(children) { }

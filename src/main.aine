@@ -67,11 +67,11 @@ fn main() {
     var tables = 0
     for n in pr.nodes {
         match n {
-            Section(level, inline, children) { sections += 1 }
-            Para(inline) { paras += 1 }
-            ListGroup(ordered, items) { lists += 1 }
-            RawBlk(cmd, lang, lines) { raws += 1 }
-            TblNode(header, rows, has_delim) { tables += 1 }
+            Section(level, inline, children, _ln) { sections += 1 }
+            Para(inline, _ln) { paras += 1 }
+            ListGroup(ordered, items, _ln) { lists += 1 }
+            RawBlk(cmd, lang, lines, _ln) { raws += 1 }
+            TblNode(header, rows, has_delim, _cu, _ln) { tables += 1 }
             _ { }
         }
     }
