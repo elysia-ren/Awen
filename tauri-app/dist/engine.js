@@ -633,6 +633,52 @@ function serializeSegments(){
   if(segs.length&&segs[segs.length-1].kind==='para'&&segs[segs.length-1].text==='')lines.push('');
   return {lines:lines,segs:segs};
 }
+// ── 最小源补丁:只替换变化的段,未动段保留原始源码(方言/空行风格)──
+// 原理:serializeSegments 产出段列表(每段有 bid),gNodes[bid] 有上次
+// 解析的 srcStart/srcEnd。对比段的旧源码文本与新序列化文本,只替换
+// 变化的段。结构变化(新增/删除块,bid 映射断裂)回退 serializeAll。
+// 返回:补丁后的源码字符串,或 null(需回退全量序列化)。
+function patchSource(newSeg) {
+  var srcLines = gSrc.split('\n');
+  var newLines = newSeg.lines;
+  var segs = newSeg.segs;
+  if (!segs.length) return null;
+
+  var srcStarts = [];
+  var srcEnds = [];
+  var patches = [];
+  var prevEnd = 0;
+
+  for (var i = 0; i < segs.length; i++) {
+    var seg = segs[i];
+    var bid = seg.bid;
+    if (bid === null || bid === undefined || bid < 0 || bid >= gNodes.length) return null;
+    var node = gNodes[bid];
+    if (!node || typeof node.srcStart !== 'number' || node.srcStart < 0) return null;
+    var ss = node.srcStart;
+    var se = node.srcEnd;   // blocks_to_json 的 srcEnd 已是排他(不用再 +1)
+    if (ss < prevEnd) return null;   // 源区间重叠 → 结构变化
+    if (se > srcLines.length) return null;
+
+    var oldText = srcLines.slice(ss, se).join('\n');
+    var newText = newLines.slice(seg.l0, seg.l1).join('\n');
+    if (oldText !== newText) {
+      patches.push({ start: ss, end: se, lines: newLines.slice(seg.l0, seg.l1) });
+    }
+    prevEnd = se;
+  }
+
+  if (!patches.length) return gSrc;   // 幂等
+
+  // 倒序应用补丁(保持前面的偏移量有效)
+  for (var p2 = patches.length - 1; p2 >= 0; p2--) {
+    var pa = patches[p2];
+    var args = [pa.start, pa.end - pa.start].concat(pa.lines);
+    srcLines.splice.apply(srcLines, args);
+  }
+  return srcLines.join('\n');
+}
+
 // 全文序列化:遍历每页纸的顶层块
 function serializeAll(){
   return serializeSegments().lines.join('\n');
@@ -655,7 +701,7 @@ window.AwenEngine={
   layoutCfg:layoutCfg, layoutFromEngine:layoutFromEngine,
   // 序列化
   inlineSource:inlineSource, blockPrefix:blockPrefix,
-  serializeBlockEl:serializeBlockEl, serializeAll:serializeAll,
+  serializeBlockEl:serializeBlockEl, serializeAll:serializeAll, patchSource:patchSource,
   serializeSegments:serializeSegments, segRecsToNodes:segRecsToNodes
 };
 })();

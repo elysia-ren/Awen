@@ -49,7 +49,10 @@ function applySyncNow(){
   // 节流后交 Aine 权威解析,返回后按需重排并恢复光标
   // 权威渲染在途时 DOM 还是旧结构:推迟 flush,防止旧内容覆盖 gSrc
   if(renderPending){ setTimeout(applySyncNow,300); return }
-  var newSrc=Engine.serializeAll();
+  // 最小源补丁:优先只替换变化的段(保留未动段的方言/空行风格),
+  // 结构变化(bid 映射断裂)时 patchSource 返回 null → 回退 serializeAll
+  var newSrc=Engine.patchSource(Engine.serializeSegments());
+  if(newSrc===null)newSrc=Engine.serializeAll();
   // 尾随空行无语义:undo 恢复的源码常带尾 \n,serializeAll 不产出——视为同一内容,
   // 否则 doUndo/doRedo 开头的 flush 会把规范化差异当新编辑,截断撤销链
   if(newSrc===gSrc||newSrc===gSrc.replace(/\s+$/,'')){
