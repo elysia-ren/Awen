@@ -19,7 +19,7 @@ fn has_bold(items: Vec<Inline>) -> bool {
             IBold(c) { return true }
             Italic(c) { if has_bold(c) { return true } }
             Strike(c) { if has_bold(c) { return true } }
-            Scoped(cmd, c) { if has_bold(c) { return true } }
+            Scoped(cmd, sa, c) { if has_bold(c) { return true } }
             _ { }
         }
     }
@@ -32,7 +32,7 @@ fn has_italic(items: Vec<Inline>) -> bool {
             Italic(c) { return true }
             IBold(c) { if has_italic(c) { return true } }
             Strike(c) { if has_italic(c) { return true } }
-            Scoped(cmd, c) { if has_italic(c) { return true } }
+            Scoped(cmd, sa, c) { if has_italic(c) { return true } }
             _ { }
         }
     }
@@ -42,7 +42,7 @@ fn has_italic(items: Vec<Inline>) -> bool {
 fn has_scoped_bold(items: Vec<Inline>) -> bool {
     for it in items {
         match it {
-            Scoped(cmd, c) { if cmd == Bold { return true } }
+            Scoped(cmd, sa, c) { if cmd == Bold { return true } }
             IBold(c) { if has_scoped_bold(c) { return true } }
             Italic(c) { if has_scoped_bold(c) { return true } }
             Strike(c) { if has_scoped_bold(c) { return true } }
@@ -55,7 +55,7 @@ fn has_scoped_bold(items: Vec<Inline>) -> bool {
 fn has_scoped_underline(items: Vec<Inline>) -> bool {
     for it in items {
         match it {
-            Scoped(cmd, c) { if cmd == U { return true } }
+            Scoped(cmd, sa, c) { if cmd == U { return true } }
             _ { }
         }
     }

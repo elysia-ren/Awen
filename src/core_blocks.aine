@@ -23,6 +23,18 @@ fn block_rec(kind: String, level: i32, s: i32, e: i32, text: String, lang: Strin
     return r
 }
 
+// 带引擎渲染 HTML 的记录(统一语义:前端 fmtH 降为回退)
+fn block_rec_html(kind: String, level: i32, s: i32, e: i32, text: String, lang: String, html: String) -> String {
+    var r = "{\"kind\":\"" + kind + "\""
+    r = r + ",\"level\":" + f"{level}"
+    r = r + ",\"srcStart\":" + f"{s}"
+    r = r + ",\"srcEnd\":" + f"{e}"
+    r = r + ",\"text\":\"" + json_escape(text) + "\""
+    r = r + ",\"html\":\"" + json_escape(html) + "\""
+    r = r + ",\"lang\":\"" + json_escape(lang) + "\"}"
+    return r
+}
+
 // 源码行 [s, e) 以 \n 连接(保真原文,含定界行)
 fn join_span_lines(lines: Vec<String>, s: i32, e: i32) -> String {
     var out = ""
@@ -38,6 +50,199 @@ fn join_span_lines(lines: Vec<String>, s: i32, e: i32) -> String {
 // 块级增量解析:对单个段(无空行的连续行)独立跑权威管线,返回与全文解析
 // 一致的 blocks JSON。段⇄节点 1:1 是引擎不变量(列表组/段落合并/表格都
 // 封闭在段内),daemon op=parse_blocks 对每个脏段调这里。
+// ═══ 统一语义 RenderItem:Aine 侧行内 HTML 渲染 ═══
+// 目标:行内语法只解释一次(引擎),前端 fmtH 降为回退路径。
+// DOM 结构与 fmtH 逐属性对齐(data-cmd/data-close/data-self),
+// 序列化(inlineSource 读 DOM 属性回写)往返不变。
+
+fn html_esc(s: String) -> String {
+    var out = ""
+    var i: i32 = 0
+    while i < s.len() {
+        let c = s[i..(i + 1)]
+        if c == "&" {
+            out = out + "&amp;"
+        } else if c == "<" {
+            out = out + "&lt;"
+        } else if c == ">" {
+            out = out + "&gt;"
+        } else {
+            out = out + c
+        }
+        i += 1
+    }
+    return out
+}
+
+fn html_esc_attr(s: String) -> String {
+    var out = html_esc(s)
+    out = out.replace("\"", "&quot;")
+    return out
+}
+
+// 去掉参数两侧引号(font 的 "Times" → Times)
+fn html_strip_quotes(s: String) -> String {
+    var v = s
+    if v.len() >= 2 {
+        if v[0..1] == "\"" && v[(v.len() - 1)..v.len()] == "\"" {
+            v = v[1..(v.len() - 1)]
+        }
+    }
+    return v
+}
+
+// 行内 HTML(索引遍历:单行作用域命令需包裹剩余兄弟)。
+// 返回 HtmlSeg:html 为渲染结果,next 为消耗的条目数。
+struct HtmlSeg {
+    html: String
+    next: i32
+}
+
+fn ih_list(items: Vec<Inline>, from: i32) -> HtmlSeg {
+    var out = ""
+    var i = from
+    while i < items.len() {
+        let it = items.get(i)
+        var is_open_scope = false
+        match it {
+            Command(u) {
+                if u.cmd == Font || u.cmd == Size || u.cmd == Color { is_open_scope = true }
+            }
+            _ { }
+        }
+        if is_open_scope {
+            // 单行作用域:包裹剩余兄弟(生效到行尾,无 data-close)
+            var rest = ""
+            var j = i + 1
+            while j < items.len() {
+                rest = rest + ih_one(items.get(j))
+                j += 1
+            }
+            match it {
+                Command(u) {
+                    var a = ""
+                    if u.args.len() > 0 { a = arg_plain(u.args.get(0)) }
+                    let clean = html_strip_quotes(a)
+                    if u.cmd == Font {
+                        out = out + "<span data-cmd='@[" + u.name_raw + " \"" + clean + "\"]' style=\"font-family:'" + clean + "',serif\">" + rest + "</span>"
+                    } else if u.cmd == Size {
+                        out = out + "<span data-cmd=\"@[" + u.name_raw + " " + a + "]\" style=\"font-size:" + clean + "pt\">" + rest + "</span>"
+                    } else {
+                        out = out + "<span data-cmd=\"@[" + u.name_raw + " " + a + "]\" style=\"color:" + clean + "\">" + rest + "</span>"
+                    }
+                }
+                _ { }
+            }
+            return HtmlSeg { html: out, next: items.len() }
+        }
+        out = out + ih_one(it)
+        i += 1
+    }
+    return HtmlSeg { html: out, next: items.len() }
+}
+
+// 行内是否含结构节点(非 AwTxt)。lw 扫描 abort 的行=单 AwTxt(原文),
+// 这类行必须回退前端 fmtH(它解释原文标记),不能发字面 html
+fn ih_has_struct(items: Vec<Inline>) -> bool {
+    var has = false
+    for it in items {
+        match it {
+            AwTxt(s) { }
+            _ { has = true }
+        }
+    }
+    return has
+}
+
+fn ih_one(it: Inline) -> String {
+    match it {
+        AwTxt(s) { return html_esc(s) }
+        IBold(c) { return "<strong>" + ih_list(c, 0).html + "</strong>" }
+        Italic(c) { return "<em>" + ih_list(c, 0).html + "</em>" }
+        Strike(c) { return "<del>" + ih_list(c, 0).html + "</del>" }
+        CodeSpan(s2) { return "<code>" + html_esc(s2) + "</code>" }
+        Scoped(cmd, sa, c) {
+            let inner = ih_list(c, 0).html
+            if cmd == U { return "<u>" + inner + "</u>" }
+            if cmd == Sup { return "<sup>" + inner + "</sup>" }
+            if cmd == Sub { return "<sub>" + inner + "</sub>" }
+            let a = html_strip_quotes(sa)
+            if cmd == Mark {
+                return "<span data-cmd=\"@[mark " + html_esc_attr(sa) + "]\" data-close=\"@[/mark]\" style=\"background:" + html_esc_attr(a) + "\">" + inner + "</span>"
+            }
+            if cmd == Color {
+                return "<span data-cmd=\"@[color " + html_esc_attr(sa) + "]\" data-close=\"@[/color]\" style=\"color:" + html_esc_attr(a) + "\">" + inner + "</span>"
+            }
+            if cmd == Size {
+                return "<span data-cmd=\"@[size " + html_esc_attr(sa) + "]\" data-close=\"@[/size]\" style=\"font-size:" + html_esc_attr(a) + "pt\">" + inner + "</span>"
+            }
+            if cmd == Font {
+                return "<span data-cmd='@[font \"" + html_esc_attr(a) + "\"]' data-close=\"@[/font]\" style=\"font-family:'" + html_esc_attr(a) + "',serif\">" + inner + "</span>"
+            }
+            return "<span data-cmd=\"@[" + cmd_name(cmd) + " " + html_esc_attr(sa) + "]\" data-close=\"@[/" + cmd_name(cmd) + "]\">" + inner + "</span>"
+        }
+        RawInline(cmd, lang, content) {
+            if cmd == Math {
+                return "<span class=\"inline-math\" data-cmd=\"@[m]\" data-close=\"@[/m]\" style=\"font-family:Georgia,'Times New Roman',serif;font-style:italic\">" + html_esc(content) + "</span>"
+            }
+            return html_esc(content)
+        }
+        Command(u) {
+            let cn = cmd_name(u.cmd)
+            if cn == "label" || cn == "ref" {
+                var val = ""
+                if u.args.len() > 0 { val = arg_plain(u.args.get(0)) }
+                var cls = "inline-ref"
+                var mark = "↦"
+                var title = "引用"
+                if cn == "label" {
+                    cls = "inline-label"
+                    mark = "📌"
+                    title = "标签"
+                }
+                return "<span class=\"" + cls + "\" data-cmd=\"@[" + u.name_raw + " " + html_esc_attr(val) + "]\" data-self=\"1\" title=\"" + title + "\">" + mark + html_esc(val) + "</span>"
+            }
+            if cn == "footnote" {
+                // content="编号 正文"(fmtH 同款:上标显示编号,title 存正文)
+                var ct = ""
+                match u.content {
+                    Some(c) { ct = c.trim() }
+                    None { }
+                }
+                var k = 0
+                while k < ct.len() {
+                    let ch = ct[k..(k + 1)]
+                    if ch >= "0" && ch <= "9" {
+                        k += 1
+                    } else {
+                        break
+                    }
+                }
+                var num = ct[0..k]
+                var txt = ct[k..ct.len()].trim()
+                if num.len() == 0 { num = "1" }
+                return "<sup class=\"fn\" data-cmd=\"@[footnote " + html_esc_attr(ct) + "]\" data-self=\"1\" title=\"" + html_esc_attr(txt) + "\" style=\"color:#2a4a66;cursor:help\">" + html_esc(num) + "</sup>"
+            }
+            if cn == "link" {
+                var text = ""
+                if u.args.len() > 0 { text = arg_plain(u.args.get(0)) }
+                var url = ""
+                var j2 = 0
+                while j2 < u.attrs.len() {
+                    if u.attrs.get(j2).key == "url" { url = arg_plain(u.attrs.get(j2).val) }
+                    j2 += 1
+                }
+                return "<a href=\"" + html_esc_attr(url) + "\" target=\"_blank\" style=\"color:#2a4a66;text-decoration:underline\">" + html_esc(text) + "</a>"
+            }
+            // 未知命令:原文字面(与 fmtH 行为一致)
+            var lit = "@[" + u.name_raw
+            for a in u.args { lit = lit + " " + arg_plain(a) }
+            lit = lit + "]"
+            return html_esc(lit)
+        }
+    }
+}
+
 fn segment_blocks_json(text: String) -> String {
     if text == "" {
         return "{\"blocks\":[],\"diags\":[],\"outline\":[]}"
@@ -137,16 +342,28 @@ fn blocks_to_json(state: DocState, src: String) -> String {
                     i += 1
                 }
             } else if kind == "heading" {
-                recs = recs.push(block_rec("heading", node.level, s, e, lines[s], ""))
+                if ih_has_struct(node.inline) {
+                    recs = recs.push(block_rec_html("heading", node.level, s, e, lines[s], "", ih_list(node.inline, 0).html))
+                } else {
+                    recs = recs.push(block_rec("heading", node.level, s, e, lines[s], ""))
+                }
             } else if kind == "para" {
                 // 空段:inline 为空 → text 直接空串(span 是空行对)
                 if node.inline.len() == 0 {
                     recs = recs.push(block_rec("para", 0, s, e, "", ""))
+                } else if e - s == 1 && ih_has_struct(node.inline) {
+                    // 单物理行+树含结构节点:引擎 HTML 权威;abort 行/纯文本行/
+                    // 多行段落(空格语义树中缺失)回退前端 fmtH
+                    recs = recs.push(block_rec_html("para", 0, s, e, join_span_lines(lines, s, e), "", ih_list(node.inline, 0).html))
                 } else {
                     recs = recs.push(block_rec("para", 0, s, e, join_span_lines(lines, s, e), ""))
                 }
             } else if kind == "quote" {
-                recs = recs.push(block_rec("quote", 0, s, e, join_span_lines(lines, s, e), ""))
+                if ih_has_struct(node.inline) {
+                    recs = recs.push(block_rec_html("quote", 0, s, e, join_span_lines(lines, s, e), "", ih_list(node.inline, 0).html))
+                } else {
+                    recs = recs.push(block_rec("quote", 0, s, e, join_span_lines(lines, s, e), ""))
+                }
             } else if kind == "hr" {
                 recs = recs.push(block_rec("hr", 0, s, e, lines[s], ""))
             } else if kind == "table" {

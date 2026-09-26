@@ -281,3 +281,27 @@ fn table_widths_sig_sensitive() -> Result<i32, String> {
     assert(page_node_sig(st_a.nodes[0]) != page_node_sig(st_b.nodes[0]), "widths 变化必须反映在表格签名中")
     Ok(0)
 }
+
+@test
+fn render_item_html_field() -> Result<i32, String> {
+    // 统一语义:blocks JSON 的 html 字段由引擎渲染(fmtH 降为回退)
+    let src = "# **标题**\n\n正文 **加粗** 与 @[color red]红字@[/color]、@[u]下划@[/u]、@[sup]上@[/sup]。\n"
+    let state = build_document(parse(lex(src)), src)
+    let json = blocks_to_json(state, src)
+    assert(json.contains("<strong>标题</strong>"), "标题 html 应为行内渲染(块级包裹在 JS)")
+    assert(json.contains("<strong>加粗</strong>"), "粗体应渲染 strong")
+    assert(json.contains("color:red") && json.contains("红字</span>"), "颜色样式应渲染")
+    assert(json.contains("data-cmd") && json.contains("@[color red]"), "data-cmd 应保留原命令")
+    assert(json.contains("<u>下划</u>") && json.contains("<sup>上</sup>"), "u/sup 应渲染")
+    // 方言等价:中文写法同款渲染
+    let src2 = "甲@[颜色 blue]蓝@[/颜色]乙\n"
+    let st2 = build_document(parse(lex(src2)), src2)
+    let j2 = blocks_to_json(st2, src2)
+    assert(j2.contains("color:blue") && j2.contains("蓝</span>"), "中文颜色方言应同款渲染")
+    // 转义:@@** 不产生 strong
+    let src3 = "甲@@**乙**丙\n"
+    let st3 = build_document(parse(lex(src3)), src3)
+    let j3 = blocks_to_json(st3, src3)
+    assert(!j3.contains("<strong>"), "转义星号不得渲染 strong")
+    Ok(0)
+}

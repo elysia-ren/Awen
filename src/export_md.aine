@@ -13,7 +13,7 @@ fn export_md_inline(items: Vec<Inline>) -> String {
             IBold(c) { out = out + "**" + export_md_inline(c) + "**" }
             Italic(c) { out = out + "_" + export_md_inline(c) + "_" }
             Strike(c) { out = out + "~~" + export_md_inline(c) + "~~" }
-            Scoped(cmd, c) { out = out + export_md_inline(c) }
+            Scoped(cmd, sa, c) { out = out + export_md_inline(c) }
             CodeSpan(s) { out = out + "`" + s + "`" }
             Command(u) { out = out + f"@[{u.name_raw}" + render_args(u) + "]" }
             RawInline(cmd, lang, content) { out = out + content }

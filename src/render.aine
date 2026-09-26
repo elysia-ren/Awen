@@ -248,7 +248,7 @@ fn inline_render_marked(items: Vec<Inline>) -> String {
             IBold(c) { out = out + "**" + inline_render_marked(c) + "**" }
             Italic(c) { out = out + "_" + inline_render_marked(c) + "_" }
             Strike(c) { out = out + "~~" + inline_render_marked(c) + "~~" }
-            Scoped(cmd, c) {
+            Scoped(cmd, sa, c) {
                 var tag = ""
                 match cmd {
                     Bold { tag = "b" }
@@ -354,7 +354,7 @@ fn count_refs_in(items: Vec<Inline>) -> i32 {
             IBold(c) { n += count_refs_in(c) }
             Italic(c) { n += count_refs_in(c) }
             Strike(c) { n += count_refs_in(c) }
-            Scoped(cmd, c) { n += count_refs_in(c) }
+            Scoped(cmd, sa, c) { n += count_refs_in(c) }
             _ { }
         }
     }

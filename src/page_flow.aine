@@ -410,7 +410,7 @@ fn page_inline_sig(items: Vec<Inline>) -> String {
             Italic(c) { out = out + "_" + page_inline_sig(c) + "_" }
             Strike(c) { out = out + "~~" + page_inline_sig(c) + "~~" }
             CodeSpan(s3) { out = out + "`" + s3 + "`" }
-            Scoped(cmd, c) {
+            Scoped(cmd, sa, c) {
                 out = out + "@[" + cmd_name(cmd) + "]" + page_inline_sig(c) + "@[/" + cmd_name(cmd) + "]"
             }
             RawInline(cmd, lang, content) {

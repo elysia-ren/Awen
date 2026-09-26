@@ -426,7 +426,7 @@ fn render_theme_with_scoped_and_raw() -> Result<i32, String> {
         if node.kind == "para" {
             for item in node.inline {
                 match item {
-                    Scoped(cmd, c) { if cmd == U { found_u_any = true } }
+                    Scoped(cmd, sa, c) { if cmd == U { found_u_any = true } }
                     _ { }
                 }
             }
@@ -1122,7 +1122,7 @@ fn render_scoped_bold_inside_paragraph() -> Result<i32, String> {
         if node.kind == "para" {
             for item in node.inline {
                 match item {
-                    Scoped(cmd, c) { if cmd == Bold { found_scoped = true } }
+                    Scoped(cmd, sa, c) { if cmd == Bold { found_scoped = true } }
                     _ { }
                 }
             }
@@ -1144,7 +1144,7 @@ fn render_scoped_font_in_paragraph() -> Result<i32, String> {
         if node.kind == "para" {
             for item in node.inline {
                 match item {
-                    Scoped(cmd, c) { if cmd == Font { found_scoped = true } }
+                    Scoped(cmd, sa, c) { if cmd == Font { found_scoped = true } }
                     _ { }
                 }
             }
@@ -1165,7 +1165,7 @@ fn render_scoped_size_in_paragraph() -> Result<i32, String> {
         if node.kind == "para" {
             for item in node.inline {
                 match item {
-                    Scoped(cmd, c) { if cmd == Size { found_scoped = true } }
+                    Scoped(cmd, sa, c) { if cmd == Size { found_scoped = true } }
                     _ { }
                 }
             }
@@ -1186,7 +1186,7 @@ fn render_scoped_color_in_paragraph() -> Result<i32, String> {
         if node.kind == "para" {
             for item in node.inline {
                 match item {
-                    Scoped(cmd, c) { if cmd == Color { found_scoped = true } }
+                    Scoped(cmd, sa, c) { if cmd == Color { found_scoped = true } }
                     _ { }
                 }
             }
@@ -1216,7 +1216,7 @@ fn render_scoped_raw_inline_combination() -> Result<i32, String> {
                     AwTxt(s) { if s.len() > 0 { has_text = true } }
                     IBold(c) { has_bold = true }
                     CodeSpan(s) { has_code = true }
-                    Scoped(cmd, c2) { if cmd == U { has_scoped_u = true } }
+                    Scoped(cmd, sa, c2) { if cmd == U { has_scoped_u = true } }
                     RawInline(cmd, lang, content) { if cmd == Math { has_raw_math = true } }
                     _ { }
                 }
