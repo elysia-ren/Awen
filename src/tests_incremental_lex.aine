@@ -1,0 +1,168 @@
+// 测试模块:tests_incremental_lex(增量 lex 拼接与全量 lex 逐块一致)
+
+// 块签:行号 + 变体名 + 内容要点,两份 lex 结果逐块比对用
+fn inc_lex_block_sig(b: LexedBlock) -> String {
+    var s = f"{b.line}"
+    match b.block {
+        Blank { s = s + "|Blank" }
+        Heading(lv, items) { s = s + "|H" + f"{lv}" + "|" + inline_plain(items) }
+        Paragraph(items) { s = s + "|P|" + inline_plain(items) }
+        BlkListItem(ord, items) {
+            s = s + "|LI"
+            if ord { s = s + "1" } else { s = s + "0" }
+            s = s + "|" + inline_plain(items)
+        }
+        Quote(d, items) { s = s + "|Q" + f"{d}" + "|" + inline_plain(items) }
+        Divider { s = s + "|HR" }
+        BlkObject(u) { s = s + "|Obj|" + u.name_raw }
+        RawOpen(c, lang) {
+            s = s + "|RO"
+            if lang != None { s = s + "!" }
+            if c == Code { s = s + ":code" }
+        }
+        RawLine(t) { s = s + "|RL|" + t }
+        RawClose(c) {
+            s = s + "|RC"
+            if c == Code { s = s + ":code" }
+        }
+        TableOpen(u) { s = s + "|TO|" + u.name_raw }
+        TableRow(cells, delim) {
+            s = s + "|TR"
+            if delim { s = s + "!" }
+            for cell in cells {
+                s = s + "|" + inline_plain(cell)
+            }
+        }
+        TableClose { s = s + "|TC" }
+    }
+    return s
+}
+
+fn inc_lex_sig(o: LexOutput) -> Vec<String> {
+    var out: Vec<String> = []
+    for b in o.blocks {
+        out = out.push(inc_lex_block_sig(b))
+    }
+    return out
+}
+
+fn inc_lex_diag_sig(o: LexOutput) -> Vec<String> {
+    var out: Vec<String> = []
+    for d in o.diags {
+        out = out.push(f"{d.line}" + "|" + d.message)
+    }
+    return out
+}
+
+fn inc_lex_assert_equal(old_src: String, new_src: String, tag: String) {
+    let old_full = lex(old_src)
+    let inc = incremental_lex(old_full, old_src, new_src)
+    assert(!inc.fallback, tag + ": 意外回退全量")
+    let new_full = lex(new_src)
+    let a = inc_lex_sig(inc.out)
+    let b = inc_lex_sig(new_full)
+    assert(a.len() == b.len(), tag + ": 块数一致 " + f"{a.len()}" + " vs " + f"{b.len()}")
+    var i = 0
+    while i < a.len() && i < b.len() {
+        assert(a.get(i) == b.get(i), tag + ": 块" + f"{i}" + " 一致 [" + a.get(i) + "] vs [" + b.get(i) + "]")
+        i += 1
+    }
+    let dgs_a = inc_lex_diag_sig(inc.out)
+    let dgs_b = inc_lex_diag_sig(new_full)
+    assert(dgs_a.len() == dgs_b.len(), tag + ": 诊断数一致")
+    i = 0
+    while i < dgs_a.len() && i < dgs_b.len() {
+        assert(dgs_a.get(i) == dgs_b.get(i), tag + ": 诊断" + f"{i}" + " 一致")
+        i += 1
+    }
+}
+
+@test
+fn incr_lex_para_edit_mid_doc() {
+    let old = "# 标题\n\n第一段原文,内容适中。\n\n第二段保持不动。\n\n第三段结尾。"
+    let new = "# 标题\n\n第一段已被编辑,内容变化了。\n\n第二段保持不动。\n\n第三段结尾。"
+    inc_lex_assert_equal(old, new, "段中编辑")
+}
+
+@test
+fn incr_lex_insert_blank_para_split() {
+    let old = "# 标题\n\n甲段。\n\n乙段。\n"
+    let new = "# 标题\n\n甲段。\n\n\n\n新增段。\n\n乙段。\n"
+    inc_lex_assert_equal(old, new, "插空段")
+}
+
+@test
+fn incr_lex_delete_lines() {
+    let old = "# 标题\n\n甲段。\n\n乙段要被删。\n\n丙段。\n"
+    let new = "# 标题\n\n甲段。\n\n丙段。\n"
+    inc_lex_assert_equal(old, new, "删行")
+}
+
+@test
+fn incr_lex_append_tail() {
+    let old = "# 标题\n\n甲段。\n"
+    let new = "# 标题\n\n甲段。\n\n新追加的结尾段。\n"
+    inc_lex_assert_equal(old, new, "尾部追加")
+}
+
+@test
+fn incr_lex_edit_inside_table_expands_to_table() {
+    let old = "# 标题\n\n前言段。\n\n@[table]\n| 甲 | 乙 |\n| --- | --- |\n| 1 | 2 |\n| 3 | 4 |\n@[/table]\n\n后记段。"
+    let new = "# 标题\n\n前言段。\n\n@[table]\n| 甲 | 乙 |\n| --- | --- |\n| 1 | 2 |\n| 3 | 改 |\n@[/table]\n\n后记段。"
+    inc_lex_assert_equal(old, new, "表内编辑扩区")
+}
+
+@test
+fn incr_lex_delete_table_close_falls_back() {
+    let old = "# 标题\n\n@[table]\n| 甲 | 乙 |\n| --- | --- |\n| 1 | 2 |\n@[/table]\n\n后记段。"
+    let new = "# 标题\n\n@[table]\n| 甲 | 乙 |\n| --- | --- |\n| 1 | 2 |\n\n后记段没了闭合。"
+    let old_full = lex(old)
+    let inc = incremental_lex(old_full, old, new)
+    assert(inc.fallback, "删表闭合应回退全量")
+}
+
+@test
+fn incr_lex_edit_inside_code_block() {
+    let old = "前文。\n\n@[code]\nline one\nline two\n@[/code]\n\n后文。"
+    let new = "前文。\n\n@[code]\nline one\nline TWO 改过\n@[/code]\n\n后文。"
+    inc_lex_assert_equal(old, new, "码块内编辑")
+}
+
+@test
+fn incr_lex_heading_level_change() {
+    let old = "## 二级标题\n\n正文一段。\n"
+    let new = "# 一级标题\n\n正文一段。\n"
+    inc_lex_assert_equal(old, new, "标题层级变化")
+}
+
+@test
+fn incr_lex_no_change_short_circuit() {
+    let src = "# 标题\n\n甲段。\n"
+    let old_full = lex(src)
+    let inc = incremental_lex(old_full, src, src)
+    assert(!inc.fallback, "无变化不回退")
+    assert(inc.relexed_lines == 0, "无变化零重扫")
+    assert(inc.out.blocks.len() == old_full.blocks.len(), "无变化块数不变")
+}
+
+@test
+fn incr_lex_table_open_edit_stays_consistent() {
+    // 编辑表格开行参数(列配置):脏区扩到表格闭合
+    let old = "前言。\n\n@[table]\n| 甲 | 乙 |\n| --- | --- |\n| 1 | 2 |\n@[/table]\n\n后记。"
+    let new = "前言。\n\n@[table 排序:甲]\n| 甲 | 乙 |\n| --- | --- |\n| 1 | 2 |\n@[/table]\n\n后记。"
+    inc_lex_assert_equal(old, new, "表开行参数编辑")
+}
+
+@test
+fn incr_lex_multi_para_middle_removal() {
+    let old = "段一。\n\n段二。\n\n段三。\n\n段四。\n"
+    let new = "段一。\n\n段三。\n\n段四。\n"
+    inc_lex_assert_equal(old, new, "中部删段")
+}
+
+@test
+fn incr_lex_list_group_edit() {
+    let old = "# 标题\n\n- 甲项\n- 乙项\n- 丙项\n\n收尾段。"
+    let new = "# 标题\n\n- 甲项\n- 乙项改成这样\n- 丙项\n\n收尾段。"
+    inc_lex_assert_equal(old, new, "列表组内编辑")
+}

@@ -272,23 +272,22 @@ fn layout_recs_json(state: DocState, src: String, flow: PageFlowResult) -> Strin
     var tfrags: Vec<String> = []
     var last = 0
     var last_rec = 0
+    // 三路移动指针:spans/first_ids/placed 都与 state.nodes 同为文档序,
+    // 消除曾有的三重平方扫描(539 节点时该函数曾耗 ~1s)
+    var sp_i: i32 = 0
+    var fi2: i32 = 0
+    var pl_i: i32 = 0
     for node in state.nodes {
-        var has_span = false
-        var s = 0
-        var e = 0
-        for sp in spans {
-            if sp.node_id == node.id {
-                has_span = true
-                s = sp.start_line
-                e = sp.end_line + 1
-            }
-        }
-        if !has_span { continue }
+        if sp_i >= spans.len() { continue }
+        let sp = spans.get(sp_i)
+        if sp.node_id != node.id { continue }
+        sp_i += 1
+        let s = sp.start_line
+        let e = sp.end_line + 1
         // 该节点首页:无版面行(注释/docset)沿用 last
         var pg = last
-        var fi2 = 0
-        while fi2 < first_ids.len() {
-            if first_ids.get(fi2) == node.id { pg = first_pages.get(fi2) }
+        if fi2 < first_ids.len() && first_ids.get(fi2) == node.id {
+            pg = first_pages.get(fi2)
             fi2 += 1
         }
         last = pg
@@ -309,12 +308,14 @@ fn layout_recs_json(state: DocState, src: String, flow: PageFlowResult) -> Strin
         }
         // 表格跨页片段:placed 中本节点的 "|row|" 行级标记 → 按页分组
         if node.kind == "table" {
+            while pl_i < flow.placed.len() && flow.placed.get(pl_i).node_id < node.id { pl_i += 1 }
             var fr_page = -1
             var fr_first = -1
             var fr_last = -1
             var fr_open = false
-            for pl in flow.placed {
-                if pl.node_id != node.id { continue }
+            while pl_i < flow.placed.len() && flow.placed.get(pl_i).node_id == node.id {
+                let pl = flow.placed.get(pl_i)
+                pl_i += 1
                 if pl.text != "|row|" { continue }
                 if !fr_open {
                     fr_page = pl.page
@@ -359,12 +360,17 @@ fn blocks_to_json(state: DocState, src: String) -> String {
     let lines = src.split("\n")
     var recs: Vec<String> = []
 
+    // spans 与 nodes 同为文档序(compute_spans 按节点序产出),
+    // 移动指针替代内层全扫——539 节点 × 539 span 的平方扫描曾占该函数大头
+    var sp_i: i32 = 0
     for node in state.nodes {
-        for sp in spans {
-            if sp.node_id != node.id { continue }
-            let s = sp.start_line
-            let e = sp.end_line + 1
-            let kind = node.kind
+        if sp_i >= spans.len() { continue }
+        let sp = spans.get(sp_i)
+        if sp.node_id != node.id { continue }
+        sp_i += 1
+        let s = sp.start_line
+        let e = sp.end_line + 1
+        let kind = node.kind
             if kind == "list" {
                 // 列表组 → 逐项记录;层级从原文行前导空格算(两空格一级)
                 var i = s
@@ -437,9 +443,7 @@ fn blocks_to_json(state: DocState, src: String) -> String {
                     recs = recs.push(block_rec("obj", 0, s, e, join_span_lines(lines, s, e), ""))
                 }
             }
-        }
     }
-
     var out = "{\"blocks\":["
     var first = true
     for r in recs {
