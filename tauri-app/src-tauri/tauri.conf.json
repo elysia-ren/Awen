@@ -1,6 +1,6 @@
 {
   "productName": "Awen 编辑器",
-  "version": "1.18.0",
+  "version": "1.19.0",
   "identifier": "com.awen.editor",
   "build": {
     "frontendDist": "../dist"
