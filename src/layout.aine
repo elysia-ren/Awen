@@ -89,7 +89,7 @@ fn cjk_line_break(text: String, content_width: f64, font_size: f64) -> Vec<Strin
 }
 
 fn cjk_is_ideograph_char(c: String) -> bool {
-    return c > "\x7f"
+    return c.len() > 0 && c.codepoint_at(0) > 127
 }
 
 fn cjk_is_latin_char(c: String) -> bool {

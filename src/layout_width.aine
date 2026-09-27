@@ -67,13 +67,13 @@ fn layout_measure_em(text: String) -> f64 {
         let cp = text.codepoint_at(i)
         // 全角判定(layout_is_fullwidth 的码点形式)
         var fw = false
-        if (cp >= 0x4E00 && cp <= 0x9FA5) || (cp >= 0x3400 && cp <= 0x4DBF) { fw = true }
-        else if cp >= 0x2E80 && cp <= 0x303F { fw = true }
-        else if cp >= 0x3041 && cp <= 0x30FF { fw = true }
-        else if cp >= 0xAC00 && cp <= 0xD7A3 { fw = true }
-        else if cp >= 0x1100 && cp <= 0x11FF { fw = true }
-        else if cp >= 0xFF01 && cp <= 0xFF5D { fw = true }
-        else if cp >= 0xFFE0 && cp <= 0xFFE6 { fw = true }
+        if (cp >= 19968 && cp <= 40869) || (cp >= 13312 && cp <= 19903) { fw = true }
+        else if cp >= 11904 && cp <= 12351 { fw = true }
+        else if cp >= 12353 && cp <= 12543 { fw = true }
+        else if cp >= 44032 && cp <= 55203 { fw = true }
+        else if cp >= 4352 && cp <= 4607 { fw = true }
+        else if cp >= 65281 && cp <= 65373 { fw = true }
+        else if cp >= 65504 && cp <= 65510 { fw = true }
         let latin = (cp >= 97 && cp <= 122) || (cp >= 65 && cp <= 90) || (cp >= 48 && cp <= 57)
         var cw = 0.5
         if fw { cw = 1.0 }
@@ -93,13 +93,13 @@ fn layout_measure_em(text: String) -> f64 {
 
 // CJK 标点码点判定(cjk_is_punct 的码点形式,供 layout_measure_em 内联)
 fn cp_is_cjk_punct_cp(cp: i32) -> bool {
-    if cp == 0x3002 || cp == 0xFF0C || cp == 0x3001 || cp == 0xFF1B || cp == 0xFF1F
-        || cp == 0xFF01 || cp == 0x300D || cp == 0x300F || cp == 0xFF09 || cp == 0x3011
-        || cp == 0x300B || cp == 0x300E || cp == 0x3015 || cp == 0xFF3D || cp == 0xFF5D {
+    if cp == 12290 || cp == 65292 || cp == 12289 || cp == 65307 || cp == 65311
+        || cp == 65281 || cp == 12301 || cp == 12303 || cp == 65289 || cp == 12305
+        || cp == 12299 || cp == 12302 || cp == 12309 || cp == 65341 || cp == 65373 {
         return true
     }
-    if cp == 0x300C || cp == 0x300E || cp == 0xFF08 || cp == 0x3010 || cp == 0x300A
-        || cp == 0x3008 || cp == 0x3014 || cp == 0xFF3B || cp == 0xFF5B {
+    if cp == 12300 || cp == 12302 || cp == 65288 || cp == 12304 || cp == 12298
+        || cp == 12296 || cp == 12308 || cp == 65339 || cp == 65371 {
         return true
     }
     return false

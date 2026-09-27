@@ -54,11 +54,8 @@ fn pipeline_full(src: String) -> PipelineResult {
 // ── 增量管线:编辑 → 更新全部中间表示 ────────────────────
 
 // 修改标题文本后的完整管线更新
-fn pipeline_edit_heading(
-    prev: PipelineResult,
-    node_id: i32,
-    new_text: String,
-) -> PipelineResult {
+// (签名保持单行:自举转译器 alparse 暂不支持参数列表跨行,修复后可恢复多行)
+fn pipeline_edit_heading(prev: PipelineResult, node_id: i32, new_text: String) -> PipelineResult {
     let result = edit_heading_text(prev.state, node_id, new_text, prev.source)
     let updated = pipeline_full(result.new_source)
     return updated
