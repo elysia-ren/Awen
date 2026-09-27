@@ -51,7 +51,7 @@ fn ex_is_name_char(c: String) -> bool {
     if c >= "A" && c <= "Z" { return true }
     if c >= "0" && c <= "9" { return true }
     if c == "-" { return true }
-    if c > "\x7f" { return true }
+    if c.len() > 0 && c.codepoint_at(0) > 127 { return true }
     return false
 }
 
