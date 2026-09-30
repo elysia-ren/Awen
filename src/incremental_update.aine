@@ -67,7 +67,7 @@ fn incremental_update(
         for old_node in old_state.nodes {
             var already_used = false
             for uid in used_old_ids {
-                if *uid == old_node.id { already_used = true }
+                if uid == old_node.id { already_used = true }
             }
             if !already_used && old_node.kind == new_node.kind && old_node.level == new_node.level {
                 let old_txt = inline_plain(old_node.inline)

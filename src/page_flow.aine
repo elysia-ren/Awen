@@ -52,10 +52,6 @@ struct FlowCtx {
     wf_start_s: String
     wf_end_s: String
     wf_ws: Vec<f64>
-    // 字体度量宽表(区间首尾字符 + em 宽;空 = 均匀估宽模型)
-    wf_start_s: String
-    wf_end_s: String
-    wf_ws: Vec<f64>
     // 同一宽表的码点形式(区间首尾码点,构造时一次展开):
     // 测宽二分走整数比较,消灭逐字符字符串切片分配(daemon 交互路径热点)
     wf_cs: Vec<i32>
