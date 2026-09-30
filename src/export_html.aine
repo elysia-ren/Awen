@@ -86,10 +86,14 @@ fn export_html_raw(node: SemNode) -> String {
         None { }
     }
     var cls = "language-" + lang
-    if lang.len() == 0 { cls = "" }
+    var has_cls = true
+    if lang.len() == 0 {
+        cls = ""
+        has_cls = false
+    }
 
     var out = "<pre><code"
-    if cls.len() > 0 { out = out + f" class=\"{cls}\"" }
+    if has_cls { out = out + f" class=\"{cls}\"" }
     out = out + ">"
     for line in node.raw_lines {
         out = out + html_escape(line) + "\n"
@@ -151,8 +155,11 @@ fn export_html(state: DocState) -> String {
                 // 注释不导出(§11.3)
             } else if cmd == Image {
                 var path = ""
+                // (.get 形式:成员链下标 [0] 在 C 转译层发裸下标)
                 if node.obj_cu.args.len() > 0 {
-                    path = arg_plain(node.obj_cu.args[0])
+                    let cu_args: Vec<Arg> = node.obj_cu.args
+                    let a0: Arg = cu_args.get(0)
+                    path = arg_plain(a0)
                 }
                 out = out + f"<img src=\"{path}\" alt=\"{path}\">\n"
             } else if cmd == Toc {

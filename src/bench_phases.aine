@@ -54,7 +54,7 @@ fn main() {
     let t5 = now_ms()
 
     let nl = src.split("\n").len()
-    print(f"src_lines={nl} nodes={st.nodes.len()} pages={flow.pages.len()}")
+    print(f"src_lines={nl} nodes={st.nodes.len()} pages={flow.pages}")
     print(f"lex      = {t1 - t0} ms")
     print(f"parse    = {t2 - t1} ms")
     print(f"build    = {t3 - t2} ms")

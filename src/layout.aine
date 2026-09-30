@@ -142,7 +142,8 @@ fn mixed_text_width(text: String, font_size: f64) -> f64 {
     var i = 0
     while i < text.len() {
         let c = text[i]
-        let next = if i + 1 < text.len() { text[i + 1] } else { "" }
+        // (切片形式取下一字符:char 与 "" 混分支的 if 表达式在 C 侧类型不统一)
+        let next = if i + 1 < text.len() { text[i + 1..i + 2] } else { " " }
         if cjk_is_ideograph_char(c) {
             total += char_width
         } else if cjk_is_latin_char(c) {

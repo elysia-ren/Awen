@@ -257,6 +257,19 @@ fn segment_blocks_json(text: String) -> String {
 // recs 与 blocks_to_json 的记录**同序同展开**(列表组按项展开,其余一节点
 // 一条),前端 gNodes[i] 直接按 recs[i] 落页。注释/docset 等无行节点沿用
 // 前一节点的页。flow 需与文档设置匹配的 ctx 计算(page_flow_with)。
+
+// tfrags 行组装(i32 形参 → f-string 渲染走 al_num;裸变量直传会发 char* 假定)
+fn tf_join(a: i32, b: i32, c: i32, d: i32) -> String {
+    return f"{a},{b},{c},{d}"
+}
+
+
+// 成员链 .get 的提取函数(深嵌套作用域里对链上 .get 的分派不稳,helper 顶层化)
+fn cu_arg_at(cu: CommandUse, ix: i32) -> Arg {
+    let args: Vec<Arg> = cu.args
+    return args.get(ix)
+}
+
 fn layout_recs_json(state: DocState, src: String, flow: PageFlowResult) -> String {
     let spans = compute_spans(state, src)
     let lines = src.split("\n")
@@ -282,8 +295,8 @@ fn layout_recs_json(state: DocState, src: String, flow: PageFlowResult) -> Strin
         let sp = spans.get(sp_i)
         if sp.node_id != node.id { continue }
         sp_i += 1
-        let s = sp.start_line
-        let e = sp.end_line + 1
+        let s: i32 = sp.start_line
+        let e: i32 = sp.end_line + 1
         // 该节点首页:无版面行(注释/docset)沿用 last
         var pg = last
         if fi2 < first_ids.len() && first_ids.get(fi2) == node.id {
@@ -324,7 +337,7 @@ fn layout_recs_json(state: DocState, src: String, flow: PageFlowResult) -> Strin
                     fr_open = true
                     fr_last = fr_first
                 } else if pl.page != fr_page {
-                    tfrags = tfrags.push(f"{recs.len() - 1}" + "," + f"{fr_page}" + "," + f"{fr_first}" + "," + f"{fr_last}")
+                    tfrags = tfrags.push(tf_join(recs.len() - 1, fr_page, fr_first, fr_last))
                     fr_page = pl.page
                     fr_first = fr_last + 1
                     fr_last = fr_first
@@ -333,7 +346,7 @@ fn layout_recs_json(state: DocState, src: String, flow: PageFlowResult) -> Strin
                 }
             }
             if fr_open {
-                tfrags = tfrags.push(f"{recs.len() - 1}" + "," + f"{fr_page}" + "," + f"{fr_first}" + "," + f"{fr_last}")
+                tfrags = tfrags.push(tf_join(recs.len() - 1, fr_page, fr_first, fr_last))
             }
         }
     }
@@ -368,8 +381,8 @@ fn blocks_to_json(state: DocState, src: String) -> String {
         let sp = spans.get(sp_i)
         if sp.node_id != node.id { continue }
         sp_i += 1
-        let s = sp.start_line
-        let e = sp.end_line + 1
+        let s: i32 = sp.start_line
+        let e: i32 = sp.end_line + 1
         let kind = node.kind
             if kind == "list" {
                 // 列表组 → 逐项记录;层级从原文行前导空格算(两空格一级)
@@ -380,7 +393,7 @@ fn blocks_to_json(state: DocState, src: String) -> String {
                         var lead = 0
                         var done = false
                         while lead < lines[i].len() && !done {
-                            if lines[i][lead] == " " { lead += 1 } else { done = true }
+                            if lines[i].codepoint_at(lead) == 32 { lead += 1 } else { done = true }
                         }
                         let level = lead / 2
                         let k2 = if starts_with_at(t, 0, "- ") { "ul" } else { "ol" }
@@ -493,7 +506,7 @@ fn blocks_to_json(state: DocState, src: String) -> String {
         var ai = 0
         while ai < node.obj_cu.args.len() {
             if ai > 0 { args_j = args_j + " " }
-            args_j = args_j + arg_plain(node.obj_cu.args.get(ai))
+            args_j = args_j + arg_plain(cu_arg_at(node.obj_cu, ai))
             ai += 1
         }
         if !fd2 { out = out + "," }
