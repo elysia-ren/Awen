@@ -140,10 +140,6 @@ fn inline_display_text(items: Vec<Inline>) -> String {
     return out
 }
 
-fn AwTxt(s: String) -> Inline {
-    return AwTxt(s)
-}
-
 enum LineClass {
     LcBlank
     LcDivider
@@ -765,19 +761,22 @@ fn lw_resolve(atoms: Vec<LwAtom>, diags: Vec<Diagnostic>, line_no: i32) -> ScanO
         if a_type == 1 {
             let fi = frames.len() - 1
             let f = frames[fi]
-            let new_children = f.children.push(AwTxt(a_text))
+            f.children = f.children.push(AwTxt(a_text))
+            let new_children = f.children
             let new_f = Frame { kind: f.kind, args: f.args, children: new_children }
             frames = lw_vec_set(frames, fi, new_f)
         } else if a_type == 2 {
             let fi = frames.len() - 1
             let f = frames[fi]
-            let new_children = f.children.push(CodeSpan(a_code))
+            f.children = f.children.push(CodeSpan(a_code))
+            let new_children = f.children
             let new_f = Frame { kind: f.kind, args: f.args, children: new_children }
             frames = lw_vec_set(frames, fi, new_f)
         } else if a_type == 6 {
             let fi = frames.len() - 1
             let f = frames[fi]
-            let new_children = f.children.push(RawInline(a_rawseg_cmd, a_rawseg_lang, a_rawseg_content))
+            f.children = f.children.push(RawInline(a_rawseg_cmd, a_rawseg_lang, a_rawseg_content))
+            let new_children = f.children
             let new_f = Frame { kind: f.kind, args: f.args, children: new_children }
             frames = lw_vec_set(frames, fi, new_f)
         } else if a_type == 4 {
@@ -786,13 +785,14 @@ fn lw_resolve(atoms: Vec<LwAtom>, diags: Vec<Diagnostic>, line_no: i32) -> ScanO
             } else {
                 let fi = frames.len() - 1
                 let f = frames[fi]
-                let new_children = f.children.push(Command(a_cu))
+                f.children = f.children.push(Command(a_cu))
+                let new_children = f.children
                 let new_f = Frame { kind: f.kind, args: f.args, children: new_children }
                 frames = lw_vec_set(frames, fi, new_f)
             }
         } else if a_type == 5 {
             let kind = MkExplicit(a_close_cmd)
-            let top = frames[frames.len() - 1].kind
+            let top: Option<MarkerKind> = frames[frames.len() - 1].kind
             if top == Some(kind) {
                 let f = frames[frames.len() - 1]
                 frames = lw_vec_drop_last(frames)
@@ -808,12 +808,13 @@ fn lw_resolve(atoms: Vec<LwAtom>, diags: Vec<Diagnostic>, line_no: i32) -> ScanO
                 diags2.push(diag_warning(f"未匹配的关闭标签 {a_close_lit}", line_no))
                 let fi = frames.len() - 1
                 let f = frames[fi]
-                let new_children = f.children.push(AwTxt(a_close_lit))
+                f.children = f.children.push(AwTxt(a_close_lit))
+                let new_children = f.children
                 let new_f = Frame { kind: f.kind, args: f.args, children: new_children }
                 frames = lw_vec_set(frames, fi, new_f)
             }
         } else if a_type == 3 {
-            let top = frames[frames.len() - 1].kind
+            let top: Option<MarkerKind> = frames[frames.len() - 1].kind
             if top == Some(a_kind) && a_can_close {
                 let f = frames[frames.len() - 1]
                 frames = lw_vec_drop_last(frames)
@@ -840,7 +841,8 @@ fn lw_resolve(atoms: Vec<LwAtom>, diags: Vec<Diagnostic>, line_no: i32) -> ScanO
             } else {
                 let fi = frames.len() - 1
                 let f = frames[fi]
-                let new_children = f.children.push(AwTxt(a_literal))
+                f.children = f.children.push(AwTxt(a_literal))
+                let new_children = f.children
                 let new_f = Frame { kind: f.kind, args: f.args, children: new_children }
                 frames = lw_vec_set(frames, fi, new_f)
             }
