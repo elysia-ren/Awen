@@ -33,14 +33,8 @@ fn json_escape(s: String) -> String {
 }
 
 fn f64_to_str(v: f64) -> String {
-    // 取整数部分足够 E1 预览;精确序列化留 M5
-    let rounded = v * 100.0
-    let int_part = rounded - (rounded % 1.0)
-    var result = f"{int_part}"
-    // 去掉尾随 .0
-    if result.ends_with(".0") {
-        result = result[0..result.len() - 2].to_string()
-    }
+    // 无调用方(E1 预览占位);C 转译层对 f64 取模/.to_string 尚未支持,掏空保签名
+    var result: String = f"{v}"
     return result
 }
 

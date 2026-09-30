@@ -96,8 +96,11 @@ fn page_flow_ctx_cfg_w(page_w: f64, page_h: f64, margin: f64, font_pt: f64, line
     var wf_ce: Vec<i32> = []
     var wi = 0
     while wi < wf_s.len() && wi < wf_e.len() {
-        wf_cs = wf_cs.push(wf_s.codepoint_at(wi))
-        wf_ce = wf_ce.push(wf_e.codepoint_at(wi))
+        // 先落 let 再 push:直接 push 调用结果会让 C 侧对右值取址
+        let cp_s: i32 = wf_s.codepoint_at(wi)
+        let cp_e: i32 = wf_e.codepoint_at(wi)
+        wf_cs = wf_cs.push(cp_s)
+        wf_ce = wf_ce.push(cp_e)
         wi += 1
     }
     // content_h 预留一行:估宽与真实字形有偏差,宁可提前分页
@@ -484,21 +487,62 @@ fn page_node_sig(n: SemNode) -> String {
         for l in n.raw_lines { s = s + "|" + l }
     }
     if n.kind == "list" {
-        for it in n.list_items { s = s + "|" + page_inline_sig(it) }
+        // (while+get:for-in 对成员链迭代在 C 转译层类型推断缺失)
+        let items: Vec<Vec<Inline>> = n.list_items
+        var li_i: i32 = 0
+        while li_i < items.len() {
+            s = s + "|" + page_inline_sig(items.get(li_i))
+            li_i += 1
+        }
     }
     if n.kind == "table" {
         // 开行参数(widths 列宽等)影响几何,必须入签名
-        for a in n.obj_cu.args { s = s + "|t" + arg_plain(a) }
-        for kv in n.obj_cu.attrs { s = s + "|t" + kv.key + "=" + arg_plain(kv.val) }
-        for cell in n.tbl_header { s = s + "|" + page_inline_sig(cell) }
-        for r in n.tbl_rows {
-            for cell in r { s = s + "|" + page_inline_sig(cell) }
+        let cu_args: Vec<Arg> = n.obj_cu.args
+        var oi: i32 = 0
+        while oi < cu_args.len() {
+            s = s + "|t" + arg_plain(cu_args.get(oi))
+            oi += 1
+        }
+        let cu_attrs: Vec<KVPair> = n.obj_cu.attrs
+        var qi: i32 = 0
+        while qi < cu_attrs.len() {
+            let kv: KVPair = cu_attrs.get(qi)
+            s = s + "|t" + kv.key + "=" + arg_plain(kv.val)
+            qi += 1
+        }
+        let thdr: Vec<Vec<Inline>> = n.tbl_header
+        var hi: i32 = 0
+        while hi < thdr.len() {
+            s = s + "|" + page_inline_sig(thdr.get(hi))
+            hi += 1
+        }
+        let trows: Vec<Vec<Vec<Inline>>> = n.tbl_rows
+        var ri: i32 = 0
+        while ri < trows.len() {
+            let rrow: Vec<Vec<Inline>> = trows.get(ri)
+            var ci: i32 = 0
+            while ci < rrow.len() {
+                s = s + "|" + page_inline_sig(rrow.get(ci))
+                ci += 1
+            }
+            ri += 1
         }
     }
     if n.kind == "obj" {
         s = s + "|" + n.obj_cu.name_raw
-        for a in n.obj_cu.args { s = s + "|" + arg_plain(a) }
-        for kv in n.obj_cu.attrs { s = s + "|" + kv.key + "=" + arg_plain(kv.val) }
+        let oargs: Vec<Arg> = n.obj_cu.args
+        var oai: i32 = 0
+        while oai < oargs.len() {
+            s = s + "|" + arg_plain(oargs.get(oai))
+            oai += 1
+        }
+        let oattrs: Vec<KVPair> = n.obj_cu.attrs
+        var oqi: i32 = 0
+        while oqi < oattrs.len() {
+            let kv: KVPair = oattrs.get(oqi)
+            s = s + "|" + kv.key + "=" + arg_plain(kv.val)
+            oqi += 1
+        }
         match n.obj_cu.content {
             Some(c) { s = s + "|" + c }
             None { }
