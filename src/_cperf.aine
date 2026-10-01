@@ -34,7 +34,7 @@ module incremental_update;
 module core_blocks;
 
 fn main() {
-    let src = read_file("build/bench_src.awen")
+    let src = read_file("build/big_src.awen")
     if src.contains("[read_file error") {
         print("no build/bench_src.awen")
         return

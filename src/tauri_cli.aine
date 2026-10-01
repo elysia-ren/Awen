@@ -81,23 +81,25 @@ struct DaemonLayoutState {
     plex: LexOutput
 }
 
-fn daemon_loop() {
-    var states: Vec<DaemonLayoutState> = []
-    while true {
-        let line = read_line()
-        if line == "" { break }
-        let m = json_decode(line)
-        let id = match m.get("id") { Some(x) { x } None { 0 } }
-        let op = match m.get("op") { Some(x) { x } None { "" } }
-        let doc = match m.get("doc") { Some(x) { x } None { "" } }
-        // 定位本文档状态槽(无则 -1)
-        var si: i32 = -1
-        var q = 0
-        while q < states.len() {
-            if states.get(q).doc == doc { si = q }
-            q += 1
-        }
-        var result = ""
+// 增量排版状态(按文档隔离:多标签各自持有一份,互不覆盖)。
+// @global:rlib 内嵌模式下宿主逐请求调 daemon_handle,全局槽跨调用保留。
+@global var g_states: Vec<DaemonLayoutState> = []
+
+// 单请求处理(spawn stdin 模式与 rlib 内嵌模式共用):
+// 请求 JSON 行 → 响应 JSON 行
+fn daemon_handle(line: String) -> String {
+    let m = json_decode(line)
+    let id = match m.get("id") { Some(x) { x } None { 0 } }
+    let op = match m.get("op") { Some(x) { x } None { "" } }
+    let doc = match m.get("doc") { Some(x) { x } None { "" } }
+    // 定位本文档状态槽(无则 -1)
+    var si: i32 = -1
+    var q = 0
+    while q < g_states.len() {
+        if g_states.get(q).doc == doc { si = q }
+        q += 1
+    }
+    var result = ""
         if op == "parse" {
             let src = match m.get("src") { Some(x) { x } None { "" } }
             var json = ""
@@ -143,9 +145,9 @@ fn daemon_loop() {
                         // 留存本轮流供增量排版复用(按文档);psrc/plex 是增量 lex 基线
                         let ns = DaemonLayoutState { doc: doc, flow: flow, cfgn: [pw, ph, mg, fp, ls], wfs: wf_s, wfk: wf_k, psrc: src, plex: o2 }
                         if si < 0 {
-                            states = states.push(ns)
+                            g_states = g_states.push(ns)
                         } else {
-                            states[si] = ns
+                            g_states[si] = ns
                         }
                     }
                     None { }
@@ -167,7 +169,7 @@ fn daemon_loop() {
                 var o2 = LexOutput { blocks: [], diags: [] }
                 var incr_used = false
                 if si >= 0 {
-                    let base = states.get(si)
+                    let base = g_states.get(si)
                     if base.psrc.len() > 0 {
                         let inc = incremental_lex(base.plex, base.psrc, src)
                         if !inc.fallback {
@@ -209,20 +211,20 @@ fn daemon_loop() {
                 }
                 let ctx = page_flow_ctx_cfg_w(pw, ph, mg, fp, ls, wf_s, wf_e, wf_ws)
                 // cfg 五参数+宽表(s 与 k 双比对)与上一轮一致才走增量;否则全量
-                var same_cfg = si >= 0 && states.get(si).cfgn.len() == 5 && wf_s == states.get(si).wfs && wf_k == states.get(si).wfk
+                var same_cfg = si >= 0 && g_states.get(si).cfgn.len() == 5 && wf_s == g_states.get(si).wfs && wf_k == g_states.get(si).wfk
                 if same_cfg {
-                    same_cfg = pw == states.get(si).cfgn.get(0) && ph == states.get(si).cfgn.get(1) && mg == states.get(si).cfgn.get(2) && fp == states.get(si).cfgn.get(3) && ls == states.get(si).cfgn.get(4)
+                    same_cfg = pw == g_states.get(si).cfgn.get(0) && ph == g_states.get(si).cfgn.get(1) && mg == g_states.get(si).cfgn.get(2) && fp == g_states.get(si).cfgn.get(3) && ls == g_states.get(si).cfgn.get(4)
                 }
                 // cfg 一致走增量 fast(复用前缀盒+尾段重推);否则全量。
                 // 二选一:旧写法先无条件跑全量再丢结果,白烧一次排版(~2s)
                 let tq4 = now_ms()
                 if same_cfg {
-                    let flow = page_flow_incremental_fast(st, states.get(si).flow, ctx)
+                    let flow = page_flow_incremental_fast(st, g_states.get(si).flow, ctx)
                     let ns = DaemonLayoutState { doc: doc, flow: flow, cfgn: [pw, ph, mg, fp, ls], wfs: wf_s, wfk: wf_k, psrc: src, plex: o2 }
                     if si < 0 {
-                        states = states.push(ns)
+                        g_states = g_states.push(ns)
                     } else {
-                        states[si] = ns
+                        g_states[si] = ns
                     }
                     var lay = layout_recs_json(st, src, flow)
                     if incr_used {
@@ -234,9 +236,9 @@ fn daemon_loop() {
                     let flow = page_flow_with(st, ctx)
                     let ns = DaemonLayoutState { doc: doc, flow: flow, cfgn: [pw, ph, mg, fp, ls], wfs: wf_s, wfk: wf_k, psrc: src, plex: o2 }
                     if si < 0 {
-                        states = states.push(ns)
+                        g_states = g_states.push(ns)
                     } else {
-                        states[si] = ns
+                        g_states[si] = ns
                     }
                     result = layout_recs_json(st, src, flow)
                 }
@@ -277,7 +279,15 @@ fn daemon_loop() {
             let sout = match m.get("source_out") { Some(x) { x } None { "" } }
             result = unpack_awen(path, mdir, sout)
         }
-        print("{\"id\":" + f"{id}" + ",\"ok\":true,\"result\":" + json_escape_str(result) + "}")
+        return "{\"id\":" + f"{id}" + ",\"ok\":true,\"result\":" + json_escape_str(result) + "}"
+}
+
+// stdin/stdout 行协议循环(spawn aine.exe 模式);rlib 内嵌模式由宿主直调 daemon_handle
+fn daemon_loop() {
+    while true {
+        let line = read_line()
+        if line == "" { break }
+        print(daemon_handle(line))
     }
 }
 
