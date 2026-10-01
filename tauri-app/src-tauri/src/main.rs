@@ -76,21 +76,204 @@ fn daemon_call(sess: &mut AineSession, req: &str) -> Result<String, String> {
 }
 
 // 带一层重试:会话异常(写入/读取失败)时重启 daemon 再试一次
+// ── 原生管线 DLL(rlib a + C 线合流)──────────────────────
+// awen_pipeline.dll:33 模块编译产物,导出 awen_pipeline(src)->json / awen_free。
+// 仅服务 op=parse 且 cfg 与内置几何一致(DLL 固化 A4/20mm/11pt/1.65);
+// 任一条件不满足或调用失败 → Err 走降级链。
+struct DllApi {
+    pipeline: unsafe extern "system" fn(*const std::ffi::c_char) -> *mut std::ffi::c_char,
+    free: unsafe extern "system" fn(*mut std::ffi::c_char),
+    _lib: libloading::Library,
+}
+
+static DLL_API: Mutex<Option<std::sync::Arc<DllApi>>> = Mutex::new(None);
+
+fn dll_load(app: &AppHandle) -> Result<std::sync::Arc<DllApi>, String> {
+    let mut g = DLL_API.lock().map_err(|_| "dll 锁中毒".to_string())?;
+    if let Some(api) = g.as_ref() {
+        return Ok(api.clone());
+    }
+    let dir = aine_dir(app)?;
+    let path = dir.join("awen_pipeline.dll");
+    if !path.is_file() {
+        return Err(format!("{} 不存在", path.display()));
+    }
+    unsafe {
+        let lib = libloading::Library::new(&path).map_err(|e| format!("加载 dll 失败:{e}"))?;
+        let pipeline: unsafe extern "system" fn(*const std::ffi::c_char) -> *mut std::ffi::c_char =
+            *lib.get(b"awen_pipeline\0").map_err(|e| format!("缺 awen_pipeline:{e}"))?;
+        let free: unsafe extern "system" fn(*mut std::ffi::c_char) =
+            *lib.get(b"awen_free\0").map_err(|e| format!("缺 awen_free:{e}"))?;
+        let api = std::sync::Arc::new(DllApi { pipeline, free, _lib: lib });
+        *g = Some(api.clone());
+        Ok(api)
+    }
+}
+
+fn dll_call(app: &AppHandle, req: &str) -> Result<String, String> {
+    let v: serde_json::Value = serde_json::from_str(req).map_err(|e| format!("req 非 json:{e}"))?;
+    if v.get("op").and_then(|x| x.as_str()) != Some("parse") {
+        return Err("dll 仅支持 op=parse".into());
+    }
+    if let Some(cfg) = v.get("cfg") {
+        let ok = cfg.get("pw").and_then(|x| x.as_f64()) == Some(210.0)
+            && cfg.get("ph").and_then(|x| x.as_f64()) == Some(297.0)
+            && cfg.get("mg").and_then(|x| x.as_f64()) == Some(20.0)
+            && cfg.get("fp").and_then(|x| x.as_f64()) == Some(11.0)
+            && cfg.get("ls").and_then(|x| x.as_f64()) == Some(1.65)
+            && cfg.get("widths").map_or(true, |w| w.as_object().map_or(true, |o| o.is_empty()));
+        if !ok {
+            return Err("cfg 与 DLL 内置几何不一致".into());
+        }
+    }
+    let api = dll_load(app)?;
+    let src = v.get("src").and_then(|x| x.as_str()).unwrap_or("");
+    if src.is_empty() {
+        return Err("dll 空 src".into());
+    }
+    let c_src = std::ffi::CString::new(src).map_err(|_| "src 含 NUL".to_string())?;
+    unsafe {
+        let ptr = (api.pipeline)(c_src.as_ptr());
+        if ptr.is_null() {
+            return Err("dll 返回 null".into());
+        }
+        let out = std::ffi::CStr::from_ptr(ptr).to_string_lossy().into_owned();
+        (api.free)(ptr);
+        // daemon 协议: result 是字符串化 JSON
+        let result_str = serde_json::to_string(&out).unwrap_or_else(|_| format!("\"{}\"", out));
+        let id = v.get("id").and_then(|x| x.as_i64()).unwrap_or(1);
+        Ok(format!("{{\"id\":{},\"ok\":true,\"result\":{}}}", id, result_str))
+    }
+}
+
+// ── 进程内嵌 aine 解释器(rlib 阶段 a)────────────────────────
+// Interp 常驻专有线程(512MB 大栈,递归解释器必需):load 一次
+// tauri_cli.aine(32 模块),此后每个请求经 channel 直调 daemon_handle,
+// 消灭 spawn/CREATE_NO_WINDOW/管道 IO/每次加载的全部成本。
+// 全局状态(@global g_states)随 Interp 常驻,增量排版跨请求复用。
+
+enum InprocReq {
+    Call(String, std::sync::mpsc::Sender<Result<String, String>>),
+}
+
+static INPROC_TX: Mutex<Option<std::sync::mpsc::Sender<InprocReq>>> = Mutex::new(None);
+
+fn inproc_load_program(path: &Path) -> Result<aine::ast::Program, String> {
+    let source = fs::read_to_string(path).map_err(|e| format!("读 {} 失败:{}", path.display(), e))?;
+    let lexed = aine::lex_source(&source);
+    if lexed.diagnostics.has_errors() {
+        return Err("tauri_cli.aine 词法错误".into());
+    }
+    let parsed = aine::parse_source(&source, &path.display().to_string())
+        .ok_or_else(|| "tauri_cli.aine 语法错误".to_string())?;
+    let mut program = match parsed.program {
+        Some(p) => p,
+        None => return Err("tauri_cli.aine 无程序体".into()),
+    };
+    let mod_dir = path.parent().map(|p| p.to_path_buf()).unwrap_or_default();
+    aine::resolve_file_modules(&mut program, &mod_dir).map_err(|e| format!("模块解析失败:{e}"))?;
+    let resolver = aine::resolve::Resolver::new(&lexed.tokens);
+    let resolved = resolver.resolve(&program);
+    if resolved.diagnostics.has_errors() {
+        return Err("tauri_cli.aine 名称解析错误".into());
+    }
+    let checker = aine::typeck::TypeChecker::new(&resolved.program, &resolved.resolution, &lexed.tokens);
+    let typeck = checker.check();
+    if typeck.diagnostics.has_errors() {
+        return Err("tauri_cli.aine 类型检查错误".into());
+    }
+    Ok(program)
+}
+
+fn inproc_call(app: &AppHandle, req: &str) -> Result<String, String> {
+    let tx = {
+        let mut g = INPROC_TX.lock().map_err(|_| "inproc 锁中毒".to_string())?;
+        if g.is_none() {
+            let dir = aine_dir(app)?;
+            let path = dir.join("src").join("tauri_cli.aine");
+            if !path.is_file() {
+                return Err(format!("{} 不存在", path.display()));
+            }
+            let (req_tx, req_rx) = std::sync::mpsc::channel::<InprocReq>();
+            let (ready_tx, ready_rx) = std::sync::mpsc::channel::<Result<(), String>>();
+            let worker_path = path.clone();
+            std::thread::Builder::new()
+                .name("aine-inproc".into())
+                .stack_size(512 * 1024 * 1024)
+                .spawn(move || {
+                    let boot = (|| -> Result<(), String> {
+                        let program = inproc_load_program(&worker_path)?;
+                        let mut interp = aine::interp::Interp::new();
+                        interp.load(&program);
+                        let _ = ready_tx.send(Ok(()));
+                        for r in req_rx {
+                            match r {
+                                InprocReq::Call(line, resp_tx) => {
+                                    let out = interp
+                                        .call_named(
+                                            "daemon_handle",
+                                            vec![aine::interp::Value::Str(line.into_boxed_str().into())],
+                                        )
+                                        .map(|v| match v {
+                                            aine::interp::Value::Str(s) => s.to_string(),
+                                            other => other.display(),
+                                        })
+                                        .map_err(|e| aine::interp::rt_error_text(&e));
+                                    let _ = resp_tx.send(out);
+                                }
+                            }
+                        }
+                        Ok(())
+                    })();
+                    if let Err(e) = boot {
+                        let _ = ready_tx.send(Err(e));
+                    }
+                })
+                .map_err(|e| format!("inproc 线程启动失败:{e}"))?;
+            match ready_rx.recv() {
+                Ok(Ok(())) => {}
+                Ok(Err(e)) => return Err(format!("inproc 加载失败:{e}")),
+                Err(_) => return Err("inproc worker 消失".into()),
+            }
+            *g = Some(req_tx);
+        }
+        g.clone().ok_or_else(|| "inproc 未初始化".to_string())?
+    };
+    let (resp_tx, resp_rx) = std::sync::mpsc::channel();
+    tx.send(InprocReq::Call(req.to_string(), resp_tx))
+        .map_err(|_| "inproc worker 已退出".to_string())?;
+    resp_rx
+        .recv_timeout(std::time::Duration::from_secs(120))
+        .map_err(|_| "inproc 响应超时".to_string())?
+}
+
+// 带两级降级:dll(原生,parse+默认几何)→ inproc(解释,全功能)→ spawn(兜底)
 fn daemon_call_retry(app: &AppHandle, req: &str) -> Result<String, String> {
+    match dll_call(app, req) {
+        Ok(v) => return Ok(v),
+        Err(e) => {
+            eprintln!("[awen] dll 未命中,降级 inproc: {}", e);
+        }
+    }
+    match inproc_call(app, req) {
+        Ok(v) => return Ok(v),
+        Err(e) => {
+            eprintln!("[awen] inproc 失败,降级 spawn daemon: {}", e);
+        }
+    }
     let mut g = DAEMON.lock().map_err(|_| "daemon 锁中毒".to_string())?;
-    // 会话不存在则先拉起
     if g.is_none() {
         *g = Some(daemon_spawn(app)?);
     }
     match daemon_call(g.as_mut().unwrap(), req) {
         Ok(v) => Ok(v),
         Err(_) => {
-            // 会话失效:重启 daemon 再试一次
             *g = Some(daemon_spawn(app)?);
             daemon_call(g.as_mut().unwrap(), req)
         }
     }
 }
+
 
 /// 启动参数里的文件路径:setup 阶段前端尚未就绪无法 emit,先暂存,
 /// 前端初始化完成后经 core_take_pending_paths 主动拉取
