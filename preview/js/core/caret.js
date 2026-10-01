@@ -82,7 +82,7 @@ function scheduleNativeRefresh(caret){
       if(incrRefresh(saveCaret()))return;
     }catch(e){ console.error('增量刷新失败,回退全量',e) }
     render(gSrc,c);
-  },500);
+  },300);
 }
 function saveCaret(){
   var s=window.getSelection();

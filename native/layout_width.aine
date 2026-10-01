@@ -1,0 +1,256 @@
+// layout_width.aine —— 统一宽度模型与词边界断行(M5-d 补齐)
+// D-1:混排间距 ⅛ em;D-2:全角判定全项目唯一实现;D-3:西文按词断行
+// 依据:核心规范 §10.1–10.3;docs/M5_DESIGN.md §2
+
+// 全角判定(Unicode EAW Wide/Fullwidth 的实用子集;D-2 唯一实现)。
+// 覆盖:汉字(含扩展A)/假名/谚文音节与字母/CJK标点/康熙部首/兼容表意/
+// 全角形式/全角货币符号。其余文字(拉丁/希腊/西里尔/阿拉伯/天城文等)
+// 一律 0.5em 估宽——估宽模型对任意文字都有合理值,不限于中日韩英。
+fn layout_is_fullwidth(c: String) -> bool {
+    if cjk_is_ideograph(c) { return true }
+    if c >= "⺀" && c <= "〿" { return true }
+    if c >= "ぁ" && c <= "ヿ" { return true }
+    if c >= "가" && c <= "힣" { return true }
+    if c >= "ᄀ" && c <= "ᇿ" { return true }
+    if c >= "！" && c <= "｝" { return true }
+    if c >= "￠" && c <= "￦" { return true }
+    return false
+}
+
+// 西文词单元:连续词字符不可断(拉丁/数字之外,希腊/西里尔/希伯来/
+// 阿拉伯/亚美尼亚等空格分词文字同为词单元;无词间空格的泰/老/高棉
+// 文字保持逐字断行以免整段无断点溢出)
+fn layout_is_word(c: String) -> bool {
+    if cjk_is_latin(c) { return true }
+    if c >= "À" && c <= "ÿ" { return true }
+    if c >= "Ā" && c <= "ɏ" { return true }
+    if c >= "Ά" && c <= "ώ" { return true }
+    if c >= "Ѐ" && c <= "ӿ" { return true }
+    if c >= "־" && c <= "׿" { return true }
+    if c >= "؀" && c <= "ۿ" { return true }
+    if c >= "՚" && c <= "֏" { return true }
+    return false
+}
+
+fn layout_em_width(c: String) -> f64 {
+    if layout_is_fullwidth(c) { return 1.0 }
+    return 0.5
+}
+
+// 混排间距(D-1):CJK 类与 Latin 类相邻 → ⅛ em
+fn layout_needs_mixed_spacing(a: String, b: String) -> bool {
+    if layout_is_fullwidth(a) && cjk_is_latin(b) { return true }
+    if cjk_is_latin(a) && layout_is_fullwidth(b) { return true }
+    return false
+}
+
+// 标点挤压(§10.1):连续全角标点,后者按半角计
+fn layout_squeezed_width(prev: String, c: String) -> f64 {
+    if layout_is_fullwidth(c) && prev.len() > 0 && cjk_is_punct(prev) && cjk_is_punct(c) {
+        return 0.5
+    }
+    return layout_em_width(c)
+}
+
+// 文本宽度(em):逐字 + 挤压 + 混排间距。
+// 码点整数版:每字符一次 codepoint_at,分类全走整数区间比较,
+// 且 fw/latin 判定每字符只算一次、下一轮作前驱复用(原前瞻 i+1 版本
+// 每字符多算一整套分类,反而更慢)。分类表与 layout_is_fullwidth/
+// cjk_is_ideograph/cjk_is_latin/cjk_is_punct 严格同步;改全角表两处同步。
+fn layout_measure_em(text: String) -> f64 {
+    var total = 0.0
+    var prev_fw = false
+    var prev_latin = false
+    var prev_punct = false
+    var i = 0
+    while i < text.len() {
+        let cp = text.codepoint_at(i)
+        // 全角判定(layout_is_fullwidth 的码点形式)
+        var fw = false
+        if (cp >= 19968 && cp <= 40869) || (cp >= 13312 && cp <= 19903) { fw = true }
+        else if cp >= 11904 && cp <= 12351 { fw = true }
+        else if cp >= 12353 && cp <= 12543 { fw = true }
+        else if cp >= 44032 && cp <= 55203 { fw = true }
+        else if cp >= 4352 && cp <= 4607 { fw = true }
+        else if cp >= 65281 && cp <= 65373 { fw = true }
+        else if cp >= 65504 && cp <= 65510 { fw = true }
+        let latin = (cp >= 97 && cp <= 122) || (cp >= 65 && cp <= 90) || (cp >= 48 && cp <= 57)
+        var cw = 0.5
+        if fw { cw = 1.0 }
+        // 标点挤压(§10.1):连续全角标点,后者按半角计
+        else if prev_punct && cp_is_cjk_punct_cp(cp) { cw = 0.5 }
+        total = total + cw
+        // 混排间距(D-1):CJK 类与 Latin 类相邻 → ⅛ em(前驱对 i-1,i)
+        if prev_fw && latin { total = total + 0.125 }
+        else if prev_latin && fw { total = total + 0.125 }
+        prev_fw = fw
+        prev_latin = latin
+        prev_punct = cp_is_cjk_punct_cp(cp)
+        i += 1
+    }
+    return total
+}
+
+// CJK 标点码点判定(cjk_is_punct 的码点形式,供 layout_measure_em 内联)
+fn cp_is_cjk_punct_cp(cp: i32) -> bool {
+    if cp == 12290 || cp == 65292 || cp == 12289 || cp == 65307 || cp == 65311
+        || cp == 65281 || cp == 12301 || cp == 12303 || cp == 65289 || cp == 12305
+        || cp == 12299 || cp == 12302 || cp == 12309 || cp == 65341 || cp == 65373 {
+        return true
+    }
+    if cp == 12300 || cp == 12302 || cp == 65288 || cp == 12304 || cp == 12298
+        || cp == 12296 || cp == 12308 || cp == 65339 || cp == 65371 {
+        return true
+    }
+    return false
+}
+
+// 断行单元:西文词(D-3 词边界)/ 单字符 / 行首禁则字符粘附前单元
+struct LayoutUnit {
+    text: String
+    w: f64
+}
+
+fn layout_build_units(text: String) -> Vec<LayoutUnit> {
+    var units: Vec<LayoutUnit> = []
+    var i = 0
+    while i < text.len() {
+        let c = text[i]
+        if layout_is_word(c) {
+            // 西文词:连续词字符为不可分单元(希腊/西里尔等字母文字同此)
+            var word = c
+            var w = layout_em_width(c)
+            i += 1
+            while i < text.len() {
+                let c2 = text[i]
+                if layout_is_word(c2) {
+                    word = word + c2
+                    w = w + layout_em_width(c2)
+                    i += 1
+                } else {
+                    break
+                }
+            }
+            units = units.push(LayoutUnit { text: word, w: w })
+            continue
+        }
+        // 行首禁则字符:粘附前一单元(不得开启新行)
+        if units.len() > 0 && cjk_is_line_start_forbidden(c) {
+            let last = units[units.len() - 1]
+            units[units.len() - 1] = LayoutUnit { text: last.text + c, w: last.w + layout_em_width(c) }
+            i += 1
+            continue
+        }
+        units = units.push(LayoutUnit { text: c, w: layout_em_width(c) })
+        i += 1
+    }
+    return units
+}
+
+// 断行:贪心填充 + 禁则一体化(§10.3);行尾开启标点移入下一行
+// 宽度计算使用 layout_measure_em(含挤压 + 混排间距),非简单逐字累加
+fn layout_line_break(text: String, max_em: f64) -> Vec<String> {
+    let units = layout_build_units(text)
+    var out: Vec<String> = []
+    var cur = ""
+    var k = 0
+    while k < units.len() {
+        let u = units[k]
+        // 用 layout_measure_em 计算含挤压和混排间距的真实宽度
+        let test_w = layout_measure_em(cur + u.text)
+        if test_w <= max_em || cur.len() == 0 {
+            cur = cur + u.text
+            k += 1
+            continue
+        }
+        // 溢出:行尾开启标点移到下一行(行尾禁则)
+        var moved = ""
+        while cur.len() > 0 {
+            let last = cur[cur.len() - 1]
+            if cjk_is_line_end_forbidden(last) {
+                moved = last + moved
+                cur = cur[0..cur.len() - 1]
+            } else {
+                break
+            }
+        }
+        if cur.len() > 0 {
+            out = out.push(cur)
+        }
+        cur = moved + u.text
+        k += 1
+    }
+    if cur.len() > 0 {
+        out = out.push(cur)
+    }
+    return out
+}
+
+
+// ── 字体度量宽表(A′:Rust 从真实字体文件提取,经 cfg 下发)──────
+// 二分查字宽;未命中返回 -1(调用方回退估宽)。码点区间表 wf_cs/wf_ce
+// 由 ctx 构造期从 s/e 字符串一次展开;整数二分消灭逐字符切片分配
+// (曾占 daemon 排版相位的大头)。表缺失时回退均匀估宽模型。
+fn wf_width_cp(ctx: FlowCtx, cp: i32) -> f64 {
+    let n = ctx.wf_cs.len()
+    if n == 0 { return -1.0 }
+    var lo: i32 = 0
+    var hi: i32 = n - 1
+    while lo <= hi {
+        let mid = (lo + hi) / 2
+        let sc = ctx.wf_cs.get(mid)
+        let ec = ctx.wf_ce.get(mid)
+        if cp < sc {
+            hi = mid - 1
+        } else if cp > ec {
+            lo = mid + 1
+        } else {
+            return ctx.wf_ws.get(mid)
+        }
+    }
+    return -1.0
+}
+
+// 带字体度量表的测宽:查表命中用真实字宽,未命中回退 0.5 估宽
+// (挤压/混排距在表模式下不计——快速估行口径,误差容忍)。
+// 邻域优先:连续字符几乎总落在同一区间,先试上一次命中的下标,
+// 未中再二分——真实字体表数千区间,纯二分的逐字符解释器成本曾占
+// 带宽表排版的 4/5。
+fn layout_measure_w(text: String, ctx: FlowCtx) -> f64 {
+    if ctx.wf_cs.len() == 0 { return layout_measure_em(text) }
+    var total = 0.0
+    var last: i32 = 0
+    var n = ctx.wf_cs.len()
+    var i = 0
+    while i < text.len() {
+        let cp = text.codepoint_at(i)
+        if cp >= ctx.wf_cs.get(last) && cp <= ctx.wf_ce.get(last) {
+            total = total + ctx.wf_ws.get(last)
+            i += 1
+            continue
+        }
+        var lo: i32 = 0
+        var hi: i32 = n - 1
+        var found = false
+        while lo <= hi {
+            let mid = (lo + hi) / 2
+            let sc = ctx.wf_cs.get(mid)
+            let ec = ctx.wf_ce.get(mid)
+            if cp < sc {
+                hi = mid - 1
+            } else if cp > ec {
+                lo = mid + 1
+            } else {
+                total = total + ctx.wf_ws.get(mid)
+                last = mid
+                found = true
+                break
+            }
+        }
+        if !found {
+            total = total + 0.5
+        }
+        i += 1
+    }
+    return total
+}

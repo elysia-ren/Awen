@@ -1,0 +1,91 @@
+// native_pipeline.aine —— 原生管线 DLL 入口(rlib 阶段 a+C 线合流)
+// 转译: aine.exe build native/native_pipeline.aine -o build/native_pipeline.c
+// C 桥: 追加 awen_pipeline/awen_free 导出(见 build/native_pipeline.c 尾部示例)
+// 语义: awen_run(src, 几何5参, 宽表3参) → blocks JSON 与 layout JSON 拼接
+module diag;
+module registry;
+module fullwidth;
+module escape;
+module explicit;
+module lightweight;
+module lexer;
+module parser;
+module document;
+module mapping;
+module refs;
+module theme;
+module render;
+module incremental;
+module pipeline;
+module cjk;
+module layout;
+module layout_width;
+module page_flow;
+module json_export;
+module validate;
+module toc;
+module diff;
+module inspect;
+module export_html;
+module heading_tree;
+module numbering;
+module fmt;
+module export_md;
+module seed;
+module incremental_update;
+module core_blocks;
+
+@global var g_blocks_json: String = ""
+@global var g_lay_json: String = ""
+
+// 逗号分隔 double 串 → Vec<f64>(空串 → 空表)
+fn split_f64_csv(s: String) -> Vec<f64> {
+    var out: Vec<f64> = []
+    if s.len() == 0 { return out }
+    let parts = s.split(",")
+    var i = 0
+    while i < parts.len() {
+        // 先落 let 再 push(直接 push 函数返回值会在 C 侧对右值取址)
+        let d: f64 = parts.get(i).to_f64()
+        out = out.push(d)
+        i += 1
+    }
+    return out
+}
+
+// 完整权威管线:parse + build + flow + recs
+// blocks 去尾 '}'、lay 去头 '{' 存 @global,C 桥用 ',' 拼成单对象
+fn awen_run(src: String, pw: f64, ph: f64, mg: f64, fp: f64, ls: f64, wf_s: String, wf_e: String, wf_w_flat: String) -> String {
+    let wf_w = split_f64_csv(wf_w_flat)
+    let out = lex(src)
+    let pr = parse(out)
+    let st = build_document(pr, src)
+    let ctx = page_flow_ctx_cfg_w(pw, ph, mg, fp, ls, wf_s, wf_e, wf_w)
+    let flow = page_flow_with(st, ctx)
+    let blocks = blocks_to_json(st, src)
+    let lay = layout_recs_json(st, src, flow)
+    g_blocks_json = blocks[0 .. blocks.len() - 1]
+    g_lay_json = lay[1 .. lay.len()]
+    return "ok"
+}
+
+// relayout: 全量重算排版(原生速度下增量无必要),只返回 layout JSON
+fn awen_relayout_run(src: String, pw: f64, ph: f64, mg: f64, fp: f64, ls: f64, wf_s: String, wf_e: String, wf_w_flat: String) -> String {
+    let wf_w = split_f64_csv(wf_w_flat)
+    let out = lex(src)
+    let pr = parse(out)
+    let st = build_document(pr, src)
+    let ctx = page_flow_ctx_cfg_w(pw, ph, mg, fp, ls, wf_s, wf_e, wf_w)
+    let flow = page_flow_with(st, ctx)
+    return layout_recs_json(st, src, flow)
+}
+
+fn main() {
+    let src = read_file("build/big_src.awen")
+    if src.contains("[read_file error") {
+        print("no src")
+        return
+    }
+    let r = awen_run(src, 210.0, 297.0, 20.0, 11.0, 1.65, "", "", "")
+    print(f"len={r.len()}")
+}

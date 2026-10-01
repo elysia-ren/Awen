@@ -20,7 +20,7 @@ function onPaperInput(e){
   // 标点成步:句末标点立即落一步,且下一笔必开新语义步
   var punct=e&&e.data&&/[。？！，、；：.?!]/.test(e.data.slice(-1));
   if(punct){ applySyncNow(); histTime=0; return }
-  repagTimer=setTimeout(applySyncNow,300);
+  repagTimer=setTimeout(applySyncNow,150);
 }
 function swapSplit(){
   var ws=document.querySelector('.workspace');
@@ -39,6 +39,20 @@ function swapSplit(){
 }
 
 function onPaperKey(e){
+  // Ctrl+A 跨页全选:每页 .paper 是独立可编辑岛,原生全选只覆盖光标所在页。
+  // 手工构造跨越全部纸面的 Range(文档级全选,Word 行为)。
+  if((e.ctrlKey||e.metaKey)&&!e.shiftKey&&!e.altKey&&e.key==='a'){
+    var papers=document.querySelectorAll('#display-pane .paper');
+    if(papers.length>1){
+      e.preventDefault();
+      var sel=window.getSelection(); if(!sel)return;
+      var r=document.createRange();
+      r.setStartBefore(papers[0]);
+      r.setEndAfter(papers[papers.length-1]);
+      sel.removeAllRanges(); sel.addRange(r);
+      return
+    }
+  }
   if((e.ctrlKey||e.metaKey)&&!e.shiftKey&&e.key==='b'){ e.preventDefault(); fmtCmd('bold'); return }
   if((e.ctrlKey||e.metaKey)&&!e.shiftKey&&e.key==='i'){ e.preventDefault(); fmtCmd('italic'); return }
   if((e.ctrlKey||e.metaKey)&&!e.shiftKey&&e.key==='u'){ e.preventDefault(); fmtCmd('underline'); return }

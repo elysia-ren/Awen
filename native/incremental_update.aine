@@ -1,0 +1,162 @@
+// awen-proto/src/incremental_update.aine —— 增量 Document State 更新(§1.3/§41)
+// 核心思想(§80 性能架构):
+//   全量 → 文档级 → 章节级 → 块级 → 节点级 → 属性级
+//   越接近叶节点,更新成本越低。
+//
+// 当前实现:行级增量(检测变更行,只更新受影响节点)。
+// M6 将升级为语法树节点粒度。
+
+// ── 增量更新结果 ────────────────────────────────────────────
+
+struct IncrementalUpdate {
+    state: DocState
+    labels: Vec<LabelEntry>
+    reused: i32
+    reparsed: i32
+    changed_node_ids: Vec<i32>
+}
+
+// ── 核心函数:增量文本编辑 ──────────────────────────────────
+//
+// 步骤:
+// 1. 计算旧/新源码的差异行范围
+// 2. 重解析新源码(全量 parse,但只更新受影响节点)
+// 3. 对变更范围外的节点:复用旧 NodeId + 旧 inline
+// 4. 对变更范围内的节点:使用新 NodeId + 新 inline
+// 5. 重新收集 Label + 验证引用
+
+fn incremental_update(
+    old_state: DocState,
+    old_labels: Vec<LabelEntry>,
+    old_src: String,
+    new_src: String,
+) -> IncrementalUpdate {
+    // 1. 差异检测
+    let diff = find_changed_range(old_src, new_src)
+    if !diff.has_change {
+        return IncrementalUpdate {
+            state: old_state,
+            labels: old_labels,
+            reused: old_state.nodes.len(),
+            reparsed: 0,
+            changed_node_ids: [],
+        }
+    }
+
+    // 2. 全量解析新源码
+    let out = lex(new_src)
+    let pr = parse(out)
+
+    // 3. ID 稳定策略：匹配旧节点复用 ID，新节点从 max+1 起
+    var max_old_id: i32 = 0
+    for node in old_state.nodes {
+        if node.id > max_old_id { max_old_id = node.id }
+    }
+
+    let fresh = build_document_with_id_base(pr, new_src, 0)
+
+    var final_nodes: Vec<SemNode> = []
+    var changed_ids: Vec<i32> = []
+    var reused_count: i32 = 0
+    var reparsed_count: i32 = 0
+    var new_id_cursor: i32 = max_old_id + 1
+    var used_old_ids: Vec<i32> = []
+
+    for new_node in fresh.nodes {
+        var matched_id: i32 = -1
+        for old_node in old_state.nodes {
+            var already_used = false
+            for uid in used_old_ids {
+                if uid == old_node.id { already_used = true }
+            }
+            if !already_used && old_node.kind == new_node.kind && old_node.level == new_node.level {
+                let old_txt = inline_plain(old_node.inline)
+                let new_txt = inline_plain(new_node.inline)
+                if old_txt == new_txt {
+                    matched_id = old_node.id
+                    // 标记已用
+                    used_old_ids = used_old_ids.push(matched_id)
+                    break
+                }
+            }
+        }
+        if matched_id > 0 {
+            // 复用旧 ID：重建 struct（Aine 不支持字段赋值）
+            final_nodes = final_nodes.push(SemNode {
+                id: matched_id,
+                kind: new_node.kind,
+                level: new_node.level,
+                inline: new_node.inline,
+                children: new_node.children,
+                parent: new_node.parent,
+                span_start: new_node.span_start,
+                span_end: new_node.span_end,
+                raw_lines: new_node.raw_lines,
+                raw_lang: new_node.raw_lang,
+                raw_cmd: new_node.raw_cmd,
+                tbl_header: new_node.tbl_header,
+                tbl_rows: new_node.tbl_rows,
+                tbl_has_delim: new_node.tbl_has_delim,
+                obj_cu: new_node.obj_cu,
+                comment_text: new_node.comment_text,
+                list_ordered: new_node.list_ordered,
+                list_items: new_node.list_items,
+                quote_depth: new_node.quote_depth,
+            })
+            reused_count += 1
+        } else {
+            new_id_cursor += 1
+            var node = new_node
+            node = SemNode {
+                id: new_id_cursor,
+                kind: node.kind,
+                level: node.level,
+                inline: node.inline,
+                children: node.children,
+                parent: node.parent,
+                span_start: node.span_start,
+                span_end: node.span_end,
+                raw_lines: node.raw_lines,
+                raw_lang: node.raw_lang,
+                raw_cmd: node.raw_cmd,
+                tbl_header: node.tbl_header,
+                tbl_rows: node.tbl_rows,
+                tbl_has_delim: node.tbl_has_delim,
+                obj_cu: node.obj_cu,
+                comment_text: node.comment_text,
+                list_ordered: node.list_ordered,
+                list_items: node.list_items,
+                quote_depth: node.quote_depth,
+            }
+            final_nodes = final_nodes.push(node)
+            changed_ids = changed_ids.push(new_id_cursor)
+            reparsed_count += 1
+        }
+    }
+
+    let new_state = DocState { nodes: final_nodes, diags: fresh.diags }
+    let new_labels = collect_labels(new_state)
+
+    IncrementalUpdate {
+        state: DocState { nodes: final_nodes, diags: fresh.diags },
+        labels: new_labels,
+        reused: reused_count,
+        reparsed: reparsed_count,
+        changed_node_ids: changed_ids,
+    }
+}
+
+fn incr_edit_heading(
+    old_state: DocState,
+    old_labels: Vec<LabelEntry>,
+    old_src: String,
+    node_id: i32,
+    new_text: String,
+) -> IncrementalUpdate {
+    // 1. 生成新源码(通过 edit_heading_text 的最小 patch)
+    let result = edit_heading_text(old_state, node_id, new_text, old_src)
+    let new_src = result.new_source
+
+    // 2. 增量更新
+    return incremental_update(old_state, old_labels, old_src, new_src)
+}

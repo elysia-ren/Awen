@@ -1,0 +1,518 @@
+// core_blocks.aine —— 权威块级解析 JSON(桌面版 Tauri Bridge 数据源)
+//
+// 把 Document State + Source Span(mapping.compute_spans)转成
+// preview/engine.js 的 ingestNative 可直接消费的 blocks JSON。
+//
+// 行区间语义与 engine.js miniParse 对齐:
+//   - srcStart 0 基;srcEnd 半开 [start,end)
+//   - 含块定界行(@[table]…@[/table]、@[c]…@[/c] 等)
+//   - mapping 的 end_line 是闭区间,这里统一 +1 转半开
+//   - list 组按引擎模型展开为逐项记录(引擎每项一个节点)
+//
+// 无 span 的节点跳过(compute_spans 找不到起点时);UI 侧以原生/预览块数
+// 交叉比对暴露分歧。obj 记录保持单行原文,docset/label/ref 的细分由
+// 引擎 ingest 按内容前缀完成(native 不重复实现该分类)。
+
+fn block_rec(kind: String, level: i32, s: i32, e: i32, text: String, lang: String) -> String {
+    var r = "{\"kind\":\"" + kind + "\""
+    r = r + ",\"level\":" + f"{level}"
+    r = r + ",\"srcStart\":" + f"{s}"
+    r = r + ",\"srcEnd\":" + f"{e}"
+    r = r + ",\"text\":\"" + json_escape(text) + "\""
+    r = r + ",\"lang\":\"" + json_escape(lang) + "\"}"
+    return r
+}
+
+// 带引擎渲染 HTML 的记录(统一语义:前端 fmtH 降为回退)
+fn block_rec_html(kind: String, level: i32, s: i32, e: i32, text: String, lang: String, html: String) -> String {
+    var r = "{\"kind\":\"" + kind + "\""
+    r = r + ",\"level\":" + f"{level}"
+    r = r + ",\"srcStart\":" + f"{s}"
+    r = r + ",\"srcEnd\":" + f"{e}"
+    r = r + ",\"text\":\"" + json_escape(text) + "\""
+    r = r + ",\"html\":\"" + json_escape(html) + "\""
+    r = r + ",\"lang\":\"" + json_escape(lang) + "\"}"
+    return r
+}
+
+// 源码行 [s, e) 以 \n 连接(保真原文,含定界行)
+fn join_span_lines(lines: Vec<String>, s: i32, e: i32) -> String {
+    var out = ""
+    var i = s
+    while i < e {
+        if i > s { out = out + "\n" }
+        out = out + lines[i]
+        i += 1
+    }
+    return out
+}
+
+// 块级增量解析:对单个段(无空行的连续行)独立跑权威管线,返回与全文解析
+// 一致的 blocks JSON。段⇄节点 1:1 是引擎不变量(列表组/段落合并/表格都
+// 封闭在段内),daemon op=parse_blocks 对每个脏段调这里。
+// ═══ 统一语义 RenderItem:Aine 侧行内 HTML 渲染 ═══
+// 目标:行内语法只解释一次(引擎),前端 fmtH 降为回退路径。
+// DOM 结构与 fmtH 逐属性对齐(data-cmd/data-close/data-self),
+// 序列化(inlineSource 读 DOM 属性回写)往返不变。
+
+fn html_esc(s: String) -> String {
+    var out = ""
+    var i: i32 = 0
+    while i < s.len() {
+        let c = s[i..(i + 1)]
+        if c == "&" {
+            out = out + "&amp;"
+        } else if c == "<" {
+            out = out + "&lt;"
+        } else if c == ">" {
+            out = out + "&gt;"
+        } else {
+            out = out + c
+        }
+        i += 1
+    }
+    return out
+}
+
+fn html_esc_attr(s: String) -> String {
+    var out = html_esc(s)
+    out = out.replace("\"", "&quot;")
+    return out
+}
+
+// 去掉参数两侧引号(font 的 "Times" → Times)
+fn html_strip_quotes(s: String) -> String {
+    var v = s
+    if v.len() >= 2 {
+        if v[0..1] == "\"" && v[(v.len() - 1)..v.len()] == "\"" {
+            v = v[1..(v.len() - 1)]
+        }
+    }
+    return v
+}
+
+// 行内 HTML(索引遍历:单行作用域命令需包裹剩余兄弟)。
+// 返回 HtmlSeg:html 为渲染结果,next 为消耗的条目数。
+struct HtmlSeg {
+    html: String
+    next: i32
+}
+
+fn ih_list(items: Vec<Inline>, from: i32) -> HtmlSeg {
+    var out = ""
+    var i = from
+    while i < items.len() {
+        let it = items.get(i)
+        var is_open_scope = false
+        match it {
+            Command(u) {
+                if u.cmd == Font || u.cmd == Size || u.cmd == Color { is_open_scope = true }
+            }
+            _ { }
+        }
+        if is_open_scope {
+            // 单行作用域:包裹剩余兄弟(生效到行尾,无 data-close)
+            var rest = ""
+            var j = i + 1
+            while j < items.len() {
+                rest = rest + ih_one(items.get(j))
+                j += 1
+            }
+            match it {
+                Command(u) {
+                    var a = ""
+                    if u.args.len() > 0 { a = arg_plain(u.args.get(0)) }
+                    let clean = html_strip_quotes(a)
+                    if u.cmd == Font {
+                        out = out + "<span data-cmd='@[" + u.name_raw + " \"" + clean + "\"]' style=\"font-family:'" + clean + "',serif\">" + rest + "</span>"
+                    } else if u.cmd == Size {
+                        out = out + "<span data-cmd=\"@[" + u.name_raw + " " + a + "]\" style=\"font-size:" + clean + "pt\">" + rest + "</span>"
+                    } else {
+                        out = out + "<span data-cmd=\"@[" + u.name_raw + " " + a + "]\" style=\"color:" + clean + "\">" + rest + "</span>"
+                    }
+                }
+                _ { }
+            }
+            return HtmlSeg { html: out, next: items.len() }
+        }
+        out = out + ih_one(it)
+        i += 1
+    }
+    return HtmlSeg { html: out, next: items.len() }
+}
+
+// 行内是否含结构节点(非 AwTxt)。lw 扫描 abort 的行=单 AwTxt(原文),
+// 这类行必须回退前端 fmtH(它解释原文标记),不能发字面 html
+fn ih_has_struct(items: Vec<Inline>) -> bool {
+    var has = false
+    for it in items {
+        match it {
+            AwTxt(s) { }
+            _ { has = true }
+        }
+    }
+    return has
+}
+
+fn ih_one(it: Inline) -> String {
+    match it {
+        AwTxt(s) { return html_esc(s) }
+        IBold(c) { return "<strong>" + ih_list(c, 0).html + "</strong>" }
+        Italic(c) { return "<em>" + ih_list(c, 0).html + "</em>" }
+        Strike(c) { return "<del>" + ih_list(c, 0).html + "</del>" }
+        CodeSpan(s2) { return "<code>" + html_esc(s2) + "</code>" }
+        Scoped(cmd, sa, c) {
+            let inner = ih_list(c, 0).html
+            if cmd == U { return "<u>" + inner + "</u>" }
+            if cmd == Sup { return "<sup>" + inner + "</sup>" }
+            if cmd == Sub { return "<sub>" + inner + "</sub>" }
+            let a = html_strip_quotes(sa)
+            if cmd == Mark {
+                return "<span data-cmd=\"@[mark " + html_esc_attr(sa) + "]\" data-close=\"@[/mark]\" style=\"background:" + html_esc_attr(a) + "\">" + inner + "</span>"
+            }
+            if cmd == Color {
+                return "<span data-cmd=\"@[color " + html_esc_attr(sa) + "]\" data-close=\"@[/color]\" style=\"color:" + html_esc_attr(a) + "\">" + inner + "</span>"
+            }
+            if cmd == Size {
+                return "<span data-cmd=\"@[size " + html_esc_attr(sa) + "]\" data-close=\"@[/size]\" style=\"font-size:" + html_esc_attr(a) + "pt\">" + inner + "</span>"
+            }
+            if cmd == Font {
+                return "<span data-cmd='@[font \"" + html_esc_attr(a) + "\"]' data-close=\"@[/font]\" style=\"font-family:'" + html_esc_attr(a) + "',serif\">" + inner + "</span>"
+            }
+            return "<span data-cmd=\"@[" + cmd_name(cmd) + " " + html_esc_attr(sa) + "]\" data-close=\"@[/" + cmd_name(cmd) + "]\">" + inner + "</span>"
+        }
+        RawInline(cmd, lang, content) {
+            if cmd == Math {
+                return "<span class=\"inline-math\" data-cmd=\"@[m]\" data-close=\"@[/m]\" style=\"font-family:Georgia,'Times New Roman',serif;font-style:italic\">" + html_esc(content) + "</span>"
+            }
+            return html_esc(content)
+        }
+        Command(u) {
+            let cn = cmd_name(u.cmd)
+            if cn == "label" || cn == "ref" {
+                var val = ""
+                if u.args.len() > 0 { val = arg_plain(u.args.get(0)) }
+                var cls = "inline-ref"
+                var mark = "↦"
+                var title = "引用"
+                if cn == "label" {
+                    cls = "inline-label"
+                    mark = "📌"
+                    title = "标签"
+                }
+                return "<span class=\"" + cls + "\" data-cmd=\"@[" + u.name_raw + " " + html_esc_attr(val) + "]\" data-self=\"1\" title=\"" + title + "\">" + mark + html_esc(val) + "</span>"
+            }
+            if cn == "footnote" {
+                // content="编号 正文"(fmtH 同款:上标显示编号,title 存正文)
+                var ct = ""
+                match u.content {
+                    Some(c) { ct = c.trim() }
+                    None { }
+                }
+                var k = 0
+                while k < ct.len() {
+                    let ch = ct[k..(k + 1)]
+                    if ch >= "0" && ch <= "9" {
+                        k += 1
+                    } else {
+                        break
+                    }
+                }
+                var num = ct[0..k]
+                var txt = ct[k..ct.len()].trim()
+                if num.len() == 0 { num = "1" }
+                return "<sup class=\"fn\" data-cmd=\"@[footnote " + html_esc_attr(ct) + "]\" data-self=\"1\" title=\"" + html_esc_attr(txt) + "\" style=\"color:#2a4a66;cursor:help\">" + html_esc(num) + "</sup>"
+            }
+            if cn == "link" {
+                var text = ""
+                if u.args.len() > 0 { text = arg_plain(u.args.get(0)) }
+                var url = ""
+                var j2 = 0
+                while j2 < u.attrs.len() {
+                    if u.attrs.get(j2).key == "url" { url = arg_plain(u.attrs.get(j2).val) }
+                    j2 += 1
+                }
+                return "<a href=\"" + html_esc_attr(url) + "\" target=\"_blank\" style=\"color:#2a4a66;text-decoration:underline\">" + html_esc(text) + "</a>"
+            }
+            // 未知命令:原文字面(与 fmtH 行为一致)
+            var lit = "@[" + u.name_raw
+            for a in u.args { lit = lit + " " + arg_plain(a) }
+            lit = lit + "]"
+            return html_esc(lit)
+        }
+    }
+}
+
+fn segment_blocks_json(text: String) -> String {
+    if text == "" {
+        return "{\"blocks\":[],\"diags\":[],\"outline\":[]}"
+    }
+    let o = lex(text)
+    let pr = parse(o)
+    let st = build_document(pr, text)
+    return blocks_to_json(st, text)
+}
+
+// 排版页分配 JSON(A' 引擎全权排版权威):
+// recs 与 blocks_to_json 的记录**同序同展开**(列表组按项展开,其余一节点
+// 一条),前端 gNodes[i] 直接按 recs[i] 落页。注释/docset 等无行节点沿用
+// 前一节点的页。flow 需与文档设置匹配的 ctx 计算(page_flow_with)。
+
+// tfrags 行组装(i32 形参 → f-string 渲染走 al_num;裸变量直传会发 char* 假定)
+fn tf_join(a: i32, b: i32, c: i32, d: i32) -> String {
+    return f"{a},{b},{c},{d}"
+}
+
+
+// 成员链 .get 的提取函数(深嵌套作用域里对链上 .get 的分派不稳,helper 顶层化)
+fn cu_arg_at(cu: CommandUse, ix: i32) -> Arg {
+    let args: Vec<Arg> = cu.args
+    return args.get(ix)
+}
+
+fn layout_recs_json(state: DocState, src: String, flow: PageFlowResult) -> String {
+    let spans = compute_spans(state, src)
+    let lines = src.split("\n")
+    // node_id → 起始页(直接取盒;fast 流不产 PlacedLine,盒是唯一页来源)
+    var first_pages: Vec<i32> = []
+    var first_ids: Vec<i32> = []
+    for b in flow.boxes {
+        first_ids = first_ids.push(b.node_id)
+        first_pages = first_pages.push(b.start_page)
+    }
+    var recs: Vec<i32> = []
+    var rec_ids: Vec<i32> = []
+    var tfrags: Vec<String> = []
+    var last = 0
+    var last_rec = 0
+    // 三路移动指针:spans/first_ids/placed 都与 state.nodes 同为文档序,
+    // 消除曾有的三重平方扫描(539 节点时该函数曾耗 ~1s)
+    var sp_i: i32 = 0
+    var fi2: i32 = 0
+    var pl_i: i32 = 0
+    for node in state.nodes {
+        if sp_i >= spans.len() { continue }
+        let sp = spans.get(sp_i)
+        if sp.node_id != node.id { continue }
+        sp_i += 1
+        let s: i32 = sp.start_line
+        let e: i32 = sp.end_line + 1
+        // 该节点首页:无版面行(注释/docset)沿用 last
+        var pg = last
+        if fi2 < first_ids.len() && first_ids.get(fi2) == node.id {
+            pg = first_pages.get(fi2)
+            fi2 += 1
+        }
+        last = pg
+        if node.kind == "list" {
+            // 与 blocks_to_json 完全相同的逐项展开条件
+            var i = s
+            while i < e {
+                let t = lines[i].trim()
+                if starts_with_at(t, 0, "- ") || is_ordered_item(t) {
+                    recs = recs.push(pg)
+                    rec_ids = rec_ids.push(node.id)
+                }
+                i += 1
+            }
+        } else {
+            recs = recs.push(pg)
+            rec_ids = rec_ids.push(node.id)
+        }
+        // 表格跨页片段:placed 中本节点的 "|row|" 行级标记 → 按页分组
+        if node.kind == "table" {
+            while pl_i < flow.placed.len() && flow.placed.get(pl_i).node_id < node.id { pl_i += 1 }
+            var fr_page = -1
+            var fr_first = -1
+            var fr_last = -1
+            var fr_open = false
+            while pl_i < flow.placed.len() && flow.placed.get(pl_i).node_id == node.id {
+                let pl = flow.placed.get(pl_i)
+                pl_i += 1
+                if pl.text != "|row|" { continue }
+                if !fr_open {
+                    fr_page = pl.page
+                    fr_first = fr_last
+                    if fr_first < 0 { fr_first = 0 }
+                    fr_open = true
+                    fr_last = fr_first
+                } else if pl.page != fr_page {
+                    tfrags = tfrags.push(tf_join(recs.len() - 1, fr_page, fr_first, fr_last))
+                    fr_page = pl.page
+                    fr_first = fr_last + 1
+                    fr_last = fr_first
+                } else {
+                    fr_last += 1
+                }
+            }
+            if fr_open {
+                tfrags = tfrags.push(tf_join(recs.len() - 1, fr_page, fr_first, fr_last))
+            }
+        }
+    }
+    var out = "{\"pages\":" + f"{flow.pages}" + ",\"recs\":["
+    var first = true
+    for r in recs {
+        if !first { out = out + "," }
+        first = false
+        out = out + f"{r}"
+    }
+    // 表格跨页片段:[gNodes 下标, 页, 首行, 末行](行序=表头+数据行)
+    out = out + "],\"tfrags\":["
+    var ft = true
+    for t in tfrags {
+        if !ft { out = out + "," }
+        ft = false
+        out = out + "[" + t + "]"
+    }
+    return out + "]}"
+}
+
+fn blocks_to_json(state: DocState, src: String) -> String {
+    let spans = compute_spans(state, src)
+    let lines = src.split("\n")
+    var recs: Vec<String> = []
+
+    // spans 与 nodes 同为文档序(compute_spans 按节点序产出),
+    // 移动指针替代内层全扫——539 节点 × 539 span 的平方扫描曾占该函数大头
+    var sp_i: i32 = 0
+    for node in state.nodes {
+        if sp_i >= spans.len() { continue }
+        let sp = spans.get(sp_i)
+        if sp.node_id != node.id { continue }
+        sp_i += 1
+        let s: i32 = sp.start_line
+        let e: i32 = sp.end_line + 1
+        let kind = node.kind
+            if kind == "list" {
+                // 列表组 → 逐项记录;层级从原文行前导空格算(两空格一级)
+                var i = s
+                while i < e {
+                    let t = lines[i].trim()
+                    if starts_with_at(t, 0, "- ") || is_ordered_item(t) {
+                        var lead = 0
+                        var done = false
+                        while lead < lines[i].len() && !done {
+                            if lines[i].codepoint_at(lead) == 32 { lead += 1 } else { done = true }
+                        }
+                        let level = lead / 2
+                        let k2 = if starts_with_at(t, 0, "- ") { "ul" } else { "ol" }
+                        recs = recs.push(block_rec(k2, level, i, i + 1, lines[i], ""))
+                    }
+                    i += 1
+                }
+            } else if kind == "heading" {
+                if ih_has_struct(node.inline) {
+                    recs = recs.push(block_rec_html("heading", node.level, s, e, lines[s], "", ih_list(node.inline, 0).html))
+                } else {
+                    recs = recs.push(block_rec("heading", node.level, s, e, lines[s], ""))
+                }
+            } else if kind == "para" {
+                // 空段:inline 为空 → text 直接空串(span 是空行对)
+                if node.inline.len() == 0 {
+                    recs = recs.push(block_rec("para", 0, s, e, "", ""))
+                } else if e - s == 1 && ih_has_struct(node.inline) {
+                    // 单物理行+树含结构节点:引擎 HTML 权威;abort 行/纯文本行/
+                    // 多行段落(空格语义树中缺失)回退前端 fmtH
+                    recs = recs.push(block_rec_html("para", 0, s, e, join_span_lines(lines, s, e), "", ih_list(node.inline, 0).html))
+                } else {
+                    recs = recs.push(block_rec("para", 0, s, e, join_span_lines(lines, s, e), ""))
+                }
+            } else if kind == "quote" {
+                if ih_has_struct(node.inline) {
+                    recs = recs.push(block_rec_html("quote", 0, s, e, join_span_lines(lines, s, e), "", ih_list(node.inline, 0).html))
+                } else {
+                    recs = recs.push(block_rec("quote", 0, s, e, join_span_lines(lines, s, e), ""))
+                }
+            } else if kind == "hr" {
+                recs = recs.push(block_rec("hr", 0, s, e, lines[s], ""))
+            } else if kind == "table" {
+                recs = recs.push(block_rec("table", 0, s, e, join_span_lines(lines, s, e), ""))
+            } else if kind == "comment" {
+                recs = recs.push(block_rec("comment", 0, s, e, join_span_lines(lines, s, e), ""))
+            } else if kind == "raw" {
+                var lang = ""
+                match node.raw_lang {
+                    Some(l) { lang = l }
+                    None { }
+                }
+                var bkind = "code"
+                if lang == "" {
+                    let f = lines[s].trim()
+                    if starts_with_at(f, 0, "@[m]") || starts_with_at(f, 0, "@[math]") {
+                        bkind = "math"
+                    }
+                    // 裸开 @[comment] 的 RawBlk:块类型是注释而非代码
+                    if f == "@[comment]" {
+                        bkind = "comment"
+                    }
+                }
+                recs = recs.push(block_rec(bkind, 0, s, e, join_span_lines(lines, s, e), lang))
+            } else {
+                // doc-level 设置(任意语言别名)→ docset;其余 obj 单行原文
+                if is_doc_level(node.obj_cu.cmd) {
+                    recs = recs.push(block_rec("docset", 0, s, e, join_span_lines(lines, s, e), ""))
+                } else {
+                    recs = recs.push(block_rec("obj", 0, s, e, join_span_lines(lines, s, e), ""))
+                }
+            }
+    }
+    var out = "{\"blocks\":["
+    var first = true
+    for r in recs {
+        if !first { out = out + "," }
+        first = false
+        out = out + r
+    }
+    out = out + "]"
+
+    // 诊断(行号转 1 基,UI 直接展示)
+    out = out + ",\"diags\":["
+    var fd = true
+    for d in state.diags {
+        if !fd { out = out + "," }
+        fd = false
+        let sev = if d.severity == SevError { "err" } else { "warn" }
+        out = out + "{\"sev\":\"" + sev + "\""
+        out = out + ",\"msg\":\"" + json_escape(d.message) + "\""
+        out = out + ",\"line\":" + f"{d.line + 1}" + "}"
+    }
+    out = out + "]"
+
+    // 大纲(标题;文本保留行内标记)
+    out = out + ",\"outline\":["
+    var fo = true
+    for node in state.nodes {
+        if node.kind != "heading" { continue }
+        if !fo { out = out + "," }
+        fo = false
+        out = out + "{\"level\":" + f"{node.level}"
+        out = out + ",\"text\":\"" + json_escape(inline_marked_text(node.inline)) + "\"}"
+    }
+    out = out + "]"
+
+    // docsets 结构化下发(十语种别名在引擎归一为英文规范键,前端不再猜命令词)
+    out = out + ",\"docsets\":["
+    var fd2 = true
+    for node in state.nodes {
+        if node.kind != "obj" { continue }
+        if !is_doc_level(node.obj_cu.cmd) { continue }
+        var has_sp = false
+        for sp in spans {
+            if sp.node_id == node.id { has_sp = true }
+        }
+        if !has_sp { continue }
+        var args_j = ""
+        var ai = 0
+        while ai < node.obj_cu.args.len() {
+            if ai > 0 { args_j = args_j + " " }
+            args_j = args_j + arg_plain(cu_arg_at(node.obj_cu, ai))
+            ai += 1
+        }
+        if !fd2 { out = out + "," }
+        fd2 = false
+        out = out + "[\""+ cmd_name(node.obj_cu.cmd) +"\",\""+ json_escape(args_j) +"\"]"
+    }
+    out = out + "]}"
+    return out
+}
