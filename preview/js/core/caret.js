@@ -57,13 +57,11 @@ function applySyncNow(){
   // 否则 doUndo/doRedo 开头的 flush 会把规范化差异当新编辑,截断撤销链
   if(newSrc===gSrc||newSrc===gSrc.replace(/\s+$/,'')){
     // 幂等:但分屏下语法框可能落后于 gSrc(如撤销后的恢复),补齐
-    var ta2=document.getElementById('syntax-src');
-    if(ta2&&currentMode!=='display'&&ta2.value!==gSrc)ta2.value=gSrc;
+    if(currentMode!=='display')taSafeWrite(gSrc);
     return;
   }
   gSrc=newSrc;
-  var ta=document.getElementById('syntax-src');
-  if(ta)ta.value=gSrc;
+  taSafeWrite(gSrc);
   recordHist(gSrc,true);
   var caret=saveCaret();
   scheduleNativeRefresh(caret);

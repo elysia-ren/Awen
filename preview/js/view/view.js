@@ -95,6 +95,7 @@ function buildSyntaxPane(){
   });
   ta.addEventListener('input',function(){
     lastEditSource='syntax';
+    window.syntaxTaInputAt=Date.now();   // 语法侧打字会话守卫(引擎响应落地时不得写回 textarea)
     recordHist(ta.value,true);
     autosizeSyntaxTa();
     setGutterCur(caretLineNumber());

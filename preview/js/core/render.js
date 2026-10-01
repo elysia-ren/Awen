@@ -12,6 +12,15 @@ function currentDocId(){
 // 渲染入口(异步):源码 → Aine 权威解析 → ingest → 分页 → DOM
 // seq 防过期:新请求发出后,旧响应丢弃
 var renderSeq=0;
+// 语法 textarea 安全写回:语法侧打字会话进行中(800ms 内动过/焦点仍在)一律不写,
+// 否则会用旧快照覆盖用户新输入(即"语法侧输入回退")。跳过是安全的:
+// 用户自己的 applySyncNow 会以 ta.value 为准推进 gSrc,渲染由其尾部刷新补。
+function taSafeWrite(nextSrc){
+  var ta=document.getElementById('syntax-src');
+  if(!ta)return;
+  if(window.lastEditSource==='syntax'&&(Date.now()-(window.syntaxTaInputAt||0)<800||document.activeElement===ta))return;
+  if(ta.value!==nextSrc)ta.value=nextSrc;
+}
 // renderPending=true 表示权威渲染在途,纸面 DOM 还是旧结构——
 // 期间 serializeAll 只会拿到旧内容,applySyncNow 必须推迟而不是覆盖 gSrc
 var renderPending=false;
@@ -55,16 +64,19 @@ function render(src,caret,done){
     var emptyHold=emptyParaUnderCaret();
     if(repagTimer||refreshTimer||window.composing||emptyHold||Date.now()-(window.lastPaperInputAt||0)<800){
       renderPending=false;
-      if(!emptyHold){
-        var curSrc=Engine.serializeAll();
-        if(curSrc!==gSrc){
-          gSrc=curSrc;
-          recordHist(curSrc,true);
-          // 显→语同步:守卫期推进的 gSrc 也要落语法框(此前只等全量渲染,分屏下语法侧滞后)
-          var taH=document.getElementById('syntax-src');
-          if(taH&&currentMode!=='display'&&taH.value!==gSrc)taH.value=gSrc;
-          scheduleNativeRefresh(saveCaret());
-        }
+      if(emptyHold){
+        // emptyHold:光标停在空段上不能重建,但必须安排补跑——否则语法侧的
+        // 修改永远不落纸面(即"另一边不会渲染")
+        setTimeout(function(){scheduleNativeRefresh(saveCaret())},400);
+        return;
+      }
+      var curSrc=Engine.serializeAll();
+      if(curSrc!==gSrc){
+        gSrc=curSrc;
+        recordHist(curSrc,true);
+        // 显→语同步:守卫期推进的 gSrc 也要落语法框(此前只等全量渲染,分屏下语法侧滞后)
+        if(currentMode!=='display')taSafeWrite(gSrc);
+        scheduleNativeRefresh(saveCaret());
       }
       return;
     }
@@ -229,8 +241,7 @@ function renderNodes(){
   renderOutline();
   renderStatus();
   updateGutter();
-  var ta=document.getElementById('syntax-src');
-  if(ta&&ta.value!==gSrc)ta.value=gSrc;
+  taSafeWrite(gSrc);
   splitTableFragments();
   // 同步文档级设置控件(每次渲染后,切文档/改源码均保持一致)
   var fl=document.getElementById('btn-firstline');
@@ -468,18 +479,21 @@ function ensureFontWidths(){
 // ── 增量排版自愈:增量解析不重分页,分页漂移由后台 relayout 修复 ──
 // 编辑停顿 1.5s 后:引擎复用上一轮未变前缀只重排尾段(快),
 // 页分配有变化才重建纸面(0.5s 级,带滚动/光标保持);用户继续输入则放弃
-var relayoutTimer=null;
+var relayoutTimer=null,relayoutSeq=0;
 function scheduleRelayout(){
   if(relayoutTimer)clearTimeout(relayoutTimer);
+  relayoutSeq++;
   relayoutTimer=setTimeout(applyRelayout,1500);
 }
 function applyRelayout(){
   relayoutTimer=null;
+  var mySeq=relayoutSeq;
   if(window.composing||Date.now()-(window.lastPaperInputAt||0)<800)return;
   var cfgReq=Engine.layoutCfg();
   if(window.__orient==='landscape'){var t=cfgReq.pw;cfgReq.pw=cfgReq.ph;cfgReq.ph=t}
       if(window.gWidths&&window.gWidths.font===(CFG.FONT||'')){cfgReq.widths=window.gWidths.data;cfgReq.widths.k=(window.gWidths.data.w||[]).join(',')}   // undefined 键不会写入 JSON(null 会送 daemon 崩)
   Bridge.relayout(gSrc,cfgReq,currentDocId()).then(function(res){
+    if(mySeq!==relayoutSeq)return;   // 在途期间有新调度:过期响应直接丢弃
     if(window.composing||Date.now()-(window.lastPaperInputAt||0)<800)return;
     var newPages=Engine.layoutFromEngine(gNodes,res);
     // 对比页分配是否变化(bid 序列逐页比对)
