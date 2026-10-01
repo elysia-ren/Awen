@@ -1,6 +1,0 @@
-// _cbuild.aine —— C 转译二分探针入口(临时文件,不入 git)
-module cjk;
-
-fn main() {
-    print("ok")
-}
