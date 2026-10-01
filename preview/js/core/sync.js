@@ -41,6 +41,27 @@ function swapSplit(){
 function onPaperKey(e){
   // Ctrl+A 跨页全选:每页 .paper 是独立可编辑岛,原生全选只覆盖光标所在页。
   // 手工构造跨越全部纸面的 Range(文档级全选,Word 行为)。
+  // 跨页选区上的 Delete/Backspace:浏览器拒绝在多个独立编辑岛间删除,
+  // 程序性 deleteContents 后交回同步链(序列化→解析→整版重建)
+  if((e.key==='Delete'||e.key==='Backspace')&&!e.ctrlKey&&!e.altKey){
+    var papersAll=document.querySelectorAll('#display-pane .paper');
+    if(papersAll.length>1&&sel&&sel.rangeCount){
+      var sr=sel.getRangeAt(0);
+      var sp0=sr.startContainer.closest?sr.startContainer.closest('.paper'):null;
+      var sp1=sr.endContainer.closest?sr.endContainer.closest('.paper'):null;
+      if(sp0&&sp1&&sp0!==sp1){
+        e.preventDefault();
+        sr.deleteContents();
+        // 清掉被删空的中间页
+        document.querySelectorAll('#display-pane .sheet').forEach(function(sh){
+          var pp=sh.querySelector('.paper');
+          if(pp&&!pp.textContent.trim()&&!pp.querySelector('img'))sh.remove();
+        });
+        document.getElementById('display-pane').dispatchEvent(new Event('input',{bubbles:true}));
+        return
+      }
+    }
+  }
   if((e.ctrlKey||e.metaKey)&&!e.shiftKey&&!e.altKey&&e.key==='a'){
     var papers=document.querySelectorAll('#display-pane .paper');
     if(papers.length>1){
