@@ -1,0 +1,88 @@
+// bench_phases.aine —— 大文档流水线相位计时(lex/parse/build/flow)
+// 运行: aine run src/bench_phases.aine(源码从 build/bench_src.awen 读)
+module diag;
+module registry;
+module fullwidth;
+module escape;
+module explicit;
+module lightweight;
+module lexer;
+module parser;
+module document;
+module mapping;
+module refs;
+module theme;
+module render;
+module incremental;
+module pipeline;
+module cjk;
+module layout;
+module layout_width;
+module page_flow;
+module json_export;
+module validate;
+module toc;
+module diff;
+module inspect;
+module export_html;
+module heading_tree;
+module numbering;
+module fmt;
+module export_md;
+module seed;
+module incremental_update;
+module core_blocks;
+
+fn main() {
+    let src = read_file("build/bench_src.awen")
+    if src.contains("[read_file error") {
+        print("no build/bench_src.awen")
+        return
+    }
+    var t0: i32 = 0
+    print("PH lex-begin")
+    let out = lex(src)
+    print("PH lex-done")
+    let t1 = t0
+    let pr = parse(out)
+    print("PH parse-done")
+    let t2 = t0
+    let st = build_document(pr, src)
+    print("PH build-done")
+    let t3 = t0
+    let ctx = page_flow_ctx_cfg_w(210.0, 297.0, 20.0, 11.0, 1.65, "", "", [])
+    let flow = page_flow_with(DocState { nodes: [], next_id: 1, source: src, diags: [] }, ctx)
+    print("PH flow-done")
+    let t4 = t0
+    let lay = layout_recs_json(st, src, flow)
+    print("PH recs-done")
+    let t5 = t0
+
+    let nl = src.split("\n").len()
+    // 分相位信号:lex/parse/build 各自的产物规模与类型分布
+    print(f"SIG lex_blocks={out.blocks.len()} lex_diags={out.diags.len()}")
+    print(f"SIG parse_nodes={pr.nodes.len()} parse_diags={pr.diags.len()}")
+    var para_cnt: i32 = 0
+    var head_cnt: i32 = 0
+    var list_cnt: i32 = 0
+    var table_cnt: i32 = 0
+    var raw_cnt: i32 = 0
+    var kn = 0
+    while kn < st.nodes.len() {
+        let nd = st.nodes.get(kn)
+        if nd.kind == "para" { para_cnt += 1 }
+        else if nd.kind == "heading" { head_cnt += 1 }
+        else if nd.kind == "list" { list_cnt += 1 }
+        else if nd.kind == "table" { table_cnt += 1 }
+        else if nd.kind == "raw" { raw_cnt += 1 }
+        kn += 1
+    }
+    print(f"SIG doc para={para_cnt} heading={head_cnt} list={list_cnt} table={table_cnt} raw={raw_cnt}")
+    print(f"src_lines={nl} nodes={st.nodes.len()} pages={flow.pages}")
+    print(f"lex      = {t1 - t0} ms")
+    print(f"parse    = {t2 - t1} ms")
+    print(f"build    = {t3 - t2} ms")
+    print(f"flow     = {t4 - t3} ms")
+    print(f"recs_json= {t5 - t4} ms")
+    print(f"TOTAL    = {t5 - t0} ms")
+}

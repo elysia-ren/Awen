@@ -99,10 +99,10 @@ fn lex(src: String) -> LexOutput {
                 None { }
             }
             if closed {
-                blocks.push(LexedBlock { line: lineno - 1, block: RawClose(cmd) })
+                blocks = blocks.push(LexedBlock { line: lineno - 1, block: RawClose(cmd) })
                 raw = None
             } else {
-                blocks.push(LexedBlock { line: lineno - 1, block: RawLine(line) })
+                blocks = blocks.push(LexedBlock { line: lineno - 1, block: RawLine(line) })
             }
             continue
         }
@@ -110,12 +110,12 @@ fn lex(src: String) -> LexOutput {
         if table {
             let t = line.trim()
             if t == "@[/table]" || t == "@[/表格]" {
-                blocks.push(LexedBlock { line: lineno - 1, block: TableClose })
+                blocks = blocks.push(LexedBlock { line: lineno - 1, block: TableClose })
                 table = false
                 continue
             }
             if t.len() == 0 {
-                blocks.push(LexedBlock { line: lineno - 1, block: Blank })
+                blocks = blocks.push(LexedBlock { line: lineno - 1, block: Blank })
                 continue
             }
             if starts_with_at(t, 0, "|") && t[t.len() - 1] == "|" && t.len() >= 2 {
@@ -124,12 +124,12 @@ fn lex(src: String) -> LexOutput {
                 var cur = ""
                 for ch in inner {
                     if ch == "|" {
-                        cells_text.push(cur.trim())
+                        cells_text = cells_text.push(cur.trim())
                         cur = ""
                     }
                     else { cur = cur + ch }
                 }
-                cells_text.push(cur.trim())
+                cells_text = cells_text.push(cur.trim())
                 var all_delim = true
                 for ct in cells_text {
                     if !lex_is_delimiter_cell(ct) { all_delim = false }
@@ -138,39 +138,39 @@ fn lex(src: String) -> LexOutput {
                 for ct in cells_text {
                     let so = lw_scan_inline(ct, lineno - 1, diags)
                     diags = so.diags
-                    cells.push(so.inline)
+                    cells = cells.push(so.inline)
                 }
-                blocks.push(LexedBlock { line: lineno - 1, block: TableRow(cells, all_delim) })
+                blocks = blocks.push(LexedBlock { line: lineno - 1, block: TableRow(cells, all_delim) })
                 continue
             }
-            diags.push(diag_error("表格块内只能包含表格行或 @[/table]", lineno - 1))
-            blocks.push(LexedBlock { line: lineno - 1, block: Paragraph([AwTxt(line)]) })
+            diags = diags.push(diag_error("表格块内只能包含表格行或 @[/table]", lineno - 1))
+            blocks = blocks.push(LexedBlock { line: lineno - 1, block: Paragraph([AwTxt(line)]) })
             continue
         }
         // 常规行分类
         let cls = classify(line)
         match cls {
-            LcBlank { blocks.push(LexedBlock { line: lineno - 1, block: Blank }) }
-            LcDivider { blocks.push(LexedBlock { line: lineno - 1, block: Divider }) }
+            LcBlank { blocks = blocks.push(LexedBlock { line: lineno - 1, block: Blank }) }
+            LcDivider { blocks = blocks.push(LexedBlock { line: lineno - 1, block: Divider }) }
             LcHeading(level) {
                 let so = lw_scan_inline(line[level + 1..line.len()], lineno - 1, diags)
                 diags = so.diags
-                blocks.push(LexedBlock { line: lineno - 1, block: Heading(level, so.inline) })
+                blocks = blocks.push(LexedBlock { line: lineno - 1, block: Heading(level, so.inline) })
             }
             LcQuote(depth) {
                 let so = lw_scan_inline(line[depth + 1..line.len()], lineno - 1, diags)
                 diags = so.diags
-                blocks.push(LexedBlock { line: lineno - 1, block: Quote(depth, so.inline) })
+                blocks = blocks.push(LexedBlock { line: lineno - 1, block: Quote(depth, so.inline) })
             }
             LcListItem(ordered) {
                 let skip = if ordered { ordered_marker_len(line) } else { 2 }
                 let so = lw_scan_inline(line[skip..line.len()], lineno - 1, diags)
                 diags = so.diags
-                blocks.push(LexedBlock { line: lineno - 1, block: BlkListItem(ordered, so.inline) })
+                blocks = blocks.push(LexedBlock { line: lineno - 1, block: BlkListItem(ordered, so.inline) })
             }
             LcCommand {
                 let co = lex_command_line(line, lineno - 1, diags, raw, table)
-                for nb in co.blocks { blocks.push(nb) }
+                for nb in co.blocks { blocks = blocks.push(nb) }
                 diags = co.diags
                 raw = co.raw
                 table = co.table
@@ -178,17 +178,17 @@ fn lex(src: String) -> LexOutput {
             LcText {
                 let so = lw_scan_inline(line, lineno - 1, diags)
                 diags = so.diags
-                blocks.push(LexedBlock { line: lineno - 1, block: Paragraph(so.inline) })
+                blocks = blocks.push(LexedBlock { line: lineno - 1, block: Paragraph(so.inline) })
             }
         }
     }
     let last = n_lines
     match raw {
-        Some(cmd) { diags.push(diag_error("Raw Block 未闭合到文件结尾", last)) }
+        Some(cmd) { diags = diags.push(diag_error("Raw Block 未闭合到文件结尾", last)) }
         None { }
     }
     if table {
-        diags.push(diag_error("@[table] 未闭合到文件结尾", last))
+        diags = diags.push(diag_error("@[table] 未闭合到文件结尾", last))
     }
     return LexOutput { blocks: blocks, diags: diags }
 }
@@ -204,15 +204,15 @@ fn lex_command_line(chars: String, lineno: i32, diags: Vec<Diagnostic>, raw: Opt
                 Some(h) { mut_d = diag_hint(mut_d, h) }
                 None { }
             }
-            diags.push(mut_d)
-            blocks.push(LexedBlock { line: lineno, block: Paragraph([AwTxt(chars)]) })
+            diags = diags.push(mut_d)
+            blocks = blocks.push(LexedBlock { line: lineno, block: Paragraph([AwTxt(chars)]) })
             return CmdOutcome { blocks: blocks, diags: diags, raw: raw, table: table }
         }
         Ok(hp2) => {
             let u = hp2.cu
             let consumed = hp2.consumed
             if u.cmd == Table {
-                blocks.push(LexedBlock { line: lineno, block: TableOpen(u) })
+                blocks = blocks.push(LexedBlock { line: lineno, block: TableOpen(u) })
                 return CmdOutcome { blocks: blocks, diags: diags, raw: raw, table: true }
             }
             if is_raw_block(u.cmd) {
@@ -224,7 +224,7 @@ fn lex_command_line(chars: String, lineno: i32, diags: Vec<Diagnostic>, raw: Opt
                 if header_empty && rest.trim().len() == 0 {
                     var lang: Option<String> = None
                     if u.cmd == Code && u.args.len() > 0 { lang = Some(arg_plain(u.args[0])) }
-                    blocks.push(LexedBlock { line: lineno, block: RawOpen(u.cmd, lang) })
+                    blocks = blocks.push(LexedBlock { line: lineno, block: RawOpen(u.cmd, lang) })
                     return CmdOutcome { blocks: blocks, diags: diags, raw: Some(u.cmd), table: table }
                 }
             }
@@ -243,14 +243,14 @@ fn lex_command_line(chars: String, lineno: i32, diags: Vec<Diagnostic>, raw: Opt
             if is_single {
                 match single {
                     Some(cu) {
-                        blocks.push(LexedBlock { line: lineno, block: BlkObject(cu) })
+                        blocks = blocks.push(LexedBlock { line: lineno, block: BlkObject(cu) })
                     }
                     None {
-                        blocks.push(LexedBlock { line: lineno, block: Paragraph(so.inline) })
+                        blocks = blocks.push(LexedBlock { line: lineno, block: Paragraph(so.inline) })
                     }
                 }
             } else {
-                blocks.push(LexedBlock { line: lineno, block: Paragraph(so.inline) })
+                blocks = blocks.push(LexedBlock { line: lineno, block: Paragraph(so.inline) })
             }
             return CmdOutcome { blocks: blocks, diags: diags, raw: raw, table: table }
         }

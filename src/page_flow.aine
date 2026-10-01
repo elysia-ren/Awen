@@ -572,9 +572,14 @@ fn doc_para_spacing_mm(state: DocState, font_mm: f64) -> f64 {
         if t.starts_with(tag) {
             let close = t.len() - 1
             var inner = t[tag.len() .. close]
-            let tail2 = inner[inner.len() - 2 .. inner.len()]
-            if tail2 == "mm" {
-                val = inner[0 .. inner.len() - 2].to_f64()
+            // (短 inner 保护:len<2 时切片下标回绕在 C 侧越界)
+            if inner.len() >= 3 {
+                let tail2 = inner[inner.len() - 2 .. inner.len()]
+                if tail2 == "mm" {
+                    val = inner[0 .. inner.len() - 2].to_f64()
+                } else {
+                    val = inner.to_f64() * font_mm
+                }
             } else {
                 val = inner.to_f64() * font_mm
             }

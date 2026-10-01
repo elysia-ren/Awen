@@ -1,0 +1,348 @@
+// awen-proto/src/container.aine —— .awen 容器格式(核心规范 §54/§56/§70–74)
+// User Syntax Chunk 必须 UTF-8 明文(codec=none,§8.6)。
+// 原型阶段:文本序列化(JSON-like)代替二进制,接口不变。
+
+struct AwenFile {
+    // Manifest(§70)
+    version: String
+    // User Syntax(唯一用户源,§8.6 codec=none)
+    user_syntax: String
+    // 元数据
+    label_count: i32
+    node_count: i32
+}
+
+// ── 序列化(.awen 保存)─────────────────────────────────────
+
+// 将 Document State 序列化为 .awen 容器内容
+// 原型:只写 User Syntax(核心数据)+ Manifest 头
+fn save_awen(state: DocState, path: String) -> Result<i32, String> {
+    // 构建 Manifest 头
+    var header = ""
+    header = header + f"# awen v0.4\n"
+    header = header + f"# nodes: {state.nodes.len()}\n"
+    header = header + f"# next_id: {state.next_id}\n"
+    header = header + f"# ---\n"
+
+    // User Syntax(明文 UTF-8,§8.6)
+    let content = header + state.source
+
+    // write_file 返回 bool(§10 io 模块)
+    let ok = write_file(path, content)
+    if !ok {
+        return Err(f"写入失败: {path}")
+    }
+    return Ok(content.len())
+}
+
+// ── 反序列化(.awen 加载)───────────────────────────────────
+
+// 从 .awen 文件加载
+// 返回:(User Syntax, Document State)
+struct LoadResult {
+    source: String
+    state: DocState
+}
+
+fn load_awen(path: String) -> Result<LoadResult, String> {
+    let content = read_file(path)
+    if content.contains("[read_file error") {
+        return Err(content)
+    }
+
+    // 只跳过 Manifest 头(# awen v 开头,到 # --- 分隔符为止)
+    // 不跳过 User Syntax 的 # 标题行
+    var src_start = 0
+    let lines = content.split("\n")
+    var i = 0
+    var in_manifest = false
+    while i < lines.len() {
+        if lines[i].starts_with("# awen v") {
+            in_manifest = true
+            src_start = src_start + lines[i].len() + 1
+            i += 1
+            continue
+        }
+        if in_manifest {
+            // # --- 是 Manifest 结束标记
+            if lines[i] == "# ---" {
+                src_start = src_start + lines[i].len() + 1
+                break
+            }
+            // Manifest 内部的注释行也跳过
+            src_start = src_start + lines[i].len() + 1
+            i += 1
+            continue
+        }
+        // 不在 Manifest 中:遇到第一个非 Manifest 行就停止
+        break
+    }
+
+    // 提取 User Syntax
+    var src = content[src_start..content.len()]
+
+    // 解析
+    let out = lex(src)
+    let pr = parse(out)
+    let state = build_document(pr, src)
+
+    return Ok(LoadResult { source: src, state: state })
+}
+
+// ── 完整性验证(§74)───────────────────────────────────────
+
+// 保存→加载→验证源码一致
+fn roundtrip_verify(state: DocState, path: String) -> Result<bool, String> {
+    // 保存
+    save_awen(state, path)?
+    // 加载
+    let loaded = load_awen(path)?
+    // 比较 User Syntax
+    return Ok(loaded.state.source == state.source)
+}
+
+// ═══ v0.5 单文件 chunk 容器(用户定稿设计 2026-09-23)═══
+//
+// 物理布局(源码永远在最前,Git/AI/脚本直读明文 User Syntax):
+//   [User Syntax 明文 UTF-8]
+//   "#<awen:container format=0.5>" + 换行
+//   [Manifest JSON 一行]
+//   [chunk 数据连续排列(图片按设计原样保存)]
+//   [u64 LE manifest_offset][8B magic "AWENBIN" + 0x0A]
+//
+// 依赖编译器内置:read_bytes/write_bytes、base64_encode/base64_decode、
+// json_decode、to_bytes(String→Vec<i32>)、bytes_to_string(反向)、
+// Vec.concat、Vec 切片 v[a..b]。
+//
+// codec:本阶段全部 none(图片按设计原样保存);zstd 字段预留,
+// 后续对 SVG/文本资源启用。
+
+struct ChunkOut {
+    name: String
+    mime: String
+    b64: String
+}
+
+struct PackOut {
+    syntax: String
+    names: Vec<String>
+    mimes: Vec<String>
+    chunks: Vec<String>
+}
+
+fn mime_ext(mime: String) -> String {
+    if mime == "image/png" { return "png" }
+    if mime == "image/jpeg" { return "jpg" }
+    if mime == "image/gif" { return "gif" }
+    if mime == "image/webp" { return "webp" }
+    if mime == "image/bmp" { return "bmp" }
+    if mime == "image/svg+xml" { return "svg" }
+    if mime == "image/avif" { return "avif" }
+    if mime == "image/x-icon" { return "ico" }
+    if mime == "image/gif" { return "gif" }
+    if mime == "image/webp" { return "webp" }
+    if mime == "image/svg+xml" { return "svg" }
+    return "bin"
+}
+
+// 资源名 → MIME(按扩展名)
+fn mime_of_name(name: String) -> String {
+    var ext = ""
+    var i: i32 = name.len() - 1
+    while i >= 0 {
+        if name[i] == "." {
+            ext = name[(i + 1)..name.len()]
+            break
+        }
+        i -= 1
+    }
+    if ext == "png" { return "image/png" }
+    if ext == "jpg" || ext == "jpeg" { return "image/jpeg" }
+    if ext == "gif" { return "image/gif" }
+    if ext == "webp" { return "image/webp" }
+    if ext == "bmp" { return "image/bmp" }
+    if ext == "svg" { return "image/svg+xml" }
+    if ext == "avif" { return "image/avif" }
+    if ext == "ico" { return "image/x-icon" }
+    if ext == "gif" { return "image/gif" }
+    if ext == "webp" { return "image/webp" }
+    if ext == "svg" { return "image/svg+xml" }
+    return "application/octet-stream"
+}
+
+fn pow2(n: i32) -> i32 {
+    var r: i32 = 1
+    var i: i32 = 0
+    while i < n {
+        r = r * 2
+        i += 1
+    }
+    return r
+}
+
+// 十六进制串(小写)→ i64:aine 的 s[i] 即字符码
+fn hex2i64(s: String) -> i64 {
+    // i64 累加器:aine 绑定处不自动加宽,借 Vec<i64> 的 push 加宽;
+    // s[i] 是字符而非数值,查表得值(字符与整数比较恒 false,勿用)
+    let hexd = "0123456789abcdef"
+    var acc: Vec<i64> = []
+    acc = acc.push(0)
+    var i: i32 = 0
+    while i < s.len() {
+        let d = find_str(hexd, s[i..(i + 1)], 0)
+        acc = acc.push(acc.get(i) * 16 + d)
+        i += 1
+    }
+    return acc.get(s.len())
+}
+
+// SHA-256(资源强哈希):以 i64 承载 32 位无符号运算(aine Int 为 i64,
+// 加法先加后 & 0xffffffff 封顶,全程无乘法溢出)。返回前 8 字节 16 位 hex,
+// 用作资源内容短名(同图不重名,弱滚动哈希已弃)。
+fn rotr32(x: i64, n: i32) -> i64 {
+    let inv = 32 - n
+    return ((x >> n) | ((x & ((1 << n) - 1)) << inv)) & 0xffffffff
+}
+
+fn sha256_64hex(data: Vec<i32>) -> String {
+    let KHEX = "428a2f98 71374491 b5c0fbcf e9b5dba5 3956c25b 59f111f1 923f82a4 ab1c5ed5 d807aa98 12835b01 243185be 550c7dc3 72be5d74 80deb1fe 9bdc06a7 c19bf174 e49b69c1 efbe4786 0fc19dc6 240ca1cc 2de92c6f 4a7484aa 5cb0a9dc 76f988da 983e5152 a831c66d b00327c8 bf597fc7 c6e00bf3 d5a79147 06ca6351 14292967 27b70a85 2e1b2138 4d2c6dfc 53380d13 650a7354 766a0abb 81c2c92e 92722c85 a2bfe8a1 a81a664b c24b8b70 c76c51a3 d192e819 d6990624 f40e3585 106aa070 19a4c116 1e376c08 2748774c 34b0bcb5 391c0cb3 4ed8aa4a 5b9cca4f 682e6ff3 748f82ee 78a5636f 84c87814 8cc70208 90befffa a4506ceb bef9a3f7 c67178f2"
+    let kt = KHEX.split(" ")
+    var K = []
+    var ki: i32 = 0
+    while ki < kt.len() {
+        K = K.push(hex2i64(kt.get(ki)))
+        ki += 1
+    }
+    let M = 0xffffffff
+    // 消息填充:0x80 + 零至 56 mod 64 + 8 字节大端比特长度
+    var msg: Vec<i32> = []
+    var i: i32 = 0
+    while i < data.len() {
+        msg = msg.push(data.get(i))
+        i += 1
+    }
+    let bitlen = data.len() * 8
+    msg = msg.push(0x80)
+    while msg.len() % 64 != 56 {
+        msg = msg.push(0)
+    }
+    var sh = 56
+    while sh >= 0 {
+        msg = msg.push((bitlen / pow2(sh)) & 0xff)
+        sh -= 8
+    }
+    var h0 = hex2i64("6a09e667")
+    var h1 = hex2i64("bb67ae85")
+    var h2 = hex2i64("3c6ef372")
+    var h3 = hex2i64("a54ff53a")
+    var h4 = hex2i64("510e527f")
+    var h5 = hex2i64("9b05688c")
+    var h6 = hex2i64("1f83d9ab")
+    var h7 = hex2i64("5be0cd19")
+    // 逐 512 位块压缩
+    var blk = 0
+    while blk < msg.len() {
+        var w = []
+        i = 0
+        while i < 16 {
+            let off = blk + i * 4
+            let v = ((msg.get(off) * pow2(24)) + (msg.get(off + 1) * pow2(16)) + (msg.get(off + 2) * pow2(8)) + msg.get(off + 3))
+            w = w.push(v)
+            i += 1
+        }
+        while i < 64 {
+            let x = w.get(i - 15)
+            let s0 = (rotr32(x, 7) ^ rotr32(x, 18) ^ (x >> 3)) & M
+            let y = w.get(i - 2)
+            let s1 = (rotr32(y, 17) ^ rotr32(y, 19) ^ (y >> 10)) & M
+            let nv = (w.get(i - 16) + s0 + w.get(i - 7) + s1) & M
+            w = w.push(nv)
+            i += 1
+        }
+        var a = h0
+        var b = h1
+        var c = h2
+        var d = h3
+        var e = h4
+        var f = h5
+        var g = h6
+        var h = h7
+        i = 0
+        while i < 64 {
+            let S1 = (rotr32(e, 6) ^ rotr32(e, 11) ^ rotr32(e, 25)) & M
+            let ch = ((e & f) ^ ((e ^ M) & g)) & M
+            let t1 = (h + S1 + ch + K.get(i) + w.get(i)) & M
+            let S0 = (rotr32(a, 2) ^ rotr32(a, 13) ^ rotr32(a, 22)) & M
+            let maj = ((a & b) ^ (a & c) ^ (b & c)) & M
+            let t2 = (S0 + maj) & M
+            h = g
+            g = f
+            f = e
+            e = (d + t1) & M
+            d = c
+            c = b
+            b = a
+            a = (t1 + t2) & M
+            i += 1
+        }
+        h0 = (h0 + a) & M
+        h1 = (h1 + b) & M
+        h2 = (h2 + c) & M
+        h3 = (h3 + d) & M
+        h4 = (h4 + e) & M
+        h5 = (h5 + f) & M
+        h6 = (h6 + g) & M
+        h7 = (h7 + h) & M
+        blk += 64
+    }
+    // 前 8 字节(h0、h1)→ 16 hex
+    let digits = "0123456789abcdef"
+    var hex = ""
+    var hi: i32 = 7
+    while hi >= 0 {
+        let nib = (h0 / pow2(hi * 4)) % 16
+        hex = hex + digits[nib..(nib + 1)]
+        hi -= 1
+    }
+    hi = 7
+    while hi >= 0 {
+        let nib = (h1 / pow2(hi * 4)) % 16
+        hex = hex + digits[nib..(nib + 1)]
+        hi -= 1
+    }
+    return hex
+}
+
+// 资源内容哈希:SHA-256 前 64 位(16 hex)
+fn content_hash8(data: Vec<i32>) -> String {
+    return sha256_64hex(data)
+}
+
+fn json_escape_q(s: String) -> String {
+    return s.replace("\\", "\\\\").replace("\"", "\\\"")
+}
+
+fn bytes_eq(a: Vec<i32>, b: Vec<i32>) -> bool {
+    if a.len() != b.len() { return false }
+    var i: i32 = 0
+    while i < a.len() {
+        if a.get(i) != b.get(i) { return false }
+        i += 1
+    }
+    return true
+}
+
+// 子串查找(aine 无内置 find):从 from 起找 needle,返回字符索引,未找到 -1
+fn find_str(hay: String, needle: String, from: i32) -> i32 {
+    let hn = hay.len()
+    let nn = needle.len()
+    if nn == 0 { return from }
+    var i: i32 = from
+    while i + nn <= hn {
+        if hay[i..(i + nn)] == needle { return i }
+        i += 1
+    }
+    return -1
+}
+
+

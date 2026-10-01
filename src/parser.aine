@@ -102,14 +102,14 @@ fn parse(lex_out: LexOutput) -> ParseResult {
         if is_item {
             let lid = extract_list_item(blk)
             if in_list && lid.ordered == list_ordered {
-                list_items.push(lid.inline)
+                list_items = list_items.push(lid.inline)
             } else {
                 if in_list {
-                    nodes.push(ListGroup(list_ordered, list_items, blocks[i].line))
+                    nodes = nodes.push(ListGroup(list_ordered, list_items, blocks[i].line))
                     list_items = []
                 }
                 list_ordered = lid.ordered
-                list_items.push(lid.inline)
+                list_items = list_items.push(lid.inline)
                 in_list = true
             }
             i += 1
@@ -118,7 +118,7 @@ fn parse(lex_out: LexOutput) -> ParseResult {
 
         // 非列表项:刷出待定列表组
         if in_list {
-            nodes.push(ListGroup(list_ordered, list_items, blocks[i].line))
+            nodes = nodes.push(ListGroup(list_ordered, list_items, blocks[i].line))
             list_items = []
             in_list = false
         }
@@ -129,7 +129,7 @@ fn parse(lex_out: LexOutput) -> ParseResult {
             _ { false }
         }
         if !cur_is_para && has_pending {
-            nodes.push(Para(merged_inline, blocks[i].line))
+            nodes = nodes.push(Para(merged_inline, blocks[i].line))
             merged_inline = []
             has_pending = false
         }
@@ -151,7 +151,7 @@ fn parse(lex_out: LexOutput) -> ParseResult {
         }
         if is_quote {
             let qd = extract_quote(blk)
-            nodes.push(QuoteBlk(qd.depth, qd.inline, blocks[i].line))
+            nodes = nodes.push(QuoteBlk(qd.depth, qd.inline, blocks[i].line))
             i += 1
             continue
         }
@@ -159,17 +159,17 @@ fn parse(lex_out: LexOutput) -> ParseResult {
         // 其余块类型
         match blk {
             Heading(level, inline) {
-                nodes.push(Section(level, inline, [], blocks[i].line))
+                nodes = nodes.push(Section(level, inline, [], blocks[i].line))
             }
             Paragraph(inline) {
                 // §14: 物理换行不是排版换行 → 合并行内内容
                 for item in inline {
-                    merged_inline.push(item)
+                    merged_inline = merged_inline.push(item)
                 }
                 has_pending = true
             }
             Divider {
-                nodes.push(HRule(blocks[i].line))
+                nodes = nodes.push(HRule(blocks[i].line))
             }
             BlkObject(u) {
                 if u.cmd == Comment {
@@ -177,9 +177,9 @@ fn parse(lex_out: LexOutput) -> ParseResult {
                         Some(c) { c }
                         None { "" }
                     }
-                    nodes.push(CommentNode(content, blocks[i].line))
+                    nodes = nodes.push(CommentNode(content, blocks[i].line))
                 } else {
-                    nodes.push(Obj(u, blocks[i].line))
+                    nodes = nodes.push(Obj(u, blocks[i].line))
                 }
             }
             RawOpen(cmd, lang) {
@@ -195,16 +195,16 @@ fn parse(lex_out: LexOutput) -> ParseResult {
                             break
                         }
                         RawLine(content) {
-                            content_lines.push(content)
+                            content_lines = content_lines.push(content)
                             j += 1
                         }
                         _ { j += 1 }
                     }
                 }
                 if !found_close {
-                    diags.push(diag_error("Raw Block 未闭合", blocks[i].line))
+                    diags = diags.push(diag_error("Raw Block 未闭合", blocks[i].line))
                 }
-                nodes.push(RawBlk(cmd, lang, content_lines, blocks[i].line))
+                nodes = nodes.push(RawBlk(cmd, lang, content_lines, blocks[i].line))
                 i = j
                 continue
             }
@@ -226,17 +226,19 @@ fn parse(lex_out: LexOutput) -> ParseResult {
                             if delimiter {
                                 has_delim = true
                                 if data_rows.len() > 0 {
-                                    header = Some(data_rows[0])
+                                    let hdr0: Vec<Vec<Vec<Inline>>> = data_rows
+                    let h0: Vec<Inline> = hdr0.get(0)
+                    header = Some(h0)
                                     var shifted: Vec<Vec<Vec<Inline>>> = []
                                     var sk = 1
                                     while sk < data_rows.len() {
-                                        shifted.push(data_rows[sk])
+                                        shifted = shifted.push(data_rows[sk])
                                         sk += 1
                                     }
                                     data_rows = shifted
                                 }
                             } else {
-                                data_rows.push(cells)
+                                data_rows = data_rows.push(cells)
                             }
                             j += 1
                         }
@@ -244,19 +246,21 @@ fn parse(lex_out: LexOutput) -> ParseResult {
                     }
                 }
                 if !found_close {
-                    diags.push(diag_error("@[table] 未闭合", blocks[i].line))
+                    diags = diags.push(diag_error("@[table] 未闭合", blocks[i].line))
                 }
                 if !has_delim && data_rows.len() > 0 {
-                    header = Some(data_rows[0])
+                    let hdr0: Vec<Vec<Vec<Inline>>> = data_rows
+                    let h0: Vec<Inline> = hdr0.get(0)
+                    header = Some(h0)
                     var shifted2: Vec<Vec<Vec<Inline>>> = []
                     var sk2 = 1
                     while sk2 < data_rows.len() {
-                        shifted2.push(data_rows[sk2])
+                        shifted2 = shifted2.push(data_rows[sk2])
                         sk2 += 1
                     }
                     data_rows = shifted2
                 }
-                nodes.push(TblNode(header, data_rows, has_delim, u, blocks[i].line))
+                nodes = nodes.push(TblNode(header, data_rows, has_delim, u, blocks[i].line))
                 i = j
                 continue
             }
@@ -276,12 +280,12 @@ fn parse(lex_out: LexOutput) -> ParseResult {
 
     if in_list {
         let last_ln = if blocks.len() > 0 { blocks[blocks.len() - 1].line } else { 0 }
-        nodes.push(ListGroup(list_ordered, list_items, last_ln))
+        nodes = nodes.push(ListGroup(list_ordered, list_items, last_ln))
     }
     // 刷出末尾未关闭的合并段落
     if has_pending {
         let last_ln = if blocks.len() > 0 { blocks[blocks.len() - 1].line } else { 0 }
-        nodes.push(Para(merged_inline, last_ln))
+        nodes = nodes.push(Para(merged_inline, last_ln))
     }
     // 文末空行(lexer 已剪掉最后一行)→ 空段结算
     if blank_run > 0 {
