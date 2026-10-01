@@ -1,0 +1,46 @@
+// _cline.aine —— 逐行分类对比探针:每行输出 classify 结果
+module diag;
+module registry;
+module fullwidth;
+module escape;
+module explicit;
+module lightweight;
+module lexer;
+
+fn cls_name(c: LineClass) -> String {
+    match c {
+        LcBlank { return "blank" }
+        LcDivider { return "divider" }
+        LcHeading(l) { return "h" + f"{l}" }
+        LcQuote(d) { return "q" + f"{d}" }
+        LcListItem(o) {
+            if o { return "ol" }
+            return "ul"
+        }
+        LcCommand { return "cmd" }
+        LcText { return "text" }
+    }
+}
+
+fn main() {
+    let src = read_file("build/bench_src.awen")
+    if src.contains("[read_file error") {
+        print("no src")
+        return
+    }
+    let lines = src.split("\n")
+    var n: i32 = 0
+    if lines.len() > 0 && src.len() > 0 && lines[lines.len() - 1] == "" {
+        n = lines.len() - 1
+    } else {
+        n = lines.len()
+    }
+    var i: i32 = 0
+    var counters: Vec<String> = []
+    while i < n {
+        let line = lines[i]
+        let c = classify(line)
+        print(f"{i}|{cls_name(c)}|{line.len()}")
+        i += 1
+    }
+}

@@ -75,7 +75,7 @@ fn incremental_update(
                 if old_txt == new_txt {
                     matched_id = old_node.id
                     // 标记已用
-                    used_old_ids.push(matched_id)
+                    used_old_ids = used_old_ids.push(matched_id)
                     break
                 }
             }
@@ -129,7 +129,7 @@ fn incremental_update(
                 quote_depth: node.quote_depth,
             }
             final_nodes = final_nodes.push(node)
-            changed_ids.push(new_id_cursor)
+            changed_ids = changed_ids.push(new_id_cursor)
             reparsed_count += 1
         }
     }

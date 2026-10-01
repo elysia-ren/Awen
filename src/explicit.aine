@@ -214,10 +214,10 @@ fn parse_header(s: String, at: i32) -> Result<HeaderParsed, ParseErr> {
             }
             let vvp = read_value_c(s, j, true)?
             j = j + vvp.consumed
-            attrs.push(KVPair { key: arg_plain(tok), val: vvp.arg })
+            attrs = attrs.push(KVPair { key: arg_plain(tok), val: vvp.arg })
             i = j
         } else {
-            args.push(tok)
+            args = args.push(tok)
             let ar = positional_arity(cmd)
             let over = match ar {
                 Some(n) { args.len() > n }
