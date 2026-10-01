@@ -89,7 +89,7 @@ fn page_flow_ctx_cfg(page_w: f64, page_h: f64, margin: f64, font_pt: f64, line_s
 
 // 带字体度量宽表的构造(daemon 交互路径)
 fn page_flow_ctx_cfg_w(page_w: f64, page_h: f64, margin: f64, font_pt: f64, line_sp: f64, wf_s: String, wf_e: String, wf_w: Vec<f64>) -> FlowCtx {
-    let mm = font_pt * 0.352778
+    let mm: f64 = font_pt * 0.352778
     // 宽表码点展开:构造期一次性把区间首尾字符串转成码点数组,
     // 之后每次测宽二分都是纯整数比较(逐字符切片曾是 flow 最大热点)
     var wf_cs: Vec<i32> = []
