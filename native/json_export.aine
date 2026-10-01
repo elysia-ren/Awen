@@ -1,0 +1,121 @@
+// json_export.aine —— 管线结果 JSON 序列化(E1)
+// Aine 无 JSON 库;手动拼装。文本中的 " 和 \ 需转义。
+
+fn json_escape(s: String) -> String {
+    // 快路径:不含需转义字符时直返原串(逐字符拼接在长文本上是主要热点)
+    if !s.contains("\"") && !s.contains("\\") && !s.contains("\n") && !s.contains("\r") && !s.contains("\t") {
+        return s
+    }
+    var out = ""
+    var i = 0
+    while i < s.len() {
+        let c = s[i]
+        if c == "\"" {
+            out = out + "\\" + "\""
+        } else if c == "\\" {
+            out = out + "\\\\"
+        } else if c == "\n" {
+            out = out + "\\n"
+        } else if c == "\r" {
+            out = out + "\\r"
+        } else if c == "\b" {
+            out = out + "\\b"
+        } else if c == "\f" {
+            out = out + "\\f"
+        } else if c == "\t" {
+            out = out + "\\t"
+        } else {
+            out = out + c
+        }
+        i += 1
+    }
+    return out
+}
+
+fn f64_to_str(v: f64) -> String {
+    // 无调用方(E1 预览占位);C 转译层对 f64 取模/.to_string 尚未支持,掏空保签名
+    var result: String = f"{v}"
+    return result
+}
+
+// 页面流结果 → JSON 字符串
+fn page_flow_to_json(state: DocState, result: PageFlowResult) -> String {
+    var out = "{"
+    out = out + "\"pages\":" + f"{result.pages}" + ","
+    out = out + "\"lines\":["
+
+    // 遍历节点获取 kind/level,匹配 placed 行
+    var first_line = true
+    for node in state.nodes {
+        let nid = node.id
+        let kind = node.kind
+        let level = node.level
+
+        for l in result.placed {
+            if l.node_id != nid { continue }
+            if !first_line { out = out + "," }
+            first_line = false
+            out = out + "{\"id\":" + f"{nid}"
+            out = out + ",\"page\":" + f"{l.page}"
+            out = out + ",\"y\":" + f"{l.y_mm}"
+            out = out + ",\"kind\":\"" + kind + "\""
+            out = out + ",\"level\":" + f"{level}"
+            out = out + ",\"text\":\"" + json_escape(l.text) + "\"}"
+        }
+    }
+    out = out + "],"
+
+    // 锚点
+    out = out + "\"anchors\":["
+    let ls = collect_labels(state)
+    var first_anchor = true
+    for e in ls {
+        for b in result.boxes {
+            if b.node_id == e.node_id {
+                if !first_anchor { out = out + "," }
+                first_anchor = false
+                out = out + "{\"label\":\"" + json_escape(e.label) + "\",\"page\":" + f"{b.start_page}" + "}"
+            }
+        }
+    }
+    out = out + "],"
+
+    // 大纲(标题列表)
+    out = out + "\"outline\":["
+    var first_outline = true
+    for node in state.nodes {
+        if node.kind != "heading" { continue }
+        if !first_outline { out = out + "," }
+        first_outline = false
+        out = out + "{\"level\":" + f"{node.level}"
+        out = out + ",\"text\":\"" + json_escape(inline_plain(node.inline)) + "\""
+        out = out + ",\"id\":" + f"{node.id}" + "}"
+    }
+    out = out + "]"
+
+    out = out + "}"
+    return out
+}
+
+// 便捷:源码 → 完整 JSON(排版+大纲+原始源码+诊断)
+// 编辑器模板用 DOC_DATA.source 作为初始内容,DOC_DATA.diags 作为真实诊断
+fn src_to_json(src: String) -> String {
+    let state = build_document(parse(lex(src)), src)
+    let result = page_flow(state)
+    let core = page_flow_to_json(state, result)
+    // 在最外层 } 前拼入 source 与 diags 字段
+    let without_close = core[0..core.len() - 1]
+    var tail = ",\"source\":\"" + json_escape(src) + "\""
+    tail = tail + ",\"diags\":["
+    var first_diag = true
+    for d in state.diags {
+        if !first_diag { tail = tail + "," }
+        first_diag = false
+        let sev = if d.severity == SevError { "err" } else { "warn" }
+        tail = tail + "{\"sev\":\"" + sev + "\""
+        tail = tail + ",\"msg\":\"" + json_escape(d.message) + "\""
+        tail = tail + ",\"line\":" + f"{d.line}" + "}"
+    }
+    tail = tail + "]"
+    return without_close + tail + "}"
+}

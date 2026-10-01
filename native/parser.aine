@@ -1,0 +1,336 @@
+// awen-proto/src/parser.aine —— 语法树构建(M2b)
+// 将词法器的扁平 Block 序列分组为文档结构:
+// - 相邻同类列表项 → 列表组
+// - 相邻引用行 → 引用块(按深度)
+// - Heading 层级 → 文档大纲
+// 其余块原样通过(段落/分节线/Raw/表格/独立对象)。
+//
+// match 臂内 break/continue 曾为空操作(旧 exe),2026-09-04 起已修复
+// (GRAMMAR.md §2,块式臂向上传播),本文件已改回惯用写法;
+// 运行需 2026-09-18 之后的 aine.exe 构建。
+//   枚举变体名全局唯一,避免与 UI 内建名冲突(Text 等)。
+
+// ── 文档树节点 ─────────────────────────────────────────────
+
+// ①增量基础：每个节点携带源码起始行(0基,来自LexedBlock.line)
+enum DocNode {
+    DocRoot(Vec<DocNode>)
+    Section(i32, Vec<Inline>, Vec<DocNode>, i32)
+    Para(Vec<Inline>, i32)
+    ListGroup(bool, Vec<Vec<Inline>>, i32)
+    QuoteBlk(i32, Vec<Inline>, i32)
+    HRule(i32)
+    Obj(CommandUse, i32)
+    RawBlk(ExplicitCommand, Option<String>, Vec<String>, i32)
+    TblNode(Option<Vec<Vec<Inline>>>, Vec<Vec<Vec<Inline>>>, bool, CommandUse, i32)
+    CommentNode(String, i32)
+}
+
+struct ParseResult {
+    nodes: Vec<DocNode>
+    diags: Vec<Diagnostic>
+}
+
+struct ListItemData {
+    ordered: bool
+    inline: Vec<Inline>
+}
+
+struct QuoteData {
+    depth: i32
+    inline: Vec<Inline>
+}
+
+// ── 辅助:从 Block 变体中提取数据 ──────────────────────────
+
+fn extract_list_item(blk: Block) -> ListItemData {
+    match blk {
+        BlkListItem(ordered, inline) { return ListItemData { ordered: ordered, inline: inline } }
+        _ { return ListItemData { ordered: false, inline: [] } }
+    }
+}
+
+fn extract_quote(blk: Block) -> QuoteData {
+    match blk {
+        Quote(depth, inline) { return QuoteData { depth: depth, inline: inline } }
+        _ { return QuoteData { depth: 0, inline: [] } }
+    }
+}
+
+// ── 空段规则(用户定稿):每 2 连续空行 = 1 个空段落 ──
+// K 连续空行 → floor(K/2) 个 Para([]);奇数个的最后一行是普通分隔。
+// 空段是真实节点(可跨全量渲染存活),由 mapping 给 span、serializeAll
+// 以「2 空行/空段」配平回写。
+fn push_empty_paras(nodes: Vec<DocNode>, run: i32, line: i32) -> Vec<DocNode> {
+    var out = nodes
+    var n = run / 2
+    var i = 0
+    while i < n {
+        out = out.push(Para([], line))
+        i += 1
+    }
+    return out
+}
+
+// ── 树构建 ─────────────────────────────────────────────────
+
+fn parse(lex_out: LexOutput) -> ParseResult {
+    var nodes: Vec<DocNode> = []
+    var diags = lex_out.diags
+
+    var i = 0
+    let blocks = lex_out.blocks
+    var in_list = false
+    var list_ordered = false
+    var list_items: Vec<Vec<Inline>> = []
+
+    // §14 段落合并:连续 Paragraph(无空行分隔)合并为单个 Para
+    var merged_inline: Vec<Inline> = []
+    var has_pending = false
+
+    // 空段规则:当前 Blank 连续计数
+    var blank_run = 0
+
+    while i < blocks.len() {
+        let blk = blocks[i].block
+
+        // 列表项:延续或开启列表组
+        let is_item = match blk {
+            BlkListItem(ordered, inline) { true }
+            _ { false }
+        }
+        if is_item {
+            let lid = extract_list_item(blk)
+            if in_list && lid.ordered == list_ordered {
+                list_items = list_items.push(lid.inline)
+            } else {
+                if in_list {
+                    nodes = nodes.push(ListGroup(list_ordered, list_items, blocks[i].line))
+                    list_items = []
+                }
+                list_ordered = lid.ordered
+                list_items = list_items.push(lid.inline)
+                in_list = true
+            }
+            i += 1
+            continue
+        }
+
+        // 非列表项:刷出待定列表组
+        if in_list {
+            nodes = nodes.push(ListGroup(list_ordered, list_items, blocks[i].line))
+            list_items = []
+            in_list = false
+        }
+
+        // §14 段落合并:非 Paragraph 块 → 刷出待定合并段落
+        let cur_is_para = match blk {
+            Paragraph(inline) { true }
+            _ { false }
+        }
+        if !cur_is_para && has_pending {
+            nodes = nodes.push(Para(merged_inline, blocks[i].line))
+            merged_inline = []
+            has_pending = false
+        }
+
+        // 空段结算:非 Blank 块出现 → 把之前的空行按 floor(K/2) 落成空段
+        let is_blank = match blk {
+            Blank { true }
+            _ { false }
+        }
+        if !is_blank && blank_run > 0 {
+            nodes = push_empty_paras(nodes, blank_run, blocks[i].line)
+            blank_run = 0
+        }
+
+        // 引用块
+        let is_quote = match blk {
+            Quote(depth, inline) { true }
+            _ { false }
+        }
+        if is_quote {
+            let qd = extract_quote(blk)
+            nodes = nodes.push(QuoteBlk(qd.depth, qd.inline, blocks[i].line))
+            i += 1
+            continue
+        }
+
+        // 其余块类型
+        match blk {
+            Heading(level, inline) {
+                nodes = nodes.push(Section(level, inline, [], blocks[i].line))
+            }
+            Paragraph(inline) {
+                // §14: 物理换行不是排版换行 → 合并行内内容
+                for item in inline {
+                    merged_inline = merged_inline.push(item)
+                }
+                has_pending = true
+            }
+            Divider {
+                nodes = nodes.push(HRule(blocks[i].line))
+            }
+            BlkObject(u) {
+                if u.cmd == Comment {
+                    let content = match u.content {
+                        Some(c) { c }
+                        None { "" }
+                    }
+                    nodes = nodes.push(CommentNode(content, blocks[i].line))
+                } else {
+                    nodes = nodes.push(Obj(u, blocks[i].line))
+                }
+            }
+            RawOpen(cmd, lang) {
+                var content_lines: Vec<String> = []
+                var j = i + 1
+                var found_close = false
+                while j < blocks.len() {
+                    let nb = blocks[j].block
+                    match nb {
+                        RawClose(close_cmd) {
+                            found_close = true
+                            j += 1
+                            break
+                        }
+                        RawLine(content) {
+                            content_lines = content_lines.push(content)
+                            j += 1
+                        }
+                        _ { j += 1 }
+                    }
+                }
+                if !found_close {
+                    diags = diags.push(diag_error("Raw Block 未闭合", blocks[i].line))
+                }
+                nodes = nodes.push(RawBlk(cmd, lang, content_lines, blocks[i].line))
+                i = j
+                continue
+            }
+            TableOpen(u) {
+                var header: Option<Vec<Vec<Inline>>> = None
+                var data_rows: Vec<Vec<Vec<Inline>>> = []
+                var has_delim = false
+                var j = i + 1
+                var found_close = false
+                while j < blocks.len() {
+                    let nb = blocks[j].block
+                    match nb {
+                        TableClose {
+                            found_close = true
+                            j += 1
+                            break
+                        }
+                        TableRow(cells, delimiter) {
+                            if delimiter {
+                                has_delim = true
+                                if data_rows.len() > 0 {
+                                    let hdr0: Vec<Vec<Vec<Inline>>> = data_rows
+                    let h0: Vec<Inline> = hdr0.get(0)
+                    header = Some(h0)
+                                    var shifted: Vec<Vec<Vec<Inline>>> = []
+                                    var sk = 1
+                                    while sk < data_rows.len() {
+                                        shifted = shifted.push(data_rows[sk])
+                                        sk += 1
+                                    }
+                                    data_rows = shifted
+                                }
+                            } else {
+                                data_rows = data_rows.push(cells)
+                            }
+                            j += 1
+                        }
+                        _ { j += 1 }
+                    }
+                }
+                if !found_close {
+                    diags = diags.push(diag_error("@[table] 未闭合", blocks[i].line))
+                }
+                if !has_delim && data_rows.len() > 0 {
+                    let hdr0: Vec<Vec<Vec<Inline>>> = data_rows
+                    let h0: Vec<Inline> = hdr0.get(0)
+                    header = Some(h0)
+                    var shifted2: Vec<Vec<Vec<Inline>>> = []
+                    var sk2 = 1
+                    while sk2 < data_rows.len() {
+                        shifted2 = shifted2.push(data_rows[sk2])
+                        sk2 += 1
+                    }
+                    data_rows = shifted2
+                }
+                nodes = nodes.push(TblNode(header, data_rows, has_delim, u, blocks[i].line))
+                i = j
+                continue
+            }
+            Blank {
+                blank_run += 1
+            }
+            RawLine(content) { }
+            RawClose(cmd) { }
+            TableRow(cells, delimiter) { }
+            TableClose { }
+            BlkListItem(ordered, inline) { }
+            Quote(depth, inline) { }
+            _ { }
+        }
+        i += 1
+    }
+
+    if in_list {
+        let last_ln = if blocks.len() > 0 { blocks[blocks.len() - 1].line } else { 0 }
+        nodes = nodes.push(ListGroup(list_ordered, list_items, last_ln))
+    }
+    // 刷出末尾未关闭的合并段落
+    if has_pending {
+        let last_ln = if blocks.len() > 0 { blocks[blocks.len() - 1].line } else { 0 }
+        nodes = nodes.push(Para(merged_inline, last_ln))
+    }
+    // 文末空行(lexer 已剪掉最后一行)→ 空段结算
+    if blank_run > 0 {
+        let last_ln = if i > 0 { blocks[i - 1].line } else { 0 }
+        nodes = push_empty_paras(nodes, blank_run, last_ln)
+    }
+
+    return ParseResult { nodes: nodes, diags: diags }
+}
+
+// ── 统计辅助(测试用)────────────────────────────────────
+
+fn count_nodes(nodes: Vec<DocNode>, kind: String) -> i32 {
+    var n = 0
+    for node in nodes {
+        match node {
+            ListGroup(ordered, items, _ln) {
+                if kind == "list" { n += 1 }
+            }
+            Section(level, inline, children, _ln) {
+                if kind == "section" { n += 1 }
+            }
+            QuoteBlk(depth, inline, _ln) {
+                if kind == "quote" { n += 1 }
+            }
+            Para(inline, _ln) {
+                if kind == "para" { n += 1 }
+            }
+            HRule(_ln) {
+                if kind == "hr" { n += 1 }
+            }
+            Obj(u, _ln) {
+                if kind == "obj" { n += 1 }
+            }
+            RawBlk(cmd, lang, lines, _ln) {
+                if kind == "raw" { n += 1 }
+            }
+            TblNode(header, rows, has_delim, open_cu, _ln) {
+                if kind == "table" { n += 1 }
+            }
+            CommentNode(content, _ln) {
+                if kind == "comment" { n += 1 }
+            }
+            DocRoot(children) { }
+        }
+    }
+    return n
+}

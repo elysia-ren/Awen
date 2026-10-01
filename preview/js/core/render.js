@@ -82,7 +82,42 @@ function render(src,caret,done){
     }
     renderPending=false;
     var caretNow=saveCaret();
-    gNodes=Engine.ingestNative(res.blocks||[],gSrc);
+    var blocks=res.blocks||[];
+    // ── 差分落地:块数一致且 kind 未变时,只重建变化的块 ──
+    // 语法侧打字此前每次都全量重建 800+ 块 DOM(秒级卡顿的主因)。
+    // 页分配(recs)有移动或表格跨页片段在场时仍走全量重建。
+    var canDiff=gSegCache.length===blocks.length&&blocks.length>0&&gNodes.length===gSegCache.length;
+    if(canDiff){
+      for(var bi=0;bi<blocks.length;bi++){
+        if(blocks[bi].kind!==gNodes[bi].kind){canDiff=false;break}
+      }
+      if(canDiff&&(res.recs||[]).length!==blocks.length)canDiff=false;
+    }
+    if(canDiff){
+      var newNodes=[],failed=false;
+      for(var bi2=0;bi2<blocks.length;bi2++){
+        var rec=blocks[bi2];
+        var nn=Engine.segRecsToNodes([rec],0)[0];
+        newNodes.push(nn);
+        var oldTxt=gSegCache[bi2].text;
+        var newTxt=gSrc.slice(rec.srcStart||0,rec.srcEnd||0);
+        if(oldTxt!==newTxt&&!replaceSegBlock(bi2,nn)){failed=true;break}
+      }
+      if(!failed){
+        gNodes=newNodes;
+        gSegCache=buildSegCache(gSrc,gNodes);
+        Engine.applyDocsets(gNodes,res.docsets);
+        CFG=Engine.getConfig();
+        ensureFontWidths();
+        gPages=Engine.layoutFromEngine(gNodes,res);
+        nativeDiags={src:gSrc,ds:res.diags||[]};
+        updateDiagBar();
+        if(caretNow)restoreCaret(caretNow);
+        if(done)done();
+        return;
+      }
+    }
+    gNodes=Engine.ingestNative(blocks,gSrc);
     gSegCache=buildSegCache(gSrc,gNodes);
     Engine.applyDocsets(gNodes,res.docsets);   // 文档级设置生效(引擎结构化下发,十语种别名归一)
     CFG=Engine.getConfig();
@@ -127,6 +162,12 @@ function renderNodes(){
     paper.style.setProperty('--fl',CFG.FIRSTLINE||'0em');
     paper.style.setProperty('--ps',CFG.PARA_SPACING||'0em');
     paper.dataset.page=p;
+    // 空页占位:删空后仍保留一个可聚焦空段(光标有落点,Word 行为)
+    if(pageList[p].length===0&&p===0){
+      var ep=document.createElement('div');
+      ep.className='para'; ep.dataset.bid='0'; ep.dataset.kind='para';
+      paper.appendChild(ep);
+    }
     for(var k=0;k<pageList[p].length;k++){
       var item=pageList[p][k], b=item.b;
       if(b.kind==='toc'){
@@ -483,7 +524,7 @@ var relayoutTimer=null,relayoutSeq=0;
 function scheduleRelayout(){
   if(relayoutTimer)clearTimeout(relayoutTimer);
   relayoutSeq++;
-  relayoutTimer=setTimeout(applyRelayout,1500);
+  relayoutTimer=setTimeout(applyRelayout,800);
 }
 function applyRelayout(){
   relayoutTimer=null;

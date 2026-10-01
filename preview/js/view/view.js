@@ -100,7 +100,7 @@ function buildSyntaxPane(){
     autosizeSyntaxTa();
     setGutterCur(caretLineNumber());
     if(repagTimer)clearTimeout(repagTimer);
-    repagTimer=setTimeout(applySyncNow,300);
+    repagTimer=setTimeout(applySyncNow,150);
   });
   // 光标移动跟随行高亮
   ['keyup','click'].forEach(function(ev){
@@ -157,12 +157,9 @@ function setMode(mode){
   applyZoom(document.getElementById('sel-zoom').value);
 }
 function fitZoom(base){
-  var v=parseFloat(base)||1;
-  if(currentMode==='split'){
-    var w=document.getElementById('display-pane').clientWidth;
-    v*=Math.min(1,(w-48)/840);
-  }
-  return v;
+  // 字号是绝对属性:5 号就是 5 号,不随窗口宽度缩放(此前分屏强制乘
+  // (w-48)/840 导致非最大化时文字变小)。空间不足交给滚动条。
+  return parseFloat(base)||1;
 }
 // 双缩放控件(状态栏+视图页)同步;自定义动态档位两边都补
 function syncZoomSelects(v){

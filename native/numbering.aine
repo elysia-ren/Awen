@@ -1,0 +1,146 @@
+// awen-proto/src/numbering.aine —— 编号系统(核心规范 §7.6)
+// 从 Numbering 配置 + Outline 树,为每个 heading 计算语义编号。
+// 使用显式计数器 token:%chapter %section %figure %table %equation %page
+
+struct NumberedHeading {
+    node_id: i32
+    level: i32
+    title: String
+    number: String
+}
+
+// ── 章节编号计算 ────────────────────────────────────────────
+
+// 从 Outline 树为所有 heading 计算编号
+// 规则(§7.1):Semantic Pass,基于 Document State 文档序
+// level 1 → 第 N 章;level 2 → N.M;level 3 → N.M.K
+fn number_headings(state: DocState) -> Vec<NumberedHeading> {
+    var out: Vec<NumberedHeading> = []
+    var chapter = 0
+    var section = 0
+    var subsection = 0
+
+    for node in state.nodes {
+        if node.kind != "heading" { continue }
+        let title = inline_plain(node.inline)
+        if node.level == 1 {
+            chapter += 1
+            section = 0
+            subsection = 0
+            out = out.push(NumberedHeading {
+                node_id: node.id,
+                level: 1,
+                title: title,
+                number: f"第 {chapter} 章",
+            })
+        } else if node.level == 2 {
+            section += 1
+            subsection = 0
+            out = out.push(NumberedHeading {
+                node_id: node.id,
+                level: 2,
+                title: title,
+                number: f"{chapter}.{section}",
+            })
+        } else if node.level == 3 {
+            subsection += 1
+            out = out.push(NumberedHeading {
+                node_id: node.id,
+                level: 3,
+                title: title,
+                number: f"{chapter}.{section}.{subsection}",
+            })
+        } else {
+            out = out.push(NumberedHeading {
+                node_id: node.id,
+                level: node.level,
+                title: title,
+                number: "",
+            })
+        }
+    }
+    return out
+}
+
+// ── 图片/表格/公式编号 ──────────────────────────────────────
+
+// 为所有带 Label 的 Figure 计算编号(§7.1:Semantic Pass)
+fn number_figures(state: DocState) -> Vec<NumberedHeading> {
+    var out: Vec<NumberedHeading> = []
+    var fig = 0
+    for node in state.nodes {
+        if node.kind == "obj" {
+            let cu = node.obj_cu
+            if cu.cmd == Image || cu.cmd == Figure {
+                fig += 1
+                var label = ""
+                if cu.args.len() > 0 {
+                    label = arg_plain(cu.args[0])
+                }
+                out = out.push(NumberedHeading {
+                    node_id: node.id,
+                    level: 0,
+                    title: label,
+                    number: f"{fig}",
+                })
+            }
+        }
+    }
+    return out
+}
+
+// 为所有带 Label 的 Table 计算编号
+fn number_tables(state: DocState) -> Vec<NumberedHeading> {
+    var out: Vec<NumberedHeading> = []
+    var tbl = 0
+    for node in state.nodes {
+        if node.kind == "table" {
+            tbl += 1
+            out = out.push(NumberedHeading {
+                node_id: node.id,
+                level: 0,
+                title: "",
+                number: f"{tbl}",
+            })
+        }
+    }
+    return out
+}
+
+// ── 引用编号查找 ────────────────────────────────────────────
+
+// 通过 Label 查找编号(§2.5:Semantic Resolver)
+// Label → 编号字符串("图 3"/"第 2 章"/"1.2")
+fn find_number_by_label(state: DocState, labels: Vec<LabelEntry>, target: String) -> String {
+    // 在 labels 中找到目标 entry
+    for entry in labels {
+        if entry.label == target {
+            // 根据 kind 查编号
+            if entry.kind == "heading" {
+                let numbered = number_headings(state)
+                for nh in numbered {
+                    if nh.node_id == entry.node_id {
+                        return nh.number
+                    }
+                }
+            } else if entry.kind == "obj" {
+                // 查 obj 的 cu.cmd
+                let node_opt = doc_find_by_id(state, entry.node_id)
+                match node_opt {
+                    Some(node) {
+                        if node.obj_cu.cmd == Image || node.obj_cu.cmd == Figure {
+                            let figs = number_figures(state)
+                            for f in figs {
+                                if f.node_id == entry.node_id {
+                                    return f"图 {f.number}"
+                                }
+                            }
+                        }
+                    }
+                    None { }
+                }
+            }
+        }
+    }
+    return ""
+}
