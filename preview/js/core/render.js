@@ -53,6 +53,7 @@ function render(src,caret,done){
   renderPending=true;
   incrSeq++;                      // 使在途的增量刷新过期
   var seq=++renderSeq;
+  var docAtReq=currentDocId();   // 文档代次:切标签后旧响应一律作废
   var cfgReq=Engine.layoutCfg();
   if(window.__orient==='landscape'){var t=cfgReq.pw;cfgReq.pw=cfgReq.ph;cfgReq.ph=t}
       if(window.gWidths&&window.gWidths.font===(CFG.FONT||'')){cfgReq.widths=window.gWidths.data;cfgReq.widths.k=(window.gWidths.data.w||[]).join(',')}   // undefined 键不会写入 JSON(null 会送 daemon 崩)
@@ -65,15 +66,17 @@ function render(src,caret,done){
     var emptyHold=emptyParaUnderCaret();
     if(repagTimer||refreshTimer||window.composing||emptyHold||Date.now()-(window.lastPaperInputAt||0)<800){
       renderPending=false;
+      // 文档已切换:旧 DOM 属于别的文档,serializeAll 会串档,直接放弃本次落地
+      if(docAtReq!==currentDocId())return;
       if(emptyHold){
         // emptyHold:光标停在空段上不能重建,但必须安排补跑——否则语法侧的
         // 修改永远不落纸面(即"另一边不会渲染")
-        setTimeout(function(){scheduleNativeRefresh(saveCaret())},400);
+        setTimeout(function(){if(docAtReq===currentDocId())scheduleNativeRefresh(saveCaret())},400);
         return;
       }
       // 语法侧来源:纸面 DOM 落后于 gSrc,不能用旧 DOM 反写(会把语法侧输入回退)
       if(lastEditSource==='syntax'){
-        setTimeout(function(){render(gSrc)},300);
+        setTimeout(function(){if(docAtReq===currentDocId())render(gSrc)},300);
         return;
       }
       var curSrc=Engine.serializeAll();
@@ -100,25 +103,30 @@ function render(src,caret,done){
       if(canDiff&&(res.recs||[]).length!==blocks.length)canDiff=false;
     }
     if(canDiff){
+      var srcLines=gSrc.split('\n');
       var newNodes=[],failed=false;
       for(var bi2=0;bi2<blocks.length;bi2++){
         var rec=blocks[bi2];
         var nn=Engine.segRecsToNodes([rec],0)[0];
         newNodes.push(nn);
         var oldTxt=gSegCache[bi2].text;
-        var newTxt=gSrc.slice(rec.srcStart||0,rec.srcEnd||0);
+        var newTxt=srcLines.slice(rec.srcStart||0,rec.srcEnd||0).join('\n');
         if(oldTxt!==newTxt&&!replaceSegBlock(bi2,nn)){failed=true;break}
       }
       if(!failed){
         gNodes=newNodes;
+        for(var bfi=0;bfi<gNodes.length;bfi++)gNodes[bfi].bid=bfi;
         gSegCache=buildSegCache(gSrc,gNodes);
         lastRenderedSrc=gSrc;
         Engine.applyDocsets(gNodes,res.docsets);
         CFG=Engine.getConfig();
+        if(window.__orient==='landscape')Engine.setPage({PAGE_W:CFG.PAGE_H,PAGE_H:CFG.PAGE_W});
         ensureFontWidths();
         gPages=Engine.layoutFromEngine(gNodes,res);
         nativeDiags={src:gSrc,ds:res.diags||[]};
         updateDiagBar();
+        renderOutline();
+        renderStatus();
         if(caretNow)restoreCaret(caretNow);
         if(done)done();
         return;
@@ -139,6 +147,7 @@ function render(src,caret,done){
     if(caretNow)restoreCaret(caretNow);
     if(done)done();
   }).catch(function(e){
+    if(seq!==renderSeq)return;   // 过期请求的失败不得干扰在途渲染
     renderPending=false;
     document.getElementById('st-diag').textContent='解析失败';
     console.error(e);
@@ -624,6 +633,7 @@ function incrRefresh(freshCaret){
     return finish(localMap);
   }
   Bridge.parseBlocks(reqs).then(function(res){
+    if(lastRenderedSrc!==gSrc)return false;   // 在途期间 gSrc 已被语法侧推进:本批作废
     var map=localMap;
     (res&&res.nodes||[]).forEach(function(n){
       var di=+n.bid;

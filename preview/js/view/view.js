@@ -233,7 +233,7 @@ document.addEventListener('keydown',function(e){
   }
   if(e.altKey&&mod&&!e.shiftKey){
     var k2=(e.key||'');
-    if(/^[0-6]$/.test(k2)){ e.preventDefault(); applyStyle(k2==='0'?'':k2); return }
+    if(/^[0-6]$/.test(k2)){ e.preventDefault(); applyStyle(k2); return }
   }
   if(mod&&e.shiftKey){
     var k3=(e.key||'');
