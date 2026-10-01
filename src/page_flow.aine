@@ -571,6 +571,10 @@ fn doc_para_spacing_mm(state: DocState, font_mm: f64) -> f64 {
         let tag = "@[para-spacing "
         if t.starts_with(tag) {
             let close = t.len() - 1
+            if close <= tag.len() {
+                i += 1
+                continue
+            }
             var inner = t[tag.len() .. close]
             // (短 inner 保护:len<2 时切片下标回绕在 C 侧越界)
             if inner.len() >= 3 {

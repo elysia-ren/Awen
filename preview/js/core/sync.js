@@ -131,6 +131,13 @@ function nodeByBid(bid){
 function mergeBlocks(keepBid,goneBid){
   var keep=nodeByBid(keepBid), gone=nodeByBid(goneBid);
   if(!keep||!gone)return;
+  // 表格/对象/代码等结构块不可被合并压平(源码整段丢失);且合并是结构
+  // 操作,必须先 flush DOM 差异并清掉在途守卫,否则 render 守卫分支会用
+  // 未合并的旧 DOM 反写 gSrc(合并静默撤销)
+  if(keep.kind==='table'||keep.kind==='obj'||keep.kind==='code'||gone.kind==='table'||gone.kind==='obj'||gone.kind==='code')return;
+  if(repagTimer){clearTimeout(repagTimer);repagTimer=null}
+  if(refreshTimer){clearTimeout(refreshTimer);refreshTimer=null}
+  applySyncNow();
   var keepEl=document.querySelector('#display-pane [data-bid="'+keepBid+'"]');
   var goneEl=document.querySelector('#display-pane [data-bid="'+goneBid+'"]');
   var keepText=keepEl?Engine.inlineSource(keepEl).trim():Engine.displayText(keep.text);

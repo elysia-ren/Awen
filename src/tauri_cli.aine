@@ -91,6 +91,9 @@ fn daemon_handle(line: String) -> String {
     let m = json_decode(line)
     let id = match m.get("id") { Some(x) { x } None { 0 } }
     let op = match m.get("op") { Some(x) { x } None { "" } }
+    if op != "parse" && op != "relayout" && op != "parse_blocks" && op != "pack" && op != "unpack" {
+        return "{\"id\":" + f"{id}" + ",\"ok\":false,\"error\":\"未知 op: " + op + "\"}"
+    }
     let doc = match m.get("doc") { Some(x) { x } None { "" } }
     // 定位本文档状态槽(无则 -1)
     var si: i32 = -1

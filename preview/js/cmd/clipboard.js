@@ -78,6 +78,7 @@ function insertAtSelection(text){
 }
 // ═══ 格式刷(Word 式):点击吸取光标处格式 → 刷模式 → 选中文字自动应用一次 ═══
 var brushCmd=null;
+var brushApplying=false;
 function brushClick(){
   if(brushCmd){ stopBrush(); return }   // 再点取消刷模式
   var sel=window.getSelection();
@@ -117,6 +118,10 @@ document.addEventListener('selectionchange',function(){
   if(!el||!el.closest||!el.closest('.paper'))return;
   var cmd=brushCmd, sticky=brushSticky;
   if(!sticky)stopBrush();
+  // wrapSpan 内 addRange 会再次触发 selectionchange——不设防则粘性模式无限嵌套套壳
+  if(brushApplying)return;
+  brushApplying=true;
+  setTimeout(function(){brushApplying=false},0);
   if(wrapSpan(cmd.cmd,cmd.close,null,cmd.native))onPaperInput();
 });
 // 行距循环按钮:1.15→1.5→1.9→2→2.5→1.15(写回文档级设置)
