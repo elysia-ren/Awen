@@ -12,6 +12,7 @@ function currentDocId(){
 // 渲染入口(异步):源码 → Aine 权威解析 → ingest → 分页 → DOM
 // seq 防过期:新请求发出后,旧响应丢弃
 var renderSeq=0;
+var lastRenderedSrc=null;   // 最近一次完整渲染/差分落地所对应的 gSrc
 // 语法 textarea 安全写回:语法侧打字会话进行中(800ms 内动过/焦点仍在)一律不写,
 // 否则会用旧快照覆盖用户新输入(即"语法侧输入回退")。跳过是安全的:
 // 用户自己的 applySyncNow 会以 ta.value 为准推进 gSrc,渲染由其尾部刷新补。
@@ -70,6 +71,11 @@ function render(src,caret,done){
         setTimeout(function(){scheduleNativeRefresh(saveCaret())},400);
         return;
       }
+      // 语法侧来源:纸面 DOM 落后于 gSrc,不能用旧 DOM 反写(会把语法侧输入回退)
+      if(lastEditSource==='syntax'){
+        setTimeout(function(){render(gSrc)},300);
+        return;
+      }
       var curSrc=Engine.serializeAll();
       if(curSrc!==gSrc){
         gSrc=curSrc;
@@ -106,6 +112,7 @@ function render(src,caret,done){
       if(!failed){
         gNodes=newNodes;
         gSegCache=buildSegCache(gSrc,gNodes);
+        lastRenderedSrc=gSrc;
         Engine.applyDocsets(gNodes,res.docsets);
         CFG=Engine.getConfig();
         ensureFontWidths();
@@ -119,6 +126,7 @@ function render(src,caret,done){
     }
     gNodes=Engine.ingestNative(blocks,gSrc);
     gSegCache=buildSegCache(gSrc,gNodes);
+    lastRenderedSrc=gSrc;
     Engine.applyDocsets(gNodes,res.docsets);   // 文档级设置生效(引擎结构化下发,十语种别名归一)
     CFG=Engine.getConfig();
     if(window.__orient==='landscape')Engine.setPage({PAGE_W:CFG.PAGE_H,PAGE_H:CFG.PAGE_W});
@@ -561,6 +569,9 @@ function applyRelayout(){
 // 增量刷新入口。返回 true=增量完成;false=需要全量 render。
 function incrRefresh(freshCaret){
   if(!document.querySelector('#display-pane .paper'))return false;
+  // gSrc 领先于纸面(语法侧编辑)→ 增量差分看不到脏段(DOM==cache 双旧),
+  // 必须交回全量渲染(render 内部有差分落地,只重建变化块)
+  if(lastRenderedSrc!==null&&lastRenderedSrc!==gSrc)return false;
   var sg=Engine.serializeSegments();
   var lines=sg.lines,segs=sg.segs;
   var cache=gSegCache;
