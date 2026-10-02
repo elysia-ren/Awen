@@ -100,6 +100,7 @@ struct DllApi {
 }
 
 static DLL_API: Mutex<Option<std::sync::Arc<DllApi>>> = Mutex::new(None);
+static DLL_CALL_LOCK: Mutex<()> = Mutex::new(());
 
 fn dll_load(app: &AppHandle) -> Result<std::sync::Arc<DllApi>, String> {
     let mut g = DLL_API.lock().map_err(|_| "dll 锁中毒".to_string())?;
@@ -138,6 +139,8 @@ fn dll_load(app: &AppHandle) -> Result<std::sync::Arc<DllApi>, String> {
 }
 
 fn dll_call(app: &AppHandle, req: &str) -> Result<String, String> {
+    // DLL 全管线读写 @global 槽,并发调用会互相覆盖(串档)——整调用持锁
+    let _dll_guard = DLL_CALL_LOCK.lock().map_err(|_| "dll 调用锁中毒".to_string())?;
     let v: serde_json::Value = serde_json::from_str(req).map_err(|e| format!("req 非 json:{e}"))?;
     let op = v.get("op").and_then(|x| x.as_str()).unwrap_or("");
     if op != "parse" && op != "relayout" {
@@ -337,10 +340,10 @@ fn aine_dir(app: &AppHandle) -> Result<PathBuf, String> {
 
 
 #[tauri::command]
-async fn core_parse(app: AppHandle, src: String, cfg: Option<String>, doc: Option<String>) -> Result<String, String> {
+async fn core_parse(app: AppHandle, src: String, cfg: Option<String>, doc: Option<String>, rev: Option<i64>) -> Result<String, String> {
     // 常驻 Core(daemon)请求:op=parse;cfg 在场时引擎同次解析附带权威分页(A′);
     // doc 标识文档,daemon 增量排版状态按文档隔离
-    let mut req = serde_json::json!({ "id": 1, "op": "parse", "src": src, "doc": doc.unwrap_or_default() });
+    let mut req = serde_json::json!({ "id": 1, "op": "parse", "src": src, "doc": doc.unwrap_or_default(), "rev": rev.unwrap_or(-1) });
     if let Some(c) = cfg {
         let cfgv: serde_json::Value = serde_json::from_str(&c)
             .map_err(|e| format!("cfg 不是合法 JSON:{e}"))?;
@@ -855,10 +858,10 @@ async fn core_font_widths(family: String, chars: Vec<String>) -> Result<String, 
 /// 增量排版:daemon 复用上一轮未变前缀的流,只重排首变之后的尾段,
 /// 返回 {pages,recs}(与 op=parse 的分页部分同构)。cfg 必传。
 #[tauri::command]
-async fn core_relayout(app: AppHandle, src: String, cfg: String, doc: Option<String>) -> Result<String, String> {
+async fn core_relayout(app: AppHandle, src: String, cfg: String, doc: Option<String>, rev: Option<i64>) -> Result<String, String> {
     let cfgv: serde_json::Value =
         serde_json::from_str(&cfg).map_err(|e| format!("cfg 不是合法 JSON:{e}"))?;
-    let req = serde_json::json!({ "id": 1, "op": "relayout", "src": src, "cfg": cfgv, "doc": doc.unwrap_or_default() }).to_string();
+    let req = serde_json::json!({ "id": 1, "op": "relayout", "src": src, "cfg": cfgv, "doc": doc.unwrap_or_default(), "rev": rev.unwrap_or(-1) }).to_string();
     let line = daemon_call_retry(&app, &req)?;
     let v: serde_json::Value =
         serde_json::from_str(&line).map_err(|e| format!("daemon 响应解析失败:{e}"))?;
@@ -1010,11 +1013,31 @@ fn open_container_doc(app: &AppHandle, path: &str) -> Result<OpenedDoc, String> 
         .chars()
         .map(|c| if c.is_alphanumeric() || c == '-' || c == '_' { c } else { '_' })
         .collect();
-    let media = local_app_dir().join("media").join(safe_stem);
+    let media = local_app_dir().join("media").join(&safe_stem);
     fs::create_dir_all(&media).map_err(|e| format!("创建媒体目录失败:{e}"))?;
     let media_dir = media.to_string_lossy().to_string();
-    let source_out = build.join("cli_container_src.awen");
+    // 真正调引擎 unpack(此前只读上一次遗留的共享文件=打开陈旧文档):
+    // 走 daemon op=unpack,产物落本文档专属临时路径,读回后删除
+    let source_out = local_app_dir()
+        .join("container_unpack")
+        .join(format!("{}.awen", safe_stem));
+    fs::create_dir_all(source_out.parent().unwrap())
+        .map_err(|e| format!("创建临时目录失败:{e}"))?;
+    {
+        let req = serde_json::json!({
+            "id": 1, "op": "unpack",
+            "path": path, "media_dir": media_dir,
+            "source_out": source_out.to_string_lossy(),
+        });
+        let line = daemon_call_retry(app, &req.to_string())?;
+        let v: serde_json::Value = serde_json::from_str(&line)
+            .map_err(|e| format!("daemon 响应解析失败:{e}"))?;
+        if v.get("ok").and_then(|x| x.as_bool()) != Some(true) {
+            return Err("容器解包失败".into());
+        }
+    }
     let source = fs::read_to_string(&source_out).map_err(|e| format!("读取解包源码失败:{e}"))?;
+    let _ = fs::remove_file(&source_out);
     let name = pb
         .file_name()
         .map(|n| n.to_string_lossy().to_string())
@@ -1189,19 +1212,17 @@ async fn awen_container_open(
         }
         let status = line;
         let source = fs::read_to_string(&source_out).map_err(|e| format!("读取解包源码失败:{e}"))?;
-        // document_id 从状态 JSON 里粗提取(前端仅用于媒体目录标识)
-        let doc_id = status
-            .split("\"document_id\":\"")
-            .nth(1)
-            .and_then(|s| s.split('"').next())
+        // result 是字符串化 JSON,须二次解析取字段(此前对转义行做明文切分恒失败)
+        let rv: serde_json::Value = serde_json::from_str(
+            v.get("result").and_then(|x| x.as_str()).unwrap_or("{}"),
+        )
+        .map_err(|e| format!("解包结果解析失败:{e}"))?;
+        let doc_id = rv
+            .get("document_id")
+            .and_then(|x| x.as_str())
             .unwrap_or("")
             .to_string();
-        let chunks_n = status
-            .split("\"chunks\":")
-            .nth(1)
-            .and_then(|s| s.split(',').next())
-            .unwrap_or("0")
-            .to_string();
+        let chunks_n = rv.get("chunks").and_then(|x| x.as_i64()).unwrap_or(0).to_string();
         let media_json = serde_json::to_string(&media_dir).unwrap_or_else(|_| "\"\"".into());
         let source_json = serde_json::to_string(&source).unwrap_or_else(|_| "\"\"".into());
         let doc_json = serde_json::to_string(&doc_id).unwrap_or_else(|_| "\"\"".into());

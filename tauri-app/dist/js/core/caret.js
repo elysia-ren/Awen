@@ -40,8 +40,8 @@ function applySyncNow(){
     var ta=document.getElementById('syntax-src');
     var taVal=ta?ta.value:'';
     if(taVal===gSrc)return;
-    gSrc=taVal;
-    if(currentMode==='split')render(gSrc);
+    commitSource(taVal,'syntax');
+    if(currentMode==='split')syntaxIncrRender(taVal);
     updateDiagBar();
       return;
   }
@@ -57,13 +57,11 @@ function applySyncNow(){
   // 否则 doUndo/doRedo 开头的 flush 会把规范化差异当新编辑,截断撤销链
   if(newSrc===gSrc||newSrc===gSrc.replace(/\s+$/,'')){
     // 幂等:但分屏下语法框可能落后于 gSrc(如撤销后的恢复),补齐
-    var ta2=document.getElementById('syntax-src');
-    if(ta2&&currentMode!=='display'&&ta2.value!==gSrc)ta2.value=gSrc;
+    if(currentMode!=='display')taSafeWrite(gSrc);
     return;
   }
-  gSrc=newSrc;
-  var ta=document.getElementById('syntax-src');
-  if(ta)ta.value=gSrc;
+  commitSource(newSrc,'paper');
+  taSafeWrite(gSrc);
   recordHist(gSrc,true);
   var caret=saveCaret();
   scheduleNativeRefresh(caret);
@@ -84,7 +82,7 @@ function scheduleNativeRefresh(caret){
       if(incrRefresh(saveCaret()))return;
     }catch(e){ console.error('增量刷新失败,回退全量',e) }
     render(gSrc,c);
-  },500);
+  },300);
 }
 function saveCaret(){
   var s=window.getSelection();
@@ -115,3 +113,78 @@ function focusPaper(el){
   if(p&&p.focus)p.focus({preventScroll:true});
 }
 // 跨页合并:Backspace 在页首块起点 / Delete 在页尾块终点
+
+
+// ── 语法侧增量渲染:行级 diff → 脏段 → parse_blocks → 原位替换 ──
+// 语法侧 DOM(纸面)是旧的,incrRefresh 的"DOM vs cache"比对无效;
+// 此前走全量 render(整篇 parse+重建,85KB ~700ms)。这里以 ta 文本
+// 对比 gSrc 的行差异定位脏段,只重解析脏段(~20ms),纸面原位替换。
+function syntaxIncrRender(newSrc){
+  var job=makeJobRev();   // (doc, revision):新提交使旧批次自然失效
+  var cache=gSegCache;
+  if(!cache.length){render(newSrc);return}
+  var newLines=newSrc.split('\n');
+  // 以节点 span 为单位对比文本(与 buildSegCache 同构)
+  var dirty=[];
+  var cursor=0; // 行游标: 节点按文档序铺满(空行对齐)
+  for(var i=0;i<cache.length;i++){
+    var c=cache[i];
+    var end=c.start+cSpanLines(cache,i,newLines,cursor);
+    if(end<0){dirty.push(i);break} // 对不上→保守全量
+    var segTxt=newLines.slice(c.start,end).join('\n');
+    var norm=function(t){return (t||'').replace(/\n/g,'')};
+    if(norm(segTxt)!==norm(c.text))dirty.push(i);
+    cursor=end;
+  }
+  if(!dirty.length)return; // 没脏段(理论不到这,前面已 short-circuit)
+  // 结构敏感:脏段导致行偏移变化时(span 错位),回退全量
+  var reqs=dirty.map(function(di){return {bid:String(di),text:segTextOf(newLines,cache,di)}});
+  Bridge.parseBlocks(reqs).then(function(res){
+    if(!isCurrent(job))return; // 被更新的提交取代
+    var map={};
+    (res&&res.nodes||[]).forEach(function(n){
+      var di=+n.bid;
+      map[di]=Engine.segRecsToNodes(n.res&&n.res.blocks||[],cache[di].start);
+    });
+    // 逐脏段校验(与 incrRefresh.finish 同规):节点数/kind 不变才原位替换
+    var ops=[];
+    for(var d=0;d<dirty.length;d++){
+      var di2=dirty[d],nodes=map[di2],c2=cache[di2];
+      if(!c2||!nodes||nodes.length!==c2.count||c2.nodeStart<0){render(newSrc);return}
+      for(var k=0;k<nodes.length;k++){
+        if(nodes[k].kind!==gNodes[c2.nodeStart+k].kind){render(newSrc);return}
+      }
+      ops.push({start:c2.nodeStart,nodes:nodes});
+    }
+    for(var o=ops.length-1;o>=0;o--){
+      [].splice.apply(gNodes,[ops[o].start,ops[o].nodes.length].concat(ops[o].nodes));
+    }
+    for(var d2=0;d2<dirty.length;d2++)cache[dirty[d2]].text=segTextOf(newLines,cache,dirty[d2]);
+    for(var o2=0;o2<ops.length;o2++){
+      for(var k2=0;k2<ops[o2].nodes.length;k2++){
+        var idx=ops[o2].start+k2;
+        gNodes[idx].bid=idx;
+        if(!replaceSegBlock(idx,gNodes[idx])){render(newSrc);return}
+      }
+    }
+    renderOutline();renderStatus();
+  }).catch(function(){render(newSrc)});
+}
+// 节点 i 的源文本文本(以行 span 取,结构变化时可能取空→由校验兜底)
+function segTextOf(newLines,cache,di){
+  var c=cache[di];
+  var next=cache[di+1];
+  var end=next?next.start:newLines.length;
+  if(end<c.start)end=c.start;
+  return newLines.slice(c.start,end).join('\n');
+}
+// 估算节点占行数(空行对齐:节点间空行对数量由后续节点 start 反推)
+function cSpanLines(cache,i,newLines,cursor){
+  var c=cache[i];
+  var next=cache[i+1];
+  if(next){
+    if(next.start<c.start)return -1; // span 错位(行数变化)→ 保守全量
+    return next.start-c.start;
+  }
+  return newLines.length-c.start;
+}

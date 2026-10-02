@@ -40,7 +40,7 @@ function applySyncNow(){
     var ta=document.getElementById('syntax-src');
     var taVal=ta?ta.value:'';
     if(taVal===gSrc)return;
-    gSrc=taVal;
+    commitSource(taVal,'syntax');
     if(currentMode==='split')syntaxIncrRender(taVal);
     updateDiagBar();
       return;
@@ -60,7 +60,7 @@ function applySyncNow(){
     if(currentMode!=='display')taSafeWrite(gSrc);
     return;
   }
-  gSrc=newSrc;
+  commitSource(newSrc,'paper');
   taSafeWrite(gSrc);
   recordHist(gSrc,true);
   var caret=saveCaret();
@@ -119,9 +119,8 @@ function focusPaper(el){
 // 语法侧 DOM(纸面)是旧的,incrRefresh 的"DOM vs cache"比对无效;
 // 此前走全量 render(整篇 parse+重建,85KB ~700ms)。这里以 ta 文本
 // 对比 gSrc 的行差异定位脏段,只重解析脏段(~20ms),纸面原位替换。
-var syntaxIncrSeq=0;
 function syntaxIncrRender(newSrc){
-  var seq=++syntaxIncrSeq;
+  var job=makeJobRev();   // (doc, revision):新提交使旧批次自然失效
   var cache=gSegCache;
   if(!cache.length){render(newSrc);return}
   var newLines=newSrc.split('\n');
@@ -141,7 +140,7 @@ function syntaxIncrRender(newSrc){
   // 结构敏感:脏段导致行偏移变化时(span 错位),回退全量
   var reqs=dirty.map(function(di){return {bid:String(di),text:segTextOf(newLines,cache,di)}});
   Bridge.parseBlocks(reqs).then(function(res){
-    if(seq!==syntaxIncrSeq)return; // 被更新的编辑取代
+    if(!isCurrent(job))return; // 被更新的提交取代
     var map={};
     (res&&res.nodes||[]).forEach(function(n){
       var di=+n.bid;

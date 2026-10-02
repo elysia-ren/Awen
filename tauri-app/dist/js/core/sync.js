@@ -20,7 +20,7 @@ function onPaperInput(e){
   // 标点成步:句末标点立即落一步,且下一笔必开新语义步
   var punct=e&&e.data&&/[。？！，、；：.?!]/.test(e.data.slice(-1));
   if(punct){ applySyncNow(); histTime=0; return }
-  repagTimer=setTimeout(applySyncNow,300);
+  repagTimer=setTimeout(applySyncNow,30);
 }
 function swapSplit(){
   var ws=document.querySelector('.workspace');
@@ -39,6 +39,51 @@ function swapSplit(){
 }
 
 function onPaperKey(e){
+  // Ctrl+A 跨页全选:每页 .paper 是独立可编辑岛,原生全选只覆盖光标所在页。
+  // 手工构造跨越全部纸面的 Range(文档级全选,Word 行为)。
+  // 跨页选区上的 Delete/Backspace:浏览器拒绝在多个独立编辑岛间删除,
+  // 程序性 deleteContents 后交回同步链(序列化→解析→整版重建)
+  if((e.key==='Delete'||e.key==='Backspace')&&!e.ctrlKey&&!e.altKey){
+    var papersAll=document.querySelectorAll('#display-pane .paper');
+    var _sel=window.getSelection();
+    if(papersAll.length>1&&_sel&&_sel.rangeCount&&!_sel.isCollapsed){
+      var sr=_sel.getRangeAt(0);
+      // 容器可能是文本节点或元素节点;closest 需在元素上调用
+      var _node=function(n){return n.nodeType===1?n:(n.parentElement||null)};
+      var sp0=_node(sr.startContainer), sp1=_node(sr.endContainer);
+      sp0=sp0&&sp0.closest?sp0.closest('#display-pane .paper'):null;
+      sp1=sp1&&sp1.closest?sp1.closest('#display-pane .paper'):null;
+      // 跨页(起点/终点不同岛)或选区横跨岛外结构(sheet/gap):都走程序性删除
+      if((sp0&&sp1&&sp0!==sp1)||(!sp0||!sp1)){
+        e.preventDefault();
+        sr.deleteContents();
+        // 清掉被删空的中间页
+        document.querySelectorAll('#display-pane .sheet').forEach(function(sh){
+          var pp=sh.querySelector('.paper');
+          if(pp&&!pp.textContent.trim()&&!pp.querySelector('img'))sh.remove();
+        });
+        document.getElementById('display-pane').dispatchEvent(new Event('input',{bubbles:true}));
+        // 删空后立刻把光标放进首张白纸的占位段(不等重渲,用户可继续输入)
+        setTimeout(function(){
+          var ph=document.querySelector('#display-pane .paper [data-bid="0"], #display-pane .paper');
+          if(ph){ph.focus();var sc=document.createRange();sc.selectNodeContents(ph);sc.collapse(true);var ss=window.getSelection();ss.removeAllRanges();ss.addRange(sc)}
+        },50);
+        return
+      }
+    }
+  }
+  if((e.ctrlKey||e.metaKey)&&!e.shiftKey&&!e.altKey&&e.key==='a'){
+    var papers=document.querySelectorAll('#display-pane .paper');
+    if(papers.length>1){
+      e.preventDefault();
+      var sel=window.getSelection(); if(!sel)return;
+      var r=document.createRange();
+      r.setStartBefore(papers[0]);
+      r.setEndAfter(papers[papers.length-1]);
+      sel.removeAllRanges(); sel.addRange(r);
+      return
+    }
+  }
   if((e.ctrlKey||e.metaKey)&&!e.shiftKey&&e.key==='b'){ e.preventDefault(); fmtCmd('bold'); return }
   if((e.ctrlKey||e.metaKey)&&!e.shiftKey&&e.key==='i'){ e.preventDefault(); fmtCmd('italic'); return }
   if((e.ctrlKey||e.metaKey)&&!e.shiftKey&&e.key==='u'){ e.preventDefault(); fmtCmd('underline'); return }
@@ -117,6 +162,13 @@ function nodeByBid(bid){
 function mergeBlocks(keepBid,goneBid){
   var keep=nodeByBid(keepBid), gone=nodeByBid(goneBid);
   if(!keep||!gone)return;
+  // 表格/对象/代码等结构块不可被合并压平(源码整段丢失);且合并是结构
+  // 操作,必须先 flush DOM 差异并清掉在途守卫,否则 render 守卫分支会用
+  // 未合并的旧 DOM 反写 gSrc(合并静默撤销)
+  if(keep.kind==='table'||keep.kind==='obj'||keep.kind==='code'||gone.kind==='table'||gone.kind==='obj'||gone.kind==='code')return;
+  if(repagTimer){clearTimeout(repagTimer);repagTimer=null}
+  if(refreshTimer){clearTimeout(refreshTimer);refreshTimer=null}
+  applySyncNow();
   var keepEl=document.querySelector('#display-pane [data-bid="'+keepBid+'"]');
   var goneEl=document.querySelector('#display-pane [data-bid="'+goneBid+'"]');
   var keepText=keepEl?Engine.inlineSource(keepEl).trim():Engine.displayText(keep.text);

@@ -79,6 +79,7 @@ struct DaemonLayoutState {
     wfk: String
     psrc: String
     plex: LexOutput
+    prev_rev: i32
 }
 
 // 增量排版状态(按文档隔离:多标签各自持有一份,互不覆盖)。
@@ -91,6 +92,7 @@ fn daemon_handle(line: String) -> String {
     let m = json_decode(line)
     let id = match m.get("id") { Some(x) { x } None { 0 } }
     let op = match m.get("op") { Some(x) { x } None { "" } }
+    let rev_in = match m.get("rev") { Some(x) { x.to_i32() } None { -1 } }
     if op != "parse" && op != "relayout" && op != "parse_blocks" && op != "pack" && op != "unpack" {
         return "{\"id\":" + f"{id}" + ",\"ok\":false,\"error\":\"未知 op: " + op + "\"}"
     }
@@ -146,7 +148,7 @@ fn daemon_handle(line: String) -> String {
                         // 拼接:剥掉 blocks_to_json 收尾 '}',接上 pages/recs
                         json = json[0..(json.len() - 1)] + "," + lay[1..lay.len()]
                         // 留存本轮流供增量排版复用(按文档);psrc/plex 是增量 lex 基线
-                        let ns = DaemonLayoutState { doc: doc, flow: flow, cfgn: [pw, ph, mg, fp, ls], wfs: wf_s, wfk: wf_k, psrc: src, plex: o2 }
+                        let ns = DaemonLayoutState { doc: doc, flow: flow, cfgn: [pw, ph, mg, fp, ls], wfs: wf_s, wfk: wf_k, psrc: src, plex: o2, prev_rev: rev_in }
                         if si < 0 {
                             g_states = g_states.push(ns)
                         } else {
@@ -218,12 +220,15 @@ fn daemon_handle(line: String) -> String {
                 if same_cfg {
                     same_cfg = pw == g_states.get(si).cfgn.get(0) && ph == g_states.get(si).cfgn.get(1) && mg == g_states.get(si).cfgn.get(2) && fp == g_states.get(si).cfgn.get(3) && ls == g_states.get(si).cfgn.get(4)
                 }
-                // cfg 一致走增量 fast(复用前缀盒+尾段重推);否则全量。
-                // 二选一:旧写法先无条件跑全量再丢结果,白烧一次排版(~2s)
+                // cfg 一致且 rev 连续才走增量(复用前缀盒+尾段重推);
+                // rev 跳变 = 中间有提交未经过引擎(psrc 基线属于旧文档状态)→ 全量
                 let tq4 = now_ms()
+                if same_cfg && rev_in > 0 && g_states.get(si).prev_rev > 0 && rev_in != g_states.get(si).prev_rev + 1 {
+                    same_cfg = false
+                }
                 if same_cfg {
                     let flow = page_flow_incremental_fast(st, g_states.get(si).flow, ctx)
-                    let ns = DaemonLayoutState { doc: doc, flow: flow, cfgn: [pw, ph, mg, fp, ls], wfs: wf_s, wfk: wf_k, psrc: src, plex: o2 }
+                    let ns = DaemonLayoutState { doc: doc, flow: flow, cfgn: [pw, ph, mg, fp, ls], wfs: wf_s, wfk: wf_k, psrc: src, plex: o2, prev_rev: rev_in }
                     if si < 0 {
                         g_states = g_states.push(ns)
                     } else {
@@ -237,7 +242,7 @@ fn daemon_handle(line: String) -> String {
                     result = lay
                 } else {
                     let flow = page_flow_with(st, ctx)
-                    let ns = DaemonLayoutState { doc: doc, flow: flow, cfgn: [pw, ph, mg, fp, ls], wfs: wf_s, wfk: wf_k, psrc: src, plex: o2 }
+                    let ns = DaemonLayoutState { doc: doc, flow: flow, cfgn: [pw, ph, mg, fp, ls], wfs: wf_s, wfk: wf_k, psrc: src, plex: o2, prev_rev: rev_in }
                     if si < 0 {
                         g_states = g_states.push(ns)
                     } else {

@@ -94,8 +94,9 @@ function buildSyntaxPane(){
     setTimeout(function(){window.scrollSyncLock=null},50);
   });
   ta.addEventListener('input',function(){
+    if(isProgrammaticInput())return;   // 程序回写引发的 input:非用户编辑
     lastEditSource='syntax';
-    window.syntaxTaInputAt=Date.now();   // 语法侧打字会话守卫(引擎响应落地时不得写回 textarea)
+    window.syntaxTaInputAt=Date.now();   // 语法侧打字会话(兜辅助,主判据 writeToken)
     recordHist(ta.value,true);
     autosizeSyntaxTa();
     setGutterCur(caretLineNumber());
@@ -146,7 +147,7 @@ function setMode(mode){
   else{ dp.style.display='flex'; dp.style.flex='1 1 auto'; sp.style.display='none' }
   if(st)st.style.display=(mode==='split')?'block':'none';
   var ta=document.getElementById('syntax-src');
-  if(ta)ta.value=gSrc;
+  if(ta)taSafeWrite(gSrc);
   // 视图页模式按钮激活态
   ['display','syntax','split'].forEach(function(m){
     var b=document.getElementById('vb-'+m);

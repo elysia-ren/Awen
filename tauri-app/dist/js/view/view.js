@@ -94,12 +94,14 @@ function buildSyntaxPane(){
     setTimeout(function(){window.scrollSyncLock=null},50);
   });
   ta.addEventListener('input',function(){
+    if(isProgrammaticInput())return;   // 程序回写引发的 input:非用户编辑
     lastEditSource='syntax';
+    window.syntaxTaInputAt=Date.now();   // 语法侧打字会话(兜辅助,主判据 writeToken)
     recordHist(ta.value,true);
     autosizeSyntaxTa();
     setGutterCur(caretLineNumber());
     if(repagTimer)clearTimeout(repagTimer);
-    repagTimer=setTimeout(applySyncNow,300);
+    repagTimer=setTimeout(applySyncNow,30);
   });
   // 光标移动跟随行高亮
   ['keyup','click'].forEach(function(ev){
@@ -145,7 +147,7 @@ function setMode(mode){
   else{ dp.style.display='flex'; dp.style.flex='1 1 auto'; sp.style.display='none' }
   if(st)st.style.display=(mode==='split')?'block':'none';
   var ta=document.getElementById('syntax-src');
-  if(ta)ta.value=gSrc;
+  if(ta)taSafeWrite(gSrc);
   // 视图页模式按钮激活态
   ['display','syntax','split'].forEach(function(m){
     var b=document.getElementById('vb-'+m);
@@ -156,12 +158,9 @@ function setMode(mode){
   applyZoom(document.getElementById('sel-zoom').value);
 }
 function fitZoom(base){
-  var v=parseFloat(base)||1;
-  if(currentMode==='split'){
-    var w=document.getElementById('display-pane').clientWidth;
-    v*=Math.min(1,(w-48)/840);
-  }
-  return v;
+  // 字号是绝对属性:5 号就是 5 号,不随窗口宽度缩放(此前分屏强制乘
+  // (w-48)/840 导致非最大化时文字变小)。空间不足交给滚动条。
+  return parseFloat(base)||1;
 }
 // 双缩放控件(状态栏+视图页)同步;自定义动态档位两边都补
 function syncZoomSelects(v){
@@ -235,7 +234,7 @@ document.addEventListener('keydown',function(e){
   }
   if(e.altKey&&mod&&!e.shiftKey){
     var k2=(e.key||'');
-    if(/^[0-6]$/.test(k2)){ e.preventDefault(); applyStyle(k2==='0'?'':k2); return }
+    if(/^[0-6]$/.test(k2)){ e.preventDefault(); applyStyle(k2); return }
   }
   if(mod&&e.shiftKey){
     var k3=(e.key||'');

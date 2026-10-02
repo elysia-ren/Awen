@@ -77,7 +77,10 @@ function applyFont(v){
   document.getElementById('sel-font').selectedIndex=0;
 }
 function applyStyle(lv){
+  // '' 是下拉占位值;快捷键/按钮走 '0'(清除标题回正文,Word 语义)
   if(lv==='')return;
+  if(lv==='0')lv='';
+  var toBody=(lv==='');
   var bel=caretBlock();
   var bid;
   if(bel)bid=+bel.dataset.bid;
@@ -90,10 +93,11 @@ function applyStyle(lv){
   }
   var b=nodeByBid(bid);
   if(!b)return;
-  var el=document.querySelector('#display-pane [data-bid="'+bid+'"]');
-  var body=el?Engine.inlineSource(el).replace(/^#+\s*/,'').trim():Engine.displayText(b.text);
+  // 跨页拆分段:同 bid 多片,按 l0 排序拼接(只取一片会丢后半段)
+  var frags=[...document.querySelectorAll('#display-pane [data-bid="'+bid+'"]')].sort(function(a,c){return (+a.dataset.l0||0)-(+c.dataset.l0||0)});
+  var body=frags.length?frags.map(function(f){return Engine.inlineSource(f)}).join('').replace(/^#+\s*/,'').trim():Engine.displayText(b.text);
   var lines=gSrc.split('\n');
-  lines.splice(b.srcStart,b.srcEnd-b.srcStart,'#'.repeat(+lv)+' '+body);
+  lines.splice(b.srcStart,b.srcEnd-b.srcStart, toBody ? body : '#'.repeat(+lv)+' '+body);
   setSrc(lines.join('\n'));
   restoreCaret({bid:bid,off:0});
 }

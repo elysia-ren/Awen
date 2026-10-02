@@ -11,7 +11,21 @@ function currentDocId(){
 }
 // 渲染入口(异步):源码 → Aine 权威解析 → ingest → 分页 → DOM
 // seq 防过期:新请求发出后,旧响应丢弃
-var renderSeq=0;
+var lastRenderedSrc=null;   // 投影新鲜度:投影已落地到的 sourceRevision(数值;null=从未)
+// 语法 textarea 安全写回:语法侧打字会话进行中(800ms 内动过/焦点仍在)一律不写,
+// 否则会用旧快照覆盖用户新输入(即"语法侧输入回退")。跳过是安全的:
+// 用户自己的 applySyncNow 会以 ta.value 为准推进 gSrc,渲染由其尾部刷新补。
+function taSafeWrite(nextSrc){
+  var ta=document.getElementById('syntax-src');
+  if(!ta)return;
+  // 用户正在语法侧编辑:焦点在 + (程序写令牌不在场 + 800ms 内动过)。
+  // writeToken 是主判据(确定性);800ms 窗口仅兜"焦点被程序移走"的边角
+  if(window.lastEditSource==='syntax'&&!isProgrammaticInput()
+     &&(document.activeElement===ta||Date.now()-(window.syntaxTaInputAt||0)<800))return;
+  programmaticWrite(function(){
+    if(ta.value!==nextSrc)ta.value=nextSrc;
+  });
+}
 // renderPending=true 表示权威渲染在途,纸面 DOM 还是旧结构——
 // 期间 serializeAll 只会拿到旧内容,applySyncNow 必须推迟而不是覆盖 gSrc
 var renderPending=false;
@@ -39,15 +53,14 @@ function parseSafe(src,cfg,doc){
   });
 }
 function render(src,caret,done){
-  gSrc=src;
+  var rev=commitSource(src,'render');   // 唯一权威提交:推代次=全部旧任务自然失效
   renderPending=true;
-  incrSeq++;                      // 使在途的增量刷新过期
-  var seq=++renderSeq;
+  var job=makeJobRev();          // (doc, revision) 快照:统一有效性判定
   var cfgReq=Engine.layoutCfg();
   if(window.__orient==='landscape'){var t=cfgReq.pw;cfgReq.pw=cfgReq.ph;cfgReq.ph=t}
       if(window.gWidths&&window.gWidths.font===(CFG.FONT||'')){cfgReq.widths=window.gWidths.data;cfgReq.widths.k=(window.gWidths.data.w||[]).join(',')}   // undefined 键不会写入 JSON(null 会送 daemon 崩)
   parseSafe(src,cfgReq,currentDocId()).then(function(res){
-    if(seq!==renderSeq)return;
+    if(!isCurrent(job))return;
     // 打字会话进行中或有未落盘编辑、或光标停在空段上:不重建纸面(重建会把
     // 光标恢复到旧快照位置,窗口期内的输入错位——即"输入回退")。改为"纸面为准":
     // 立即序列化当前 DOM 与 gSrc 比对,有差异就推进 gSrc 并重新调度解析;
@@ -55,23 +68,75 @@ function render(src,caret,done){
     var emptyHold=emptyParaUnderCaret();
     if(repagTimer||refreshTimer||window.composing||emptyHold||Date.now()-(window.lastPaperInputAt||0)<800){
       renderPending=false;
-      if(!emptyHold){
-        var curSrc=Engine.serializeAll();
-        if(curSrc!==gSrc){
-          gSrc=curSrc;
-          recordHist(curSrc,true);
-          // 显→语同步:守卫期推进的 gSrc 也要落语法框(此前只等全量渲染,分屏下语法侧滞后)
-          var taH=document.getElementById('syntax-src');
-          if(taH&&currentMode!=='display'&&taH.value!==gSrc)taH.value=gSrc;
-          scheduleNativeRefresh(saveCaret());
-        }
+      // 文档已切换:旧 DOM 属于别的文档,serializeAll 会串档,直接放弃本次落地
+      if(!isCurrent(job))return;
+      if(emptyHold){
+        // emptyHold:光标停在空段上不能重建,但必须安排补跑——否则语法侧的
+        // 修改永远不落纸面(即"另一边不会渲染")
+        setTimeout(function(){if(isCurrent(job))scheduleNativeRefresh(saveCaret())},400);
+        return;
+      }
+      // 语法侧来源:纸面 DOM 落后于 gSrc,不能用旧 DOM 反写(会把语法侧输入回退)
+      if(lastEditSource==='syntax'){
+        setTimeout(function(){if(isCurrent(job))render(gSrc)},300);
+        return;
+      }
+      var curSrc=Engine.serializeAll();
+      if(curSrc!==gSrc){
+        commitSource(curSrc,'paper-guard');
+        recordHist(curSrc,true);
+        // 显→语同步:守卫期推进的 gSrc 也要落语法框(此前只等全量渲染,分屏下语法侧滞后)
+        if(currentMode!=='display')taSafeWrite(gSrc);
+        scheduleNativeRefresh(saveCaret());
       }
       return;
     }
     renderPending=false;
     var caretNow=saveCaret();
-    gNodes=Engine.ingestNative(res.blocks||[],gSrc);
+    var blocks=res.blocks||[];
+    // ── 差分落地:块数一致且 kind 未变时,只重建变化的块 ──
+    // 语法侧打字此前每次都全量重建 800+ 块 DOM(秒级卡顿的主因)。
+    // 页分配(recs)有移动或表格跨页片段在场时仍走全量重建。
+    var canDiff=gSegCache.length===blocks.length&&blocks.length>0&&gNodes.length===gSegCache.length;
+    if(canDiff){
+      for(var bi=0;bi<blocks.length;bi++){
+        if(blocks[bi].kind!==gNodes[bi].kind){canDiff=false;break}
+      }
+      if(canDiff&&(res.recs||[]).length!==blocks.length)canDiff=false;
+    }
+    if(canDiff){
+      var srcLines=gSrc.split('\n');
+      var newNodes=[],failed=false;
+      for(var bi2=0;bi2<blocks.length;bi2++){
+        var rec=blocks[bi2];
+        var nn=Engine.segRecsToNodes([rec],0)[0];
+        newNodes.push(nn);
+        var oldTxt=gSegCache[bi2].text;
+        var newTxt=srcLines.slice(rec.srcStart||0,rec.srcEnd||0).join('\n');
+        if(oldTxt!==newTxt&&!replaceSegBlock(bi2,nn)){failed=true;break}
+      }
+      if(!failed){
+        gNodes=newNodes;
+        for(var bfi=0;bfi<gNodes.length;bfi++)gNodes[bfi].bid=bfi;
+        gSegCache=buildSegCache(gSrc,gNodes);
+        lastRenderedSrc=sourceRevision;
+        Engine.applyDocsets(gNodes,res.docsets);
+        CFG=Engine.getConfig();
+        if(window.__orient==='landscape')Engine.setPage({PAGE_W:CFG.PAGE_H,PAGE_H:CFG.PAGE_W});
+        ensureFontWidths();
+        gPages=Engine.layoutFromEngine(gNodes,res);
+        nativeDiags={src:gSrc,ds:res.diags||[]};
+        updateDiagBar();
+        renderOutline();
+        renderStatus();
+        if(caretNow)restoreCaret(caretNow);
+        if(done)done();
+        return;
+      }
+    }
+    gNodes=Engine.ingestNative(blocks,gSrc);
     gSegCache=buildSegCache(gSrc,gNodes);
+    lastRenderedSrc=sourceRevision;
     Engine.applyDocsets(gNodes,res.docsets);   // 文档级设置生效(引擎结构化下发,十语种别名归一)
     CFG=Engine.getConfig();
     if(window.__orient==='landscape')Engine.setPage({PAGE_W:CFG.PAGE_H,PAGE_H:CFG.PAGE_W});
@@ -84,6 +149,7 @@ function render(src,caret,done){
     if(caretNow)restoreCaret(caretNow);
     if(done)done();
   }).catch(function(e){
+    if(!isCurrent(job))return;   // 过期请求的失败不得干扰在途渲染
     renderPending=false;
     document.getElementById('st-diag').textContent='解析失败';
     console.error(e);
@@ -115,6 +181,12 @@ function renderNodes(){
     paper.style.setProperty('--fl',CFG.FIRSTLINE||'0em');
     paper.style.setProperty('--ps',CFG.PARA_SPACING||'0em');
     paper.dataset.page=p;
+    // 空页占位:删空后仍保留一个可聚焦空段(光标有落点,Word 行为)
+    if(pageList[p].length===0&&p===0){
+      var ep=document.createElement('div');
+      ep.className='para'; ep.dataset.bid='0'; ep.dataset.kind='para';
+      paper.appendChild(ep);
+    }
     for(var k=0;k<pageList[p].length;k++){
       var item=pageList[p][k], b=item.b;
       if(b.kind==='toc'){
@@ -229,8 +301,7 @@ function renderNodes(){
   renderOutline();
   renderStatus();
   updateGutter();
-  var ta=document.getElementById('syntax-src');
-  if(ta&&ta.value!==gSrc)ta.value=gSrc;
+  taSafeWrite(gSrc);
   splitTableFragments();
   // 同步文档级设置控件(每次渲染后,切文档/改源码均保持一致)
   var fl=document.getElementById('btn-firstline');
@@ -406,7 +477,6 @@ function emptyParaUnderCaret(){
 //      (只有被编辑的块重渲,其余纸面 DOM 不动——光标/滚动/选中全部无扰)
 //   4. 任何结构变化(段数/节点数/kind 变)或分页数变 → 返回 false 走全量
 var gSegCache=[];      // [{text,start,count}] 与 gNodes 对齐(全文渲染后重建)
-var incrSeq=0;         // 增量会话序号:全量 render/新增量都会使其过期
 
 // gSrc → 段缓存(与 serializeSegments 的 DOM 分段严格 1:1):
 // 每个有 span 的节点一段(text=节点源码行,start=srcStart,nodeStart=gNodes
@@ -439,6 +509,14 @@ function replaceSegBlock(idx,node){
   try{ nel=makeBlock(node,{whole:true}) }catch(e){ return false }
   if(!nel||nel.nodeType!==1)return false;
   nel.dataset.bid=String(idx);
+  // obj 块的原位替换必须补绑交互(click 开属性面板)——全量路径在
+  // renderNodes 里绑,差分路径此前漏绑(点不了图 = 本 bug)
+  if(node.kind==='obj'){
+    nel.style.cursor='pointer';
+    nel.title='点击设置图片属性(宽度/对齐)';
+    (function(nb){nel.addEventListener('click',function(){openImagePanel(nb.bid)})})(node);
+    nel.dataset.bid=String(idx);
+  }
   el.replaceWith(nel);
   return true;
 }
@@ -471,15 +549,17 @@ function ensureFontWidths(){
 var relayoutTimer=null;
 function scheduleRelayout(){
   if(relayoutTimer)clearTimeout(relayoutTimer);
-  relayoutTimer=setTimeout(applyRelayout,1500);
+  relayoutTimer=setTimeout(applyRelayout,800);
 }
 function applyRelayout(){
   relayoutTimer=null;
+  var job=makeJobRev();   // (doc, revision):期间的任何新提交使本次自愈失效
   if(window.composing||Date.now()-(window.lastPaperInputAt||0)<800)return;
   var cfgReq=Engine.layoutCfg();
   if(window.__orient==='landscape'){var t=cfgReq.pw;cfgReq.pw=cfgReq.ph;cfgReq.ph=t}
       if(window.gWidths&&window.gWidths.font===(CFG.FONT||'')){cfgReq.widths=window.gWidths.data;cfgReq.widths.k=(window.gWidths.data.w||[]).join(',')}   // undefined 键不会写入 JSON(null 会送 daemon 崩)
   Bridge.relayout(gSrc,cfgReq,currentDocId()).then(function(res){
+    if(!isCurrent(job))return;   // 在途期间有新提交:过期响应直接丢弃
     if(window.composing||Date.now()-(window.lastPaperInputAt||0)<800)return;
     var newPages=Engine.layoutFromEngine(gNodes,res);
     // 对比页分配是否变化(bid 序列逐页比对)
@@ -506,6 +586,9 @@ function applyRelayout(){
 // 增量刷新入口。返回 true=增量完成;false=需要全量 render。
 function incrRefresh(freshCaret){
   if(!document.querySelector('#display-pane .paper'))return false;
+  // gSrc 领先于纸面(语法侧编辑)→ 增量差分看不到脏段(DOM==cache 双旧),
+  // 必须交回全量渲染(render 内部有差分落地,只重建变化块)
+  if(lastRenderedSrc!==null&&lastRenderedSrc!==sourceRevision)return false;
   var sg=Engine.serializeSegments();
   var lines=sg.lines,segs=sg.segs;
   var cache=gSegCache;
@@ -524,9 +607,9 @@ function incrRefresh(freshCaret){
       localMap[di]=[{kind:'para',level:0,srcStart:segs[di].l0,srcEnd:segs[di].l1,text:'',lang:''}];
     }else reqs.push({bid:String(di),text:segs[di].text});
   });
-  var seq=++incrSeq;
+  var job=makeJobRev();   // 纸面增量不改源:落地时校验期间无新提交
   var finish=function(map){
-    if(seq!==incrSeq)return false;
+    if(!isCurrent(job))return false;
     var caret=saveCaret();
     var ops=[];
     for(var d=0;d<dirty.length;d++){
@@ -558,6 +641,7 @@ function incrRefresh(freshCaret){
     return finish(localMap);
   }
   Bridge.parseBlocks(reqs).then(function(res){
+    if(lastRenderedSrc!==sourceRevision)return false;   // 在途期间 gSrc 已被推进:本批作废
     var map=localMap;
     (res&&res.nodes||[]).forEach(function(n){
       var di=+n.bid;
