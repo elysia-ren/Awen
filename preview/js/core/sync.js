@@ -20,7 +20,7 @@ function onPaperInput(e){
   // 标点成步:句末标点立即落一步,且下一笔必开新语义步
   var punct=e&&e.data&&/[。？！，、；：.?!]/.test(e.data.slice(-1));
   if(punct){ applySyncNow(); histTime=0; return }
-  repagTimer=setTimeout(applySyncNow,150);
+  repagTimer=setTimeout(applySyncNow,30);
 }
 function swapSplit(){
   var ws=document.querySelector('.workspace');
