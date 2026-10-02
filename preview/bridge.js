@@ -19,7 +19,7 @@ window.Bridge={
   // cfg:{pw,ph,mg,fp,ls} 页面模型(mm/pt/行距倍数);在场时引擎同次解析附带权威分页
   parse:function(src,cfg,doc){
     if(!tauri)return Promise.reject(new Error('非桌面环境'));
-    return tauri.core.invoke('core_parse',{src:src,cfg:cfg?JSON.stringify(cfg):null,doc:doc||null}).then(function(jsonText){
+    return tauri.core.invoke('core_parse',{src:src,cfg:cfg?JSON.stringify(cfg):null,doc:doc||null,rev:(typeof sourceRevision!=='undefined')?sourceRevision:null}).then(function(jsonText){
       var res=(typeof jsonText==='string')?JSON.parse(jsonText):jsonText;
       res.native=true;
       if(!res.diags)res.diags=[];
@@ -45,7 +45,7 @@ window.Bridge={
   // 增量排版:引擎复用上一轮未变前缀,返回 {pages,recs}
   relayout:function(src,cfg,doc){
     if(!tauri)return Promise.reject(new Error('非桌面环境'));
-    return tauri.core.invoke('core_relayout',{src:src,cfg:JSON.stringify(cfg),doc:doc||null}).then(function(jsonText){
+    return tauri.core.invoke('core_relayout',{src:src,cfg:JSON.stringify(cfg),doc:doc||null,rev:(typeof sourceRevision!=='undefined')?sourceRevision:null}).then(function(jsonText){
       return (typeof jsonText==='string')?JSON.parse(jsonText):jsonText;
     });
   },

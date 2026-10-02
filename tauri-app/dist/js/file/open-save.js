@@ -43,7 +43,7 @@ function doSave(){
     }catch(e){}
     Bridge.awenContainerSave(currentFilePath,gSrc,docId).then(function(res){
       if(res&&res.source!==undefined){
-        gSrc=res.source;
+        commitSource(res.source,'container');
         var ta=document.getElementById('syntax-src');
         if(ta)ta.value=gSrc;
         render(gSrc);
