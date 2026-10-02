@@ -45,11 +45,16 @@ function onPaperKey(e){
   // 程序性 deleteContents 后交回同步链(序列化→解析→整版重建)
   if((e.key==='Delete'||e.key==='Backspace')&&!e.ctrlKey&&!e.altKey){
     var papersAll=document.querySelectorAll('#display-pane .paper');
-    if(papersAll.length>1&&sel&&sel.rangeCount){
-      var sr=sel.getRangeAt(0);
-      var sp0=sr.startContainer.closest?sr.startContainer.closest('.paper'):null;
-      var sp1=sr.endContainer.closest?sr.endContainer.closest('.paper'):null;
-      if(sp0&&sp1&&sp0!==sp1){
+    var _sel=window.getSelection();
+    if(papersAll.length>1&&_sel&&_sel.rangeCount&&!_sel.isCollapsed){
+      var sr=_sel.getRangeAt(0);
+      // 容器可能是文本节点或元素节点;closest 需在元素上调用
+      var _node=function(n){return n.nodeType===1?n:(n.parentElement||null)};
+      var sp0=_node(sr.startContainer), sp1=_node(sr.endContainer);
+      sp0=sp0&&sp0.closest?sp0.closest('#display-pane .paper'):null;
+      sp1=sp1&&sp1.closest?sp1.closest('#display-pane .paper'):null;
+      // 跨页(起点/终点不同岛)或选区横跨岛外结构(sheet/gap):都走程序性删除
+      if((sp0&&sp1&&sp0!==sp1)||(!sp0||!sp1)){
         e.preventDefault();
         sr.deleteContents();
         // 清掉被删空的中间页
@@ -58,6 +63,11 @@ function onPaperKey(e){
           if(pp&&!pp.textContent.trim()&&!pp.querySelector('img'))sh.remove();
         });
         document.getElementById('display-pane').dispatchEvent(new Event('input',{bubbles:true}));
+        // 删空后立刻把光标放进首张白纸的占位段(不等重渲,用户可继续输入)
+        setTimeout(function(){
+          var ph=document.querySelector('#display-pane .paper [data-bid="0"], #display-pane .paper');
+          if(ph){ph.focus();var sc=document.createRange();sc.selectNodeContents(ph);sc.collapse(true);var ss=window.getSelection();ss.removeAllRanges();ss.addRange(sc)}
+        },50);
         return
       }
     }
