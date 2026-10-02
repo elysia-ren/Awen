@@ -508,6 +508,14 @@ function replaceSegBlock(idx,node){
   try{ nel=makeBlock(node,{whole:true}) }catch(e){ return false }
   if(!nel||nel.nodeType!==1)return false;
   nel.dataset.bid=String(idx);
+  // obj 块的原位替换必须补绑交互(click 开属性面板)——全量路径在
+  // renderNodes 里绑,差分路径此前漏绑(点不了图 = 本 bug)
+  if(node.kind==='obj'){
+    nel.style.cursor='pointer';
+    nel.title='点击设置图片属性(宽度/对齐)';
+    (function(nb){nel.addEventListener('click',function(){openImagePanel(nb.bid)})})(node);
+    nel.dataset.bid=String(idx);
+  }
   el.replaceWith(nel);
   return true;
 }

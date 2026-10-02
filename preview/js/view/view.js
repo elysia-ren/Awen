@@ -100,7 +100,7 @@ function buildSyntaxPane(){
     autosizeSyntaxTa();
     setGutterCur(caretLineNumber());
     if(repagTimer)clearTimeout(repagTimer);
-    repagTimer=setTimeout(applySyncNow,150);
+    repagTimer=setTimeout(applySyncNow,30);
   });
   // 光标移动跟随行高亮
   ['keyup','click'].forEach(function(ev){
