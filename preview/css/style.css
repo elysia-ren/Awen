@@ -189,7 +189,7 @@ button:disabled{opacity:.35;pointer-events:none}
 .sheet{width:210mm;min-height:297mm;background:#fff;box-shadow:0 1px 4px rgba(0,0,0,.14),0 0 1px rgba(0,0,0,.08);padding:20mm;position:relative;flex:none}
 .sheet .folio{position:absolute;bottom:8mm;left:0;right:0;text-align:center;font-size:9pt;color:#b5b7bb;font-family:var(--sans)}
 .paper{font-family:var(--serif);font-size:11pt;line-height:1.9;color:#303238;line-break:strict;outline:none}
-.paper [data-bid]:empty::after{content:'¶';color:#ccc;font-size:10pt}
+.paper [data-bid]:empty::after{content:''}
 .paper [data-bid]{position:relative;min-height:1em}
 .paper [data-bid]:focus-within{background:rgba(37,99,235,.03)}
 .paper .gap{height:0.55em}

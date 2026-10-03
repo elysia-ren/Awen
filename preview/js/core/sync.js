@@ -61,7 +61,9 @@ function onPaperKey(e){
   if((e.key==='Delete'||e.key==='Backspace')&&!e.ctrlKey&&!e.altKey){
     var papersAll=document.querySelectorAll('#display-pane .paper');
     var _sel=window.getSelection();
-    if(papersAll.length>1&&_sel&&_sel.rangeCount&&!_sel.isCollapsed){
+    // 单页也检测:全选 Range 的起点在 .paper 之外(display-pane 层),
+    // 同样需要程序性删除(原生删除对非编辑块不生效→幸存块回写=内容回退)
+    if(papersAll.length>=1&&_sel&&_sel.rangeCount&&!_sel.isCollapsed){
       var sr=_sel.getRangeAt(0);
       // 容器可能是文本节点或元素节点;closest 需在元素上调用
       var _node=function(n){return n.nodeType===1?n:(n.parentElement||null)};
@@ -89,7 +91,11 @@ function onPaperKey(e){
   }
   if((e.ctrlKey||e.metaKey)&&!e.shiftKey&&!e.altKey&&e.key==='a'){
     var papers=document.querySelectorAll('#display-pane .paper');
-    if(papers.length>1){
+    // 单页也走手工 Range:原生全选只覆盖文本节点,图片/表格等非编辑块
+    // 不入选区,Delete 后序列化把幸存块写回——表现为"删了又回来"。
+    // setStartBefore/setEndAfter 把纸面整块(含非编辑块)纳入选区,
+    // 配合上面的跨页删除链统一处理。
+    if(papers.length>=1){
       e.preventDefault();
       var sel=window.getSelection(); if(!sel)return;
       var r=document.createRange();
