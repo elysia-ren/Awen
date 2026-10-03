@@ -86,7 +86,9 @@ function render(src,caret,done){
       // paper-guard 只在"gSrc 的最后一次提交确实来自纸面"时才可信:
       // 文档切换(setSrc/openDocument,origin='render')后 DOM 还是旧文档内容,
       // 无条件反写会把刚打开的文档静默回退成旧内容(数据回退根因之一)
-      if(window.lastEditSource==='paper'&&lastCommitOrigin()==='paper'){
+      // 组合期间 DOM 含拼音中间态,序列化会污染源码——跳过守卫,
+      // compositionend 的补同步(30ms)负责接管
+      if(!window.composing&&window.lastEditSource==='paper'&&lastCommitOrigin()==='paper'){
         var curSrc=Engine.serializeAll();
         if(curSrc!==gSrc){
           commitSource(curSrc,'paper-guard');
@@ -97,7 +99,7 @@ function render(src,caret,done){
       }
       // 新 gSrc 必须被渲染:没有在途定时器就自己安排(此前的分支只依赖
       // refreshTimer 在场, composing/时间窗引发的 defer 可能无人补跑)
-      if(!refreshTimer&&!repagTimer)scheduleNativeRefresh(saveCaret());
+      if(!window.composing&&!refreshTimer&&!repagTimer)scheduleNativeRefresh(saveCaret());
       return;
     }
     renderPending=false;

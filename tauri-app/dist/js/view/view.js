@@ -95,6 +95,11 @@ function buildSyntaxPane(){
   });
   ta.addEventListener('input',function(){
     if(isProgrammaticInput())return;   // 程序回写引发的 input:非用户编辑
+    if(window.composing){   // 组合中间态:只做视觉辅助,不入历史/源码(compositionend 统一补同步)
+      autosizeSyntaxTa();
+      setGutterCur(caretLineNumber());
+      return;
+    }
     lastEditSource='syntax';
     window.syntaxTaInputAt=Date.now();   // 语法侧打字会话(兜辅助,主判据 writeToken)
     recordHist(ta.value,true);
