@@ -34,15 +34,19 @@ function isProgrammaticInput() {
 // ── 权威提交 ──
 // 所有产生新文档状态的写入点(语法侧编辑/纸面序列化/撤销/容器加载/
 // 程序化修改)必须经此:推进 revision 并可选拉起调度
+var _lastCommitOrigin = '';   // gSrc 最近一次提交的来源;render 落地的
+                              // paper-guard 依此判断 DOM 序列化是否可信
 function commitSource(newSrc, origin) {
   if (newSrc === gSrc) return sourceRevision; // 幂等:同串不推代次
   gSrc = newSrc;
   sourceRevision++;
+  _lastCommitOrigin = origin || '';
   if (window.__srcListeners) {
     window.__srcListeners.forEach(function (f) { f(sourceRevision, origin); });
   }
   return sourceRevision;
 }
+function lastCommitOrigin() { return _lastCommitOrigin; }
 function onSourceCommit(fn) {
   if (!window.__srcListeners) window.__srcListeners = [];
   window.__srcListeners.push(fn);

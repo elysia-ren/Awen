@@ -65,14 +65,16 @@ function render(src,caret,done){
     // 光标恢复到旧快照位置,窗口期内的输入错位——即"输入回退")。改为"纸面为准":
     // 立即序列化当前 DOM 与 gSrc 比对,有差异就推进 gSrc 并重新调度解析;
     // 完全一致(纯排版刷新)才安全重建,重建前后保住光标。
-    var emptyHold=emptyParaUnderCaret();
+    // emptyHold 只在纸面打字会话内成立:gSrc 最后一次提交来自 'render'
+    // (换文档/程序化提交)时,空段光标是旧文档残留,按它 defer 会形成
+    // "defer→补跑→再 defer"死循环,新文档永远不重建(首屏一张空纸)
+    var paperTyping=window.lastEditSource==='paper'&&lastCommitOrigin()==='paper';
+    var emptyHold=paperTyping&&emptyParaUnderCaret();
     if(repagTimer||refreshTimer||window.composing||emptyHold||Date.now()-(window.lastPaperInputAt||0)<800){
       renderPending=false;
       // 文档已切换:旧 DOM 属于别的文档,serializeAll 会串档,直接放弃本次落地
       if(!isCurrent(job))return;
       if(emptyHold){
-        // emptyHold:光标停在空段上不能重建,但必须安排补跑——否则语法侧的
-        // 修改永远不落纸面(即"另一边不会渲染")
         setTimeout(function(){if(isCurrent(job))scheduleNativeRefresh(saveCaret())},400);
         return;
       }
@@ -81,14 +83,21 @@ function render(src,caret,done){
         setTimeout(function(){if(isCurrent(job))render(gSrc)},300);
         return;
       }
-      var curSrc=Engine.serializeAll();
-      if(curSrc!==gSrc){
-        commitSource(curSrc,'paper-guard');
-        recordHist(curSrc,true);
-        // 显→语同步:守卫期推进的 gSrc 也要落语法框(此前只等全量渲染,分屏下语法侧滞后)
-        if(currentMode!=='display')taSafeWrite(gSrc);
-        scheduleNativeRefresh(saveCaret());
+      // paper-guard 只在"gSrc 的最后一次提交确实来自纸面"时才可信:
+      // 文档切换(setSrc/openDocument,origin='render')后 DOM 还是旧文档内容,
+      // 无条件反写会把刚打开的文档静默回退成旧内容(数据回退根因之一)
+      if(window.lastEditSource==='paper'&&lastCommitOrigin()==='paper'){
+        var curSrc=Engine.serializeAll();
+        if(curSrc!==gSrc){
+          commitSource(curSrc,'paper-guard');
+          recordHist(curSrc,true);
+          // 显→语同步:守卫期推进的 gSrc 也要落语法框(此前只等全量渲染,分屏下语法侧滞后)
+          if(currentMode!=='display')taSafeWrite(gSrc);
+        }
       }
+      // 新 gSrc 必须被渲染:没有在途定时器就自己安排(此前的分支只依赖
+      // refreshTimer 在场, composing/时间窗引发的 defer 可能无人补跑)
+      if(!refreshTimer&&!repagTimer)scheduleNativeRefresh(saveCaret());
       return;
     }
     renderPending=false;
@@ -129,7 +138,12 @@ function render(src,caret,done){
         updateDiagBar();
         renderOutline();
         renderStatus();
-        if(caretNow)restoreCaret(caretNow);
+    if(caretNow)restoreCaret(caretNow);
+        else if(!blocks.length&&document.activeElement&&!(document.activeElement.closest&&document.activeElement.closest('.paper'))){
+          // 删空后 caretNow 缺失(重建前选区已被清/焦点被掀):空文档必落占位段,
+          // 否则焦点停在 body 无处输入(Word 行为:删空后光标停在文档开头)
+          restoreCaret({bid:'0',off:0});
+        }
         if(done)done();
         return;
       }
@@ -147,6 +161,11 @@ function render(src,caret,done){
     nativeDiags={src:gSrc,ds:res.diags||[]};
     updateDiagBar();
     if(caretNow)restoreCaret(caretNow);
+        else if(!blocks.length&&document.activeElement&&!(document.activeElement.closest&&document.activeElement.closest('.paper'))){
+          // 删空后 caretNow 缺失(重建前选区已被清/焦点被掀):空文档必落占位段,
+          // 否则焦点停在 body 无处输入(Word 行为:删空后光标停在文档开头)
+          restoreCaret({bid:'0',off:0});
+        }
     if(done)done();
   }).catch(function(e){
     if(!isCurrent(job))return;   // 过期请求的失败不得干扰在途渲染

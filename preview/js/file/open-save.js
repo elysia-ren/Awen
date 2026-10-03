@@ -88,9 +88,11 @@ function newDoc(){
     openFiles[activeFile].src=gSrc;
     openFiles[activeFile].dirty=docDirty;
   }
+  // 先立新标签身份再 setSrc:渲染 job 携带新 doc id,落地才不被 isCurrent 拒收
   document.getElementById('docname').value='未命名文档';
-  setSrc('# 未命名文档\n\n');
   addFileTab('未命名文档');
+  setSrc('# 未命名文档\n\n');
+  openFiles[activeFile].src=gSrc;
   markClean();
 }
 // 打开文档统一入口:对话框/命令行/最近文件共用;当前是干净空白文档则复用标签
@@ -105,14 +107,20 @@ function openDocument(res){
     reuse=(cur.name==='未命名文档'&&!docDirty);
     if(!reuse){ cur.src=gSrc; cur.dirty=docDirty }
   }
-  document.getElementById('docname').value=name;
-  setSrc(res.src);
   if(reuse){
-    openFiles[activeFile]={name:name,src:gSrc,dirty:false,path:res.path||null,media_dir:media_dir};
+    // 原位改字段保留 doc id:整对象替换会抹掉 id,setSrc 的渲染 job 落地必被拒
+    var cur2=openFiles[activeFile];
+    cur2.name=name; cur2.src=res.src; cur2.dirty=false; cur2.path=res.path||null; cur2.media_dir=media_dir;
+    document.getElementById('docname').value=name;
+    setSrc(res.src);
     renderFileTabs();
   }else{
+    // 先立新标签身份再 setSrc(同 newDoc)
     addFileTab(name,res.path||null);
     openFiles[activeFile].media_dir=media_dir;
+    document.getElementById('docname').value=name;
+    setSrc(res.src);
+    openFiles[activeFile].src=gSrc;
   }
   currentFilePath=res.path||null;
   updateTitle();

@@ -75,10 +75,19 @@ function importDocx(){
           reuse=(cur.name==='未命名文档'&&!docDirty);
           if(!reuse){ cur.src=gSrc; cur.dirty=docDirty }
         }
-        document.getElementById('docname').value=name;
-        setSrc(src);
-        if(reuse){ openFiles[activeFile]={name:name,src:gSrc,dirty:false,path:null}; renderFileTabs() }
-        else addFileTab(name,null);
+        if(reuse){
+          // 原位改字段保留 doc id(整对象替换会让 setSrc 的渲染 job 落地被拒)
+          cur.name=name; cur.src=src; cur.dirty=false; cur.path=null;
+          document.getElementById('docname').value=name;
+          setSrc(src);
+          renderFileTabs();
+        }else{
+          // 先立新标签身份再 setSrc(同 openDocument)
+          addFileTab(name,null);
+          document.getElementById('docname').value=name;
+          setSrc(src);
+          openFiles[activeFile].src=gSrc;
+        }
         currentFilePath=null;
         updateTitle(); markClean();
         setTimeout(function(){
