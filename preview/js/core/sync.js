@@ -5,13 +5,28 @@ var repagTimer=null,lastEditSource=null;
 // 进入源码并触发纸面重建,会把输入法正在组词的文本拦腰清掉(用户看到的
 // "输入回退")。compositionend 后再走正常节流同步。
 var composing=false;
+var compSide=null;   // 组合发生在哪一侧:compositionend 补同步时归属 lastEditSource
 document.addEventListener('compositionstart',function(){
   composing=true;
+  // 组合期间 input 被吞,onPaperInput 不更新 lastEditSource——若此前编辑过
+  // 语法侧,compositionend 补同步会误走语法分支,把纸面刚上屏的文本回退掉
+  var ae=document.activeElement;
+  compSide=(ae&&ae.id==='syntax-src')?'syntax':((ae&&ae.closest&&ae.closest('#display-pane'))?'paper':(lastEditSource||'paper'));
   if(repagTimer){clearTimeout(repagTimer);repagTimer=null}
 });
 document.addEventListener('compositionend',function(){
   composing=false;
   window.lastPaperInputAt=Date.now();
+  // 上屏文本的最终 input 在 compositionend 之前到达(已被 composing 吞掉),
+  // 之后不再有 input:必须在此补一步同步,否则中文打完源码不推进——
+  // 按 Enter(产生 composition 外的 input)才同步的根因
+  if(compSide){
+    lastEditSource=compSide;
+    if(compSide==='syntax'){var ta=document.getElementById('syntax-src');if(ta)recordHist(ta.value,true)}
+    compSide=null;
+  }
+  if(repagTimer)clearTimeout(repagTimer);
+  repagTimer=setTimeout(applySyncNow,30);
 });
 function onPaperInput(e){
   window.lastPaperInputAt=Date.now();
