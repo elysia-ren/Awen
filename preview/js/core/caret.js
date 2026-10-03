@@ -89,7 +89,19 @@ function saveCaret(){
   if(!s.rangeCount)return null;
   var node=s.getRangeAt(0).startContainer;
   var blk=node.nodeType===1?(node.closest?node.closest('[data-bid]'):null):(node.parentElement&&node.parentElement.closest('[data-bid]'));
-  if(!blk)return null;
+  if(!blk){
+    // 光标不在任何块内:跨页选区(Ctrl+A)的起点在 display-pane 层(纸面之间),
+    // 删空后兜底光标也可能落在 .paper 本体——都按"该纸首个块/空文档占位"恢复
+    var holder=node.nodeType===1?node:node.parentElement;
+    var paper=holder&&holder.closest?holder.closest('.paper'):null;
+    if(!paper&&holder&&holder.id==='display-pane')paper=holder.querySelector('.paper');
+    if(!paper&&holder&&holder.closest&&holder.closest('#display-pane'))paper=holder.closest('#display-pane').querySelector('.paper');
+    if(!paper)return null;
+    blk=paper.querySelector('[data-bid]');
+    // 纸面无任何块(跨页全删后的旧 DOM):新渲染必是空文档,占位段恒 bid='0'
+    if(!blk)return{bid:'0',off:0};
+    return{bid:blk.dataset.bid,off:0};
+  }
   var r=s.getRangeAt(0).cloneRange();
   r.selectNodeContents(blk);
   r.setEnd(s.getRangeAt(0).endContainer,s.getRangeAt(0).endOffset);
@@ -101,7 +113,7 @@ function restoreCaret(c){
   if(!el)return;
   var walker=document.createTreeWalker(el,NodeFilter.SHOW_TEXT), n, left=c.off, last=null, first=null;
   while((n=walker.nextNode())){ if(first===null)first=n; if(n.length>=left){ setSel(n,left); focusPaper(el); return } left-=n.length; last=n }
-  if(last){ setSel(last,last.length) } else if(first){ setSel(first,0) }
+  if(last){ setSel(last,last.length) } else if(first){ setSel(first,0) } else { setSel(el,0) }
   focusPaper(el);
 }
 function setSel(node,off){

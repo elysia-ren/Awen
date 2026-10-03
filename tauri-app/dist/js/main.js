@@ -48,9 +48,12 @@
   }
 
   buildSyntaxPane();
-  setSrc(src);
-  // 多文件模型:启动即有一个空白(或注入)文档标签
+  // 先立文档身份再提交内容:setSrc 的渲染 job 携带 currentDocId(),落地时经
+  // isCurrent 校验;若先 setSrc 后建标签,job.doc='doc-singleton' 与落地时不一致,
+  // 首屏响应被整体拒收,表现为启动白屏/要打一个字才出内容
   addFileTab('未命名文档');
+  setSrc(src);
+  openFiles[activeFile].src=gSrc;   // 回填标签快照(addFileTab 时 gSrc 尚空)
   if(gSrc.indexOf('@[first-line')>=0){ var b=document.getElementById('btn-firstline'); if(b)b.classList.add('on') }
   markClean(); updateUndoButtons(); updateDiagBar(); updateCaretPos();
   document.getElementById('docname').addEventListener('input',function(){updateTitle('docname')});
