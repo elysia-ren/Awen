@@ -561,7 +561,21 @@ function serializeSegments(){
   papers.forEach(function(paper){
     var prevKind='';
     paper.childNodes.forEach(function(el){
-      if(el.nodeType!==1)return;
+      // 尾部锚点段:空=纯光标落点,不入源码;非空=用户打了字,摘掉哨兵按新段走
+      if(el.dataset&&el.dataset.bid==='__tail'){
+        if(!el.textContent.trim())return;
+        delete el.dataset.bid;
+      }
+      if(el.nodeType!==1){
+        // 宿主层裸文本(光标落在 .paper 本体时打字产生):包成段再序列化,
+        // 否则内容永远进不了源码,下次渲染被回退
+        if(el.nodeType===3&&el.textContent.trim()){
+          var wrap=document.createElement('div');
+          wrap.textContent=el.textContent;
+          el.replaceWith(wrap);
+          el=wrap;
+        } else return;
+      }
       if(el.classList.contains('gap'))return;
       if(el.classList.contains('docset')){
         if(lines.length&&lines[lines.length-1].trim()!==''&&prevKind!=='docset')lines.push('');
