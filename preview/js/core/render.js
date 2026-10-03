@@ -294,6 +294,21 @@ function renderNodes(){
       paper.appendChild(makeBlock(b,item));
       paper.appendChild(gapEl());
     }
+    // 尾部锚点段(Word 行为:内容之后永远有一个段落承接光标):最后一页的
+    // 末块不是可编辑段落(obj/code/math/toc/table/hr 等收尾)时,点击图片/表格
+    // 下方会让光标落进 .paper 宿主层或页脚 folio——宿主层打字产生序列化器
+    // 看不见的裸节点(不同步,下次渲染被回退),folio 里打字直接无效。
+    // 锚点空段仅作光标落点:序列化时空锚点跳过,非空(用户打了字)按新段入源码。
+    if(p===pageList.length-1){
+      var lastEl=paper.lastElementChild;
+      while(lastEl&&lastEl.classList&&lastEl.classList.contains('gap'))lastEl=lastEl.previousElementSibling;
+      var lastEditable=lastEl&&lastEl.dataset&&lastEl.dataset.kind&&(lastEl.dataset.kind==='para'||lastEl.dataset.kind==='heading'||lastEl.dataset.kind==='ul'||lastEl.dataset.kind==='ol'||lastEl.dataset.kind==='quote');
+      if(!(pageList[p].length===0&&p===0)&&!lastEditable){
+        var tail=document.createElement('div');
+        tail.className='para'; tail.dataset.bid='__tail'; tail.dataset.kind='para';
+        paper.appendChild(tail);
+      }
+    }
     // 页眉/页脚条(文档级 @[header]/@[footer] 设置;%p = 页码)
     if((CFG.LINENUMBERS||'')==='on')sheet.classList.add('linenums');
     var hdr=CFG.HEADER||'', ftr=CFG.FOOTER||'', pno=p+1;
