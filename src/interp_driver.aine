@@ -1,0 +1,49 @@
+// interp_driver.aine —— 解释器侧真值驱动:与 DLL awen_run 同管线,输出合并 JSON
+// 用途:tests/parity.py 以本驱动输出为基准,与 awen_pipeline.dll 逐字段对拍
+// 注意:模块按本文件所在目录解析,故必须位于 src/ 下
+module diag;
+module registry;
+module fullwidth;
+module escape;
+module explicit;
+module lightweight;
+module lexer;
+module parser;
+module document;
+module mapping;
+module refs;
+module theme;
+module render;
+module incremental;
+module pipeline;
+module cjk;
+module layout;
+module layout_width;
+module page_flow;
+module json_export;
+module validate;
+module toc;
+module diff;
+module inspect;
+module export_html;
+module heading_tree;
+module numbering;
+module fmt;
+module export_md;
+module seed;
+module incremental_update;
+module core_blocks;
+
+fn main() {
+    let src = read_file("build/big_src.awen")
+    let out = lex(src)
+    let pr = parse(out)
+    let st = build_document(pr, src)
+    let wf_w: Vec<f64> = []
+    let ctx = page_flow_ctx_cfg_w(210.0, 297.0, 20.0, 11.0, 1.65, "", "", wf_w)
+    let flow = page_flow_with(st, ctx)
+    let blocks = blocks_to_json(st, src)
+    let lay = layout_recs_json(st, src, flow)
+    // 与 DLL bridge 同构:剥 blocks 尾 '}' 接 lay 首 '{' 前段,拼单对象
+    print(blocks[0 .. blocks.len() - 1] + "," + lay[1 .. lay.len()])
+}

@@ -18,7 +18,7 @@ merged = json.loads(raw.decode("utf-8"))
 dll_blocks, dll_lay = merged["blocks"], json.loads(json.dumps({k: v for k, v in merged.items() if k != "blocks"}))
 
 # ── 解释器侧(同管线驱动) ──
-p = subprocess.run([AINE, "run", "src/_interp_driver.aine"],
+p = subprocess.run([AINE, "run", "src/interp_driver.aine"],
                    cwd=ROOT, capture_output=True, timeout=300)
 out = p.stdout.decode("utf-8", "replace").strip()
 line = [l for l in out.splitlines() if l.strip().startswith("{")][-1]
