@@ -2,8 +2,94 @@
 // §42:失效传播 + 稳定点终止 —— 定位首个内容变化节点,从其在上一轮的
 // 页/纵向光标恢复重排;每排完一个节点,若该节点的恢复状态(节点 ID + 页 +
 // 纵向偏移 + 内容签名)与上一轮完全一致,其后内容必然不变 → 复制旧结果终止。
-// 注释(§11.3)与块级注释不进版面;图占位 40mm,页尾放不下整块推页。
+// 注释(§11.3)与块级注释不进版面;图占位默认 40mm,参数含固有尺寸(宽x高,
+// 前端插入/渲染迁移时写入)时按 width% × 宽高比 估高(U2 分页修复),页尾放不下整块推页。
 // ⚠ Aine 限制:结构体字段不可赋值 → 光标用标量 (page, y) 贯穿传递。
+
+struct ImgDims {
+    w: f64
+    h: f64
+}
+
+// 从图片命令参数串扫 "宽x高" 固有尺寸 token(如 800x600、1280.5x720;像素)。
+// 约定:数字与 'x' 相邻成词,前后是空格/引号/括号等非数字字符。无则 (0,0)。
+fn img_dims_scan(params: String) -> ImgDims {
+    var i = 0
+    let n = params.len()
+    while i < n {
+        let c = params.codepoint_at(i)
+        if c >= 48 && c <= 57 {
+            var j = i
+            while j < n {
+                let cj = params.codepoint_at(j)
+                if (cj >= 48 && cj <= 57) || cj == 46 { j += 1 } else { break }
+            }
+            // 紧跟 'x'(120) + 数字 → 尺寸 token
+            if j + 1 < n && params.codepoint_at(j) == 120 {
+                let k = j + 1
+                if k < n && params.codepoint_at(k) >= 48 && params.codepoint_at(k) <= 57 {
+                    var k2 = k
+                    while k2 < n {
+                        let ck = params.codepoint_at(k2)
+                        if (ck >= 48 && ck <= 57) || ck == 46 { k2 += 1 } else { break }
+                    }
+                    let w = params[i..j].to_f64()
+                    let h = params[k..k2].to_f64()
+                    if w > 0.0 && h > 0.0 { return ImgDims { w: w, h: h } }
+                    i = k2
+                    continue
+                }
+            }
+            i = j
+            continue
+        }
+        i += 1
+    }
+    return ImgDims { w: 0.0, h: 0.0 }
+}
+
+// 从参数串扫 width 百分比(width 50% / width:50% 写法;无则 0)
+fn img_width_pct_scan(params: String) -> f64 {
+    var i = 0
+    let n = params.len()
+    while i + 5 <= n {
+        if params.codepoint_at(i) == 119 && params.codepoint_at(i + 1) == 105 && params.codepoint_at(i + 2) == 100 && params.codepoint_at(i + 3) == 116 && params.codepoint_at(i + 4) == 104 {
+            var j = i + 5
+            // 跳到第一个数字或 %
+            while j < n && !(params.codepoint_at(j) >= 48 && params.codepoint_at(j) <= 57) && params.codepoint_at(j) != 37 { j += 1 }
+            if j < n && params.codepoint_at(j) >= 48 && params.codepoint_at(j) <= 57 {
+                var k = j
+                while k < n && ((params.codepoint_at(k) >= 48 && params.codepoint_at(k) <= 57) || params.codepoint_at(k) == 46) { k += 1 }
+                if k < n && params.codepoint_at(k) == 37 {
+                    let v = params[j..k].to_f64()
+                    if v > 0.0 && v <= 100.0 { return v }
+                }
+                i = k
+                continue
+            }
+            i = j
+            continue
+        }
+        i += 1
+    }
+    return 0.0
+}
+
+// 图片块排版高度(mm):含固有尺寸时 = 内容宽mm × width% × (h/w),封顶页内容高;
+// 否则回退默认占位 ctx.img_h
+fn img_block_height(params: String, ctx: FlowCtx) -> f64 {
+    let dims = img_dims_scan(params)
+    if dims.w > 0.0 && dims.h > 0.0 {
+        var wmm = ctx.max_em * ctx.font_mm
+        let wp = img_width_pct_scan(params)
+        if wp > 0.0 { wmm = wmm * wp / 100.0 }
+        var ih = wmm * dims.h / dims.w
+        if ih > ctx.content_h { ih = ctx.content_h }
+        if ih < ctx.line_h { ih = ctx.line_h }
+        return ih
+    }
+    return ctx.img_h
+}
 
 struct PlacedLine {
     node_id: i32
@@ -309,6 +395,33 @@ fn page_flow_node(ctx: FlowCtx, node: SemNode, page: i32, y: f64) -> FlowOneOut 
         } else if node.kind == "hr" {
             text = "――――――――――"
         } else if node.kind == "obj" {
+            // 图片/figure:高度感知(U2)——参数含固有尺寸(宽x高)时按
+            // width% × 宽高比 估高并整块推页,否则回退默认占位行高
+            if node.obj_cu.cmd == Image || node.obj_cu.cmd == Figure {
+                var params2 = ""
+                let cu2 = node.obj_cu
+                var ai = 0
+                while ai < cu2.args.len() {
+                    params2 = params2 + " " + arg_plain(cu_arg_at(cu2, ai))
+                    ai += 1
+                }
+                var ki = 0
+                while ki < cu2.attrs.len() {
+                    let kv = cu2.attrs.get(ki)
+                    params2 = params2 + " " + kv.key + "=" + arg_plain(kv.val)
+                    ki += 1
+                }
+                let ih = img_block_height(params2, ctx)
+                var p = page
+                var yy = y
+                if yy + ih > ctx.content_h {
+                    p = p + 1
+                    yy = ih
+                } else {
+                    yy = yy + ih
+                }
+                return FlowOneOut { page: p, y: yy, lines: 1, placed: [], box_node: id, box_start: box_start, box_end: p, box_lines: 1 }
+            }
             text = f"@[{node.obj_cu.name_raw}]"
         }
         // 估行补偿:贪心断行的行利用率 <100%(禁则/词边界推挤),
@@ -420,11 +533,27 @@ fn page_flow_node(ctx: FlowCtx, node: SemNode, page: i32, y: f64) -> FlowOneOut 
         if node.obj_cu.cmd == Image || node.obj_cu.cmd == Figure {
             var p = page
             var yy = y
-            if yy + ctx.img_h > ctx.content_h {
+            // 参数串(含属性),供尺寸/宽度扫描
+            // 注:for-in 对成员链表达式降级有缺陷,用索引式访问
+            var params = ""
+            let cu2 = node.obj_cu
+            var ai = 0
+            while ai < cu2.args.len() {
+                params = params + " " + arg_plain(cu_arg_at(cu2, ai))
+                ai += 1
+            }
+            var ki = 0
+            while ki < cu2.attrs.len() {
+                let kv = cu2.attrs.get(ki)
+                params = params + " " + kv.key + "=" + arg_plain(kv.val)
+                ki += 1
+            }
+            let ih = img_block_height(params, ctx)
+            if yy + ih > ctx.content_h {
                 p = p + 1
-                yy = ctx.img_h
+                yy = ih
             } else {
-                yy = yy + ctx.img_h
+                yy = yy + ih
             }
             return FlowOneOut { page: p, y: yy, lines: 1, placed: [], box_node: id, box_start: box_start, box_end: p, box_lines: 1 }
         }
@@ -951,7 +1080,8 @@ fn table_row_lines(ctx: FlowCtx, cells: Vec<Vec<Inline>>, colw: f64) -> i32 {
 // §42:失效传播 + 稳定点终止 —— 定位首个内容变化节点,从其在上一轮的
 // 页/纵向光标恢复重排;每排完一个节点,若该节点的恢复状态(节点 ID + 页 +
 // 纵向偏移 + 内容签名)与上一轮完全一致,其后内容必然不变 → 复制旧结果终止。
-// 注释(§11.3)与块级注释不进版面;图占位 40mm,页尾放不下整块推页。
+// 注释(§11.3)与块级注释不进版面;图占位默认 40mm,参数含固有尺寸(宽x高,
+// 前端插入/渲染迁移时写入)时按 width% × 宽高比 估高(U2 分页修复),页尾放不下整块推页。
 // ⚠ Aine 限制:结构体字段不可赋值 → 光标用标量 (page, y) 贯穿传递。
 
 

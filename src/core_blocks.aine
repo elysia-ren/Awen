@@ -234,6 +234,53 @@ fn ih_one(it: Inline) -> String {
                 }
                 return "<a href=\"" + html_esc_attr(url) + "\" target=\"_blank\" style=\"color:#2a4a66;text-decoration:underline\">" + html_esc(text) + "</a>"
             }
+            if cn == "image" || cn == "figure" {
+                // 行内图片(U1):段中/表格单元格的图片命令渲染为 <img>;
+                // data-self 让前端序列化按原命令回写
+                var params = ""
+                var ai2 = 0
+                while ai2 < u.args.len() {
+                    params = params + " " + arg_plain(u.args.get(ai2))
+                    ai2 += 1
+                }
+                var ki2 = 0
+                while ki2 < u.attrs.len() {
+                    let kv2 = u.attrs.get(ki2)
+                    params = params + " " + kv2.key + "=" + arg_plain(kv2.val)
+                    ki2 += 1
+                }
+                params = params.trim()
+                // 引用取引号内;无引号取首段(空格前)
+                var url = ""
+                var qi = 0
+                while qi < params.len() {
+                    if params.codepoint_at(qi) == 34 {
+                        var qj = qi + 1
+                        while qj < params.len() && params.codepoint_at(qj) != 34 {
+                            qj += 1
+                        }
+                        if qj < params.len() {
+                            url = params[(qi + 1)..qj]
+                            qi = params.len()
+                            continue
+                        }
+                    }
+                    qi += 1
+                }
+                if url == "" {
+                    var sj = 0
+                    while sj < params.len() && params.codepoint_at(sj) != 32 {
+                        sj += 1
+                    }
+                    url = params[0..sj]
+                }
+                var st = "max-width:100%;display:inline-block;vertical-align:middle;margin:2px 4px;"
+                let wp = img_width_pct_scan(params)
+                if wp > 0.0 {
+                    st = st + "width:" + f"{wp}" + "%;"
+                }
+                return "<img src=\"" + html_esc_attr(url) + "\" alt=\"图片\" data-cmd=\"@[" + u.name_raw + " " + html_esc_attr(params) + "]\" data-self=\"1\" style=\"" + st + "\">"
+            }
             // 未知命令:原文字面(与 fmtH 行为一致)
             var lit = "@[" + u.name_raw
             for a in u.args { lit = lit + " " + arg_plain(a) }

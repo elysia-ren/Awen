@@ -29,6 +29,53 @@ function taSafeWrite(nextSrc){
 // renderPending=true 表示权威渲染在途,纸面 DOM 还是旧结构——
 // 期间 serializeAll 只会拿到旧内容,applySyncNow 必须推迟而不是覆盖 gSrc
 var renderPending=false;
+// ── 图片固有尺寸迁移(U2 分页配套):无尺寸 token 的图片块,加载完成后
+// 测量 naturalWidth/Height,把 "宽x高" 写回命令行(单次提交,一次重渲),
+// 引擎 page_flow 据此按 width%×宽高比 估高。图片异步加载:自续轮询,
+// 8 秒总窗封顶(图缺失/加载慢不会无限转,缺图走 img-broken 占位)。
+var __dimsDeadline=0;
+function scheduleImgDims(){
+  if(Date.now()>__dimsDeadline)return;
+  setTimeout(function(){
+    if(Date.now()>__dimsDeadline)return;
+    var pending=[],stillLoading=false;
+    document.querySelectorAll('#display-pane [data-bid][data-raw]').forEach(function(el){
+      var raw=el.dataset.raw||'';
+      if(!/^@\[(image|figure|图片)\s/.test(raw))return;
+      if(/\d+(\.\d+)?x\d+(\.\d+)?(\s|\])/.test(raw))return;   // 已有尺寸
+      if(el.dataset.dimsdone)return;
+      var im=(el.tagName==='IMG')?el:el.querySelector('img');   // 图片块的根元素就是 <img>(dataset.raw 挂在其上)
+      if(!im)return;
+      if(im.complete&&im.naturalWidth>0){
+        el.dataset.dimsdone='1';
+        pending.push({raw:raw,w:im.naturalWidth,h:im.naturalHeight});
+      } else if(!im.complete||(im.naturalWidth===0&&!im.classList.contains('img-broken'))){
+        stillLoading=true;   // 还在加载:本轮不补,续轮等它
+      }
+    });
+    if(pending.length){
+      var lines=gSrc.split('\n');
+      var hit=0;
+      for(var pi=0;pi<pending.length;pi++){
+        var pd=pending[pi];
+        for(var li=0;li<lines.length;li++){
+          if(lines[li]===pd.raw){ lines[li]=pd.raw.replace(/\]\s*$/,' '+pd.w+'x'+pd.h+']'); hit++; break }
+        }
+      }
+      if(hit){
+        commitSource(lines.join('\n'),'imgdims');
+        if(currentMode!=='display')taSafeWrite(gSrc);
+        scheduleNativeRefresh(saveCaret());
+      }
+    }
+    if(pending.length||stillLoading)setTimeout(scheduleImgDims,400);
+  },350);
+}
+// 坏图占位:资源引用缺失时 img error → 标记类,CSS 出虚线占位框
+document.addEventListener('error',function(e){
+  var t=e.target;
+  if(t&&t.tagName==='IMG'&&t.closest&&t.closest('.paper'))t.classList.add('img-broken');
+},true);
 // 超长 data URI 送引擎解析前替换为占位引用(aine 解释器对几百 KB 的
 // 行内字符串会长时间无响应),块结构不受影响;解析返回后按映射把原文
 // 恢复进块文本供渲染。gSrc 不做替换。
@@ -146,6 +193,8 @@ function render(src,caret,done){
           // 否则焦点停在 body 无处输入(Word 行为:删空后光标停在文档开头)
           restoreCaret({bid:'0',off:0});
         }
+    __dimsDeadline=Date.now()+8000;
+    scheduleImgDims();
         if(done)done();
         return;
       }
@@ -168,6 +217,8 @@ function render(src,caret,done){
           // 否则焦点停在 body 无处输入(Word 行为:删空后光标停在文档开头)
           restoreCaret({bid:'0',off:0});
         }
+    __dimsDeadline=Date.now()+8000;
+    scheduleImgDims();
     if(done)done();
   }).catch(function(e){
     if(!isCurrent(job))return;   // 过期请求的失败不得干扰在途渲染

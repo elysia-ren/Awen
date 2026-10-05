@@ -97,6 +97,7 @@ function displayText(t){
     .replace(/@\[(?:label|标签)\s+([^\]]+)\]/g,'$1')
     .replace(/@\[(?:dropcap|首字下沉)\]((?:.|])*?)@\[\/(?:dropcap|首字下沉)\]/g,'$1')
         .replace(/@\[(?:ref|引用)\s+([^\]]+)\]/g,'$1')
+    .replace(/@\[(?:image|figure|图片)\s+([^\]]*)\]/g,'[图片]')
     .replace(/_((?:.|])*?)_/g,'$1');
   return unescTokens(s);
 }
@@ -138,6 +139,10 @@ function fmtH(t){
   s=s.replace(/~~((?:.|])*?)~~/g,'<del>$1</del>');
   s=s.replace(/`((?:.|])*?)`/g,'<code>$1</code>');
   s=s.replace(/_((?:.|])*?)_/g,'<em>$1</em>');
+  // 行内图片(段中/表格单元格):自闭合命令 → <img>(data-self 序列化回写)
+  s=s.replace(/@\[(?:image|figure|图片)\s+([^\]]+)\]/g,function(m){
+    return imgElHtml(m.replace(/^@\[\S+\s+/,'').replace(/\]$/,''), m, false);
+  });
   s=s.replace(/@\[(?:label|标签)\s+([^\]]+)\]/g,function(m){
     return '<span class="inline-label" data-cmd="'+escAttrQ(m)+'" data-self="1" title="标签">📌'+escAttrQ(m).replace(/@\[(?:label|标签)\s+/,'').replace(/\]$/,'')+'</span>';
   });
@@ -176,7 +181,13 @@ function scanCmdClose(s,from){
 function recToNode(nb){
   var raw=(nb.text||'').split('\n');
   var b={kind:nb.kind,level:nb.level||0,srcStart:nb.srcStart,srcEnd:nb.srcEnd};
-  if(nb.html)b.html=nb.html;   // 统一语义:引擎渲染 HTML 权威,fmtH 回退
+  if(nb.html){
+    // 统一语义:引擎渲染 HTML 权威,fmtH 回退。
+    // 引擎产物里的行内图片 src 是 media/ 引用,这里换 asset 协议地址
+    b.html=nb.html.replace(/src="(media\/[^"]+)"/g,function(m,p){
+      return 'src="'+escAttr((window.Bridge&&Bridge.mediaSrc)?Bridge.mediaSrc(p):p)+'"';
+    });
+  }
   var k=nb.kind;
   if(k==='heading'){
     b.text=raw.join(' ').replace(/^\s*#+\s*/,'');
@@ -318,35 +329,36 @@ function tableHtml(b){
 }
 
 // ── 图片 / figure(双方言参数)──
+// 图片命令 → <img>(block=true 块级居中布局;false 行内随文)
+// data-cmd+data-self 让 inlineSource 无损回写原命令(含尺寸 token)
+function imgElHtml(params, fullCmd, block){
+  var um=params.match(/"([^"]+)"/)||params.match(/(media\/[^\s\]]+)/)||params.match(/(data:[^\s\]]+|https?:\/\/[^\s\]]+)/);
+  var url=um?um[1]:'';
+  var wm=params.match(/width:?\s*(\d+(?:\.\d+)?)\s*%/);
+  var am=params.match(/align:?\s*(\w+)/);
+  var style='';
+  if(wm)style+='width:'+wm[1]+'%;';
+  if(block){
+    if(!am||am[1]==='center')style+='margin:8px auto;';
+    else if(am[1]==='right')style+='margin:8px 0 8px auto;';
+    else style+='margin:8px auto 8px 0;';
+    style+='display:block;';
+  } else {
+    style+='display:inline-block;vertical-align:middle;margin:2px 4px;';
+  }
+  var src=url;
+  if(url.indexOf('media/')===0&&window.awenMediaDir&&window.Bridge&&Bridge.mediaSrc)src=Bridge.mediaSrc(url);
+  if(url&&/^(data:|https?:|media\/)/.test(src||url)){
+    return'<img src="'+escAttr(src)+'" alt="图片" draggable="false" data-cmd="'+escAttrQ(fullCmd)+'" data-self="1" style="max-width:100%;'+style+'">';
+  }
+  return'<span class="img-ph" contenteditable="false" data-cmd="'+escAttrQ(fullCmd)+'" data-self="1" style="'+style+'">'+escHtml(url||'图片')+'</span>';
+}
 function objHtml(b){
   var full=b.text||'';
   var first=full.split('\n')[0];
   var m=first.match(/^@\[(image|figure|图片)(?:\s+([^\]]*))?\]/);
   if(m){
-    var params=m[2]||'';
-    var um=params.match(/"([^"]+)"/)||params.match(/(media\/[^\s\]]+)/)||params.match(/(data:[^\s\]]+|https?:\/\/[^\s\]]+)/);
-    var url=um?um[1]:'';
-    var wm=params.match(/width:?\s*(\d+(?:\.\d+)?)\s*%/);
-    var hm=params.match(/height:?\s*(\d+(?:\.\d+)?)\s*(mm|cm|%|px)?/);
-    var am=params.match(/align:?\s*(\w+)/);
-    var style='';
-    if(wm)style+='width:'+wm[1]+'%;';
-    if(hm)style+='height:'+hm[1]+(hm[2]||'mm')+';';
-    if(am){
-      if(am[1]==='center')style+='margin-left:auto;margin-right:auto;';
-      else if(am[1]==='right')style+='margin-left:auto;margin-right:0;';
-      else if(am[1]==='left')style+='margin-right:auto;margin-left:0;';
-    }
-    if(url&&/^(data:|https?:|media\/)/.test(url)){
-      // 包内 media/ 引用 → asset 协议 URL(容器解包后的媒体目录)
-      var src=url;
-      if(src.indexOf('media/')===0&&window.awenMediaDir&&window.Bridge&&Bridge.mediaSrc){
-        src=Bridge.mediaSrc(src);
-      }
-      return'<img src="'+escAttr(src)+'" alt="图片" style="max-width:100%;display:block;margin:8px auto;'+style+'">';
-    }
-    // 文件路径图片:占位框,但 width/align 依然可视化
-    return'<div class="img-ph" contenteditable="false" style="'+style+'">'+escHtml(url||first)+'</div>';
+    return imgElHtml(m[2]||'', first, true);
   }
   return'<div class="img-ph" contenteditable="false">'+escHtml(first)+'</div>';
 }
