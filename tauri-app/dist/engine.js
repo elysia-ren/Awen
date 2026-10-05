@@ -338,13 +338,14 @@ function imgElHtml(params, fullCmd, block){
   var am=params.match(/align:?\s*(\w+)/);
   var style='';
   if(wm)style+='width:'+wm[1]+'%;';
+  if(!wm)style+='max-height:40mm;';   // 与引擎无 token 占位 img_h=40mm 对齐(分页一致性)
   if(block){
     if(!am||am[1]==='center')style+='margin:8px auto;';
     else if(am[1]==='right')style+='margin:8px 0 8px auto;';
     else style+='margin:8px auto 8px 0;';
     style+='display:block;';
   } else {
-    style+='display:inline-block;vertical-align:middle;margin:2px 4px;';
+    style+='display:inline-block;vertical-align:middle;margin:2px 4px;max-height:1.7em;width:auto;';
   }
   var src=url;
   if(url.indexOf('media/')===0&&window.awenMediaDir&&window.Bridge&&Bridge.mediaSrc)src=Bridge.mediaSrc(url);

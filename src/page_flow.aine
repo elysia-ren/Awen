@@ -75,6 +75,26 @@ fn img_width_pct_scan(params: String) -> f64 {
     return 0.0
 }
 
+// 数 Inline 树中的行内图片个数(段中/表格单元格的 @[image],U1)
+fn inline_img_count(items: Vec<Inline>) -> i32 {
+    var n = 0
+    for it in items {
+        match it {
+            AwTxt(s2) { }
+            IBold(c) { n = n + inline_img_count(c) }
+            Italic(c) { n = n + inline_img_count(c) }
+            Strike(c) { n = n + inline_img_count(c) }
+            CodeSpan(s3) { }
+            Scoped(cmd, sa, c) { n = n + inline_img_count(c) }
+            RawInline(cmd, lang, content) { }
+            Command(u) {
+                if u.cmd == Image || u.cmd == Figure { n = n + 1 }
+            }
+        }
+    }
+    return n
+}
+
 // 图片块排版高度(mm):含固有尺寸时 = 内容宽mm × width% × (h/w),封顶页内容高;
 // 否则回退默认占位 ctx.img_h
 fn img_block_height(params: String, ctx: FlowCtx) -> f64 {
@@ -427,7 +447,8 @@ fn page_flow_node(ctx: FlowCtx, node: SemNode, page: i32, y: f64) -> FlowOneOut 
         // 估行补偿:贪心断行的行利用率 <100%(禁则/词边界推挤),
         // 乘 1.25 系数低估会重新引发"页面塞太满→纸面拉长"
         let total_w = layout_measure_w(text, ctx) * 1.15
-        let lines_n = ceil_ratio(total_w, ctx.max_em)
+        // 行内图片高度折算(U1):CSS 钳制 ≈1.7 行高,每图 +2 行,分页不失控
+        let lines_n = ceil_ratio(total_w, ctx.max_em) + inline_img_count(node.inline) * 2
         // 光标直接推进,不产逐行 PlacedLine(recs 只需页号,省 5 万次 Vec push)
         var p = page
         var yy = y
@@ -454,6 +475,17 @@ fn page_flow_node(ctx: FlowCtx, node: SemNode, page: i32, y: f64) -> FlowOneOut 
             p = r.page
             yy = r.y
             n = n + r.lines
+        }
+        // 行内图片高度折算(U1):CSS 钳制 ≈1.7 行高,每图 +2 行
+        let n_img = inline_img_count(node.inline)
+        var li2 = 0
+        while li2 < n_img * 2 {
+            yy = yy + ctx.line_h
+            if yy + ctx.line_h > ctx.content_h {
+                p = p + 1
+                yy = 0.0
+            }
+            li2 += 1
         }
         if node.kind == "heading" && node.level <= 2 {
             yy = yy + ctx.gap_lines * ctx.line_h
