@@ -439,13 +439,235 @@ Get-ChildItem -LiteralPath $dir -Filter *.wmf | ForEach-Object {
 }
 "#;
 
+/// docx 图片显示尺寸提取(导入保真):Rust 直接读盘(路径来自系统对话框,
+/// 无大 base64 过 IPC),解 docx 读 word/document.xml 按出现序抽每图显示宽高
+/// (DrawingML wp:extent EMU / 老式 OLE v:shape style pt),经 rels 映射到
+/// word/media 文件,按文件字节算 hash16(与 core_batch_resource 同算法,
+/// 内容相同必同值)。返回 ["hash16,Wmm,Hmm", ...];前端按哈希对齐注入命令。
+#[tauri::command]
+async fn core_docx_imgdims(path: String) -> Result<Vec<String>, String> {
+    tauri::async_runtime::spawn_blocking(move || {
+        let dir = std::env::temp_dir().join(format!("awen_dx_{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&dir);
+        std::fs::create_dir_all(&dir).map_err(|e| e.to_string())?;
+        let zpath = dir.join("doc.zip");
+        let bytes = std::fs::read(&path).map_err(|e| format!("读 docx 失败:{e}"))?;
+        if let Err(e) = std::fs::write(&zpath, &bytes) {
+            let _ = std::fs::remove_dir_all(&dir);
+            return Err(format!("写临时 zip 失败:{e}"));
+        }
+        let xdir = dir.join("x");
+        let out = std::process::Command::new("powershell")
+            .args(["-NoProfile", "-Command", "Expand-Archive", "-LiteralPath", zpath.to_str().unwrap_or(""), "-DestinationPath", xdir.to_str().unwrap_or(""), "-Force"])
+            .creation_flags(CREATE_NO_WINDOW)
+            .output();
+        let xml = match out {
+            Ok(o) if o.status.success() => {
+                let xp = xdir.join("word").join("document.xml");
+                std::fs::read_to_string(&xp).unwrap_or_default()
+            }
+            _ => String::new(),
+        };
+        if xml.is_empty() {
+            let _ = std::fs::remove_dir_all(&dir);
+            return Ok(vec![]);
+        }
+        fn find_sub(b: &[u8], pat: &[u8], from: usize) -> Option<usize> {
+            if from >= b.len() {
+                return None;
+            }
+            b[from..].windows(pat.len()).position(|w| w == pat).map(|p| p + from)
+        }
+        fn find_sub_lim(b: &[u8], pat: &[u8], from: usize, lim: usize) -> Option<usize> {
+            let hit = find_sub(b, pat, from)?;
+            if hit > lim {
+                None
+            } else {
+                Some(hit)
+            }
+        }
+        fn num_after_b(seg: &[u8], key: &[u8]) -> f64 {
+            if let Some(p) = find_sub(seg, key, 0) {
+                let rest = &seg[p + key.len()..];
+                let mut e = 0usize;
+                while e < rest.len() && rest[e] != b'"' {
+                    e += 1;
+                }
+                let raw = std::str::from_utf8(&rest[..e]).unwrap_or("");
+                return raw.trim().parse::<f64>().unwrap_or(0.0);
+            }
+            0.0
+        }
+        fn vml_style_wh_b(seg: &[u8]) -> (f64, f64) {
+            let sp = match find_sub(seg, b"style", 0) {
+                Some(x) => x,
+                None => return (0.0, 0.0),
+            };
+            let st = &seg[sp..];
+            let mut sw = 0.0;
+            let mut sh = 0.0;
+            let mut got_w = false;
+            let mut got_h = false;
+            let mut q = 0usize;
+            while q + 6 <= st.len() {
+                if !got_w && st[q..].starts_with(b"width:") {
+                    let rest = &st[q + 6..];
+                    let mut e = 0usize;
+                    while e < rest.len() && (rest[e].is_ascii_digit() || rest[e] == b'.') {
+                        e += 1;
+                    }
+                    if e + 1 < rest.len() && &rest[e..e + 2] == b"pt" {
+                        sw = std::str::from_utf8(&rest[..e]).unwrap_or("").parse::<f64>().unwrap_or(0.0);
+                        got_w = true;
+                    }
+                    q += 6;
+                } else if !got_h && st[q..].starts_with(b"height:") {
+                    let rest = &st[q + 7..];
+                    let mut e = 0usize;
+                    while e < rest.len() && (rest[e].is_ascii_digit() || rest[e] == b'.') {
+                        e += 1;
+                    }
+                    if e + 1 < rest.len() && &rest[e..e + 2] == b"pt" {
+                        sh = std::str::from_utf8(&rest[..e]).unwrap_or("").parse::<f64>().unwrap_or(0.0);
+                        got_h = true;
+                    }
+                    q += 7;
+                }
+                q += 1;
+            }
+            (sw, sh)
+        }
+        let bts = xml.as_bytes();
+        let pat_wp = b"<wp:extent";
+        let pat_shape = b"<v:shape";
+        let mut items: Vec<(usize, f64, f64, String)> = Vec::new();
+        let mut i = 0usize;
+        while i + 10 <= bts.len() {
+            if bts[i..].starts_with(pat_wp) {
+                match find_sub(bts, b"/>", i) {
+                    Some(end) => {
+                        let seg = std::str::from_utf8(&bts[i..end]).unwrap_or("");
+                        let cx = num_after_b(seg.as_bytes(), b"cx=\"");
+                        let cy = num_after_b(seg.as_bytes(), b"cy=\"");
+                        if cx > 0.0 && cy > 0.0 {
+                            let rid = find_sub_lim(bts, b"r:embed=\"", i, end + 2000)
+                                .and_then(|p| {
+                                    let rest = &bts[p + 9..p + 9 + 40];
+                                    let e = rest.iter().position(|&c| c == b'"').unwrap_or(0);
+                                    Some(String::from_utf8_lossy(&rest[..e]).to_string())
+                                })
+                                .unwrap_or_default();
+                            items.push((i, cx / 914400.0 * 25.4, cy / 914400.0 * 25.4, rid));
+                        }
+                        i = end + 2;
+                        continue;
+                    }
+                    None => break,
+                }
+            }
+            if bts[i..].starts_with(pat_shape) {
+                match find_sub(bts, b">", i) {
+                    Some(end) => {
+                        let seg = std::str::from_utf8(&bts[i..end]).unwrap_or("");
+                        let (w, h) = vml_style_wh_b(seg.as_bytes());
+                        if w > 0.0 && h > 0.0 {
+                            let sb = seg.as_bytes();
+                            let rid = find_sub(sb, b"r:id=\"", 0)
+                                .or_else(|| find_sub(sb, b"o:relid=\"", 0))
+                                .map(|p| {
+                                    let key_len = if sb[p..].starts_with(b"r:id=\"") { 6 } else { 10 };
+                                    let rest = &sb[p + key_len..p + key_len + 40];
+                                    let e = rest.iter().position(|&c| c == b'"').unwrap_or(0);
+                                    String::from_utf8_lossy(&rest[..e]).to_string()
+                                })
+                                .unwrap_or_default();
+                            items.push((i, w * 0.352778, h * 0.352778, rid));
+                        }
+                        i = end + 1;
+                        continue;
+                    }
+                    None => break,
+                }
+            }
+            i += 1;
+        }
+        let mut rid_target: Vec<(String, String)> = Vec::new();
+        let rp = xdir.join("word").join("_rels").join("document.xml.rels");
+        if let Ok(rels) = std::fs::read_to_string(&rp) {
+            let rb = rels.as_bytes();
+            let mut j = 0usize;
+            while j + 8 <= rb.len() {
+                if rb[j..].starts_with(b"<Relationship ") {
+                    let end = find_sub(rb, b"/>", j).unwrap_or(j);
+                    let seg = std::str::from_utf8(&rb[j..end]).unwrap_or("");
+                    let id = num_str_after_b(seg.as_bytes(), b"Id=\"");
+                    let tg = num_str_after_b(seg.as_bytes(), b"Target=\"");
+                    if !id.is_empty() && !tg.is_empty() {
+                        rid_target.push((id, tg));
+                    }
+                    j = end + 2;
+                    continue;
+                }
+                j += 1;
+            }
+        }
+        fn num_str_after_b(seg: &[u8], key: &[u8]) -> String {
+            if let Some(p) = find_sub(seg, key, 0) {
+                let rest = &seg[p + key.len()..];
+                let mut e = 0usize;
+                while e < rest.len() && rest[e] != b'"' {
+                    e += 1;
+                }
+                return String::from_utf8_lossy(&rest[..e]).to_string();
+            }
+            String::new()
+        }
+        use std::hash::{Hash, Hasher};
+        let mut out: Vec<String> = Vec::new();
+        for (_, w, h, rid) in &items {
+            if rid.is_empty() {
+                continue;
+            }
+            let target = rid_target.iter().find(|(id, _)| id == rid).map(|(_, t)| t);
+            let target = match target {
+                Some(t) => t,
+                None => continue,
+            };
+            let mp = xdir.join("word").join(target.replace('/', "\\"));
+            let mb = match std::fs::read(&mp) {
+                Ok(b) => b,
+                Err(_) => continue,
+            };
+            let mut hasher = std::collections::hash_map::DefaultHasher::new();
+            mb.hash(&mut hasher);
+            let hash16 = format!("{:016x}", hasher.finish());
+            out.push(format!("{},{:.1},{:.1}", hash16, w, h));
+        }
+        let _ = std::fs::remove_dir_all(&dir);
+        Ok(out)
+    })
+    .await
+    .map_err(|e| format!("任务调度失败:{e}"))?
+}
+
+/// 读文件为 base64(导入大文档前端 mammoth 用;路径来自系统对话框)
+#[tauri::command]
+async fn core_read_file_b64(path: String) -> Result<String, String> {
+    tauri::async_runtime::spawn_blocking(move || {
+        let bytes = std::fs::read(&path).map_err(|e| format!("读文件失败:{e}"))?;
+        Ok(b64_encode(&bytes))
+    })
+    .await
+    .map_err(|e| format!("任务调度失败:{e}"))?
+}
+
 /// 批量图片资源化(docx 导入专用):一次 IPC 服务端循环写盘。
 /// 输入 data URI 列表,返回 media/ 引用列表(顺序对应,失败项为空串);
 /// 同内容同哈希自动去重,已存在的文件直接复用。
 /// wmf/emf(公式 OLE 预览)先落临时目录,经 PowerShell System.Drawing
 /// 批量转 4x 高清白底 PNG(Windows 自带 GDI 可渲染图元文件),公式真实显示。
 #[tauri::command]
-async fn core_batch_resource(data_uris: Vec<String>, media_dir: String) -> Result<Vec<String>, String> {
+async fn core_batch_resource(data_uris: Vec<String>, media_dir: String) -> Result<String, String> {
     tauri::async_runtime::spawn_blocking(move || {
         use std::hash::{Hash, Hasher};
         std::fs::create_dir_all(&media_dir).map_err(|e| format!("创建媒体目录失败:{e}"))?;
@@ -453,6 +675,7 @@ async fn core_batch_resource(data_uris: Vec<String>, media_dir: String) -> Resul
         let tmp = dir.join("_wmf_tmp");
         let _ = std::fs::create_dir_all(&tmp);
         let mut refs = Vec::with_capacity(data_uris.len());
+        let mut orig_hashes = Vec::with_capacity(data_uris.len()); // 原始字节哈希(wmf 为转换前原文件)
         let mut wmf_pending: Vec<(String, String)> = Vec::new(); // (hash文件名, 返回占位索引对应)
         for uri in &data_uris {
             let (mime, payload) = match uri.split_once(";base64,") {
@@ -474,6 +697,7 @@ async fn core_batch_resource(data_uris: Vec<String>, media_dir: String) -> Resul
             let mut h = std::collections::hash_map::DefaultHasher::new();
             bytes.hash(&mut h);
             let hash16 = format!("{:016x}", h.finish());
+            orig_hashes.push(hash16.clone());
             if is_vector {
                 // 矢量公式:原始文件入临时目录,待 PowerShell 批转 PNG
                 let raw = format!("{}.{}", hash16, if lower.contains("emf") { "emf" } else { "wmf" });
@@ -533,7 +757,7 @@ async fn core_batch_resource(data_uris: Vec<String>, media_dir: String) -> Resul
             }
             let _ = std::fs::remove_dir_all(&tmp);
         }
-        Ok(refs)
+        Ok(serde_json::json!({ "refs": refs, "orig": orig_hashes }).to_string())
     })
     .await
     .map_err(|e| format!("任务调度失败:{e}"))?
@@ -554,6 +778,21 @@ fn img_ext_of(mime: &str) -> &'static str {
     }
 }
 
+fn b64_encode(data: &[u8]) -> String {
+    const TBL: &[u8; 64] = b"ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
+    let mut out = String::with_capacity((data.len() + 2) / 3 * 4);
+    for chunk in data.chunks(3) {
+        let b0 = chunk[0] as u32;
+        let b1 = *chunk.get(1).unwrap_or(&0) as u32;
+        let b2 = *chunk.get(2).unwrap_or(&0) as u32;
+        let n = (b0 << 16) | (b1 << 8) | b2;
+        out.push(TBL[(n >> 18) as usize & 63] as char);
+        out.push(TBL[(n >> 12) as usize & 63] as char);
+        out.push(if chunk.len() > 1 { TBL[(n >> 6) as usize & 63] as char } else { '=' });
+        out.push(if chunk.len() > 2 { TBL[n as usize & 63] as char } else { '=' });
+    }
+    out
+}
 fn b64_decode(s: &str) -> Option<Vec<u8>> {
     fn val(c: u8) -> Option<u32> {
         match c {
@@ -1237,18 +1476,6 @@ async fn awen_container_open(
 // ── 图片资源化:插入即入媒体目录(源码只写 media/ 引用,容器打包时收集)──
 
 const B64T: &[u8; 64] = b"ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
-fn b64_encode(data: &[u8]) -> String {
-    let mut out = String::with_capacity((data.len() + 2) / 3 * 4);
-    for ch in data.chunks(3) {
-        let b = [ch[0], *ch.get(1).unwrap_or(&0), *ch.get(2).unwrap_or(&0)];
-        let n = ((b[0] as u32) << 16) | ((b[1] as u32) << 8) | b[2] as u32;
-        out.push(B64T[(n >> 18) as usize & 63] as char);
-        out.push(B64T[(n >> 12) as usize & 63] as char);
-        out.push(if ch.len() > 1 { B64T[(n >> 6) as usize & 63] as char } else { '=' });
-        out.push(if ch.len() > 2 { B64T[n as usize & 63] as char } else { '=' });
-    }
-    out
-}
 
 // 与引擎 content_hash8 同款滚动哈希 → 8 位 hex(资源命名跨端一致)
 fn content_hash8(data: &[u8]) -> String {
@@ -1402,6 +1629,8 @@ fn main() {
             core_parse_blocks,
             core_list_fonts,
             core_batch_resource,
+            core_docx_imgdims,
+            core_read_file_b64,
             core_relayout,
             core_font_widths,
             core_open_dialog,

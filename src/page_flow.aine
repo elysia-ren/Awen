@@ -75,29 +75,83 @@ fn img_width_pct_scan(params: String) -> f64 {
     return 0.0
 }
 
-// 数 Inline 树中的行内图片个数(段中/表格单元格的 @[image],U1)
-fn inline_img_count(items: Vec<Inline>) -> i32 {
+// 行内图片高度折算(段中/表格单元格的 @[image]):每图按 Word 显示高度
+// 折成行数(ceil(h/line_h));无高度 token 回退 2 行(CSS 钳 1.7em)
+fn inline_img_extra_lines(items: Vec<Inline>, ctx: FlowCtx) -> i32 {
     var n = 0
     for it in items {
         match it {
             AwTxt(s2) { }
-            IBold(c) { n = n + inline_img_count(c) }
-            Italic(c) { n = n + inline_img_count(c) }
-            Strike(c) { n = n + inline_img_count(c) }
+            IBold(c) { n = n + inline_img_extra_lines(c, ctx) }
+            Italic(c) { n = n + inline_img_extra_lines(c, ctx) }
+            Strike(c) { n = n + inline_img_extra_lines(c, ctx) }
             CodeSpan(s3) { }
-            Scoped(cmd, sa, c) { n = n + inline_img_count(c) }
+            Scoped(cmd, sa, c) { n = n + inline_img_extra_lines(c, ctx) }
             RawInline(cmd, lang, content) { }
             Command(u) {
-                if u.cmd == Image || u.cmd == Figure { n = n + 1 }
+                if u.cmd == Image || u.cmd == Figure {
+                    var params = ""
+                    var ai = 0
+                    while ai < u.args.len() {
+                        params = params + " " + arg_plain(u.args.get(ai))
+                        ai += 1
+                    }
+                    var ki = 0
+                    while ki < u.attrs.len() {
+                        let kv = u.attrs.get(ki)
+                        params = params + " " + kv.key + "=" + arg_plain(kv.val)
+                        ki += 1
+                    }
+                    let h = img_height_mm_scan(params)
+                    if h > 0.0 {
+                        n = n + ceil_ratio(h, ctx.line_h)
+                    } else {
+                        n = n + 2
+                    }
+                }
             }
         }
     }
     return n
 }
 
+// 从参数串扫 height Nmm(Word 显示高度,导入写入;无则 0)
+fn img_height_mm_scan(params: String) -> f64 {
+    var i = 0
+    let n = params.len()
+    while i + 6 <= n {
+        if params.codepoint_at(i) == 104 && params.codepoint_at(i + 1) == 101 && params.codepoint_at(i + 2) == 105 && params.codepoint_at(i + 3) == 103 && params.codepoint_at(i + 4) == 104 && params.codepoint_at(i + 5) == 116 {
+            var j = i + 6
+            while j < n && !(params.codepoint_at(j) >= 48 && params.codepoint_at(j) <= 57) { j += 1 }
+            if j < n && params.codepoint_at(j) >= 48 && params.codepoint_at(j) <= 57 {
+                var k = j
+                while k < n && ((params.codepoint_at(k) >= 48 && params.codepoint_at(k) <= 57) || params.codepoint_at(k) == 46) { k += 1 }
+                if k + 1 < n && params.codepoint_at(k) == 109 && params.codepoint_at(k + 1) == 109 {
+                    let v = params[j..k].to_f64()
+                    if v > 0.0 { return v }
+                }
+                i = k
+                continue
+            }
+            i = j
+            continue
+        }
+        i += 1
+    }
+    return 0.0
+}
+
 // 图片块排版高度(mm):含固有尺寸时 = 内容宽mm × width% × (h/w),封顶页内容高;
 // 否则回退默认占位 ctx.img_h
 fn img_block_height(params: String, ctx: FlowCtx) -> f64 {
+    // Word 显示高度 mm(导入写入)最权威,直接采用
+    let hmm = img_height_mm_scan(params)
+    if hmm > 0.0 {
+        var ih2 = hmm
+        if ih2 > ctx.content_h { ih2 = ctx.content_h }
+        if ih2 < ctx.line_h { ih2 = ctx.line_h }
+        return ih2
+    }
     let dims = img_dims_scan(params)
     if dims.w > 0.0 && dims.h > 0.0 {
         var wmm = ctx.max_em * ctx.font_mm
@@ -448,7 +502,7 @@ fn page_flow_node(ctx: FlowCtx, node: SemNode, page: i32, y: f64) -> FlowOneOut 
         // 乘 1.25 系数低估会重新引发"页面塞太满→纸面拉长"
         let total_w = layout_measure_w(text, ctx) * 1.15
         // 行内图片高度折算(U1):CSS 钳制 ≈1.7 行高,每图 +2 行,分页不失控
-        let lines_n = ceil_ratio(total_w, ctx.max_em) + inline_img_count(node.inline) * 2
+        let lines_n = ceil_ratio(total_w, ctx.max_em) + inline_img_extra_lines(node.inline, ctx)
         // 光标直接推进,不产逐行 PlacedLine(recs 只需页号,省 5 万次 Vec push)
         var p = page
         var yy = y
@@ -477,7 +531,7 @@ fn page_flow_node(ctx: FlowCtx, node: SemNode, page: i32, y: f64) -> FlowOneOut 
             n = n + r.lines
         }
         // 行内图片高度折算(U1):CSS 钳制 ≈1.7 行高,每图 +2 行
-        let n_img = inline_img_count(node.inline)
+        let n_img = inline_img_extra_lines(node.inline, ctx)
         var li2 = 0
         while li2 < n_img * 2 {
             yy = yy + ctx.line_h

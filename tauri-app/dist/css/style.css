@@ -288,7 +288,7 @@ body.show-marks .paper p::after{content:' b6';color:#d5d8dc;margin-left:2px}
 ::-webkit-scrollbar-thumb{background:#d1d5db;border-radius:4px}
 ::-webkit-scrollbar-thumb:hover{background:#9ca3af}
 ::-webkit-scrollbar-track{background:#f3f4f6}
-@media print{.tabbar,.ribbon,.sidebar,.statusbar,.titlebar,.findbar-pop,#minibar,#tblpop,.statuspop,.filetabs,.file-menu,.settings-drawer,.overlay{display:none!important}.app{height:auto}.workspace{overflow:visible;display:block}.pane{overflow:visible;padding:0;background:#fff;gap:0;zoom:1!important}.sheet{box-shadow:none;page-break-after:always;min-height:auto}}
+@media print{.tabbar,.ribbon,.sidebar,.statusbar,.titlebar,.findbar-pop,#minibar,#tblpop,.statuspop,.filetabs,.file-menu,.settings-drawer,.overlay{display:none!important}.app{height:auto}.workspace{overflow:visible;display:block}.pane{overflow:visible;padding:0;background:#fff;gap:0;zoom:1!important}.sheet{box-shadow:none;page-break-after:always;min-height:auto;height:auto;overflow:visible}}
 .app.focus .tabbar,.app.focus .ribbon,.app.focus .sidebar,.app.focus #sb-open,.app.focus .statusbar{display:none!important}
 .app.focus .titlebar{border-bottom-color:transparent}
 

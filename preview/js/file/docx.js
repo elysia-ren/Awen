@@ -2,7 +2,10 @@
 // ═══ DOCX 导入(mammoth 本地分发,离线可用;HTML → Awen 语法转换)═══
 // importDocxFromBuffer:从 ArrayBuffer 完整导入(转换+wmf 批转 PNG+批量资源化),
 // 文件对话框与自动化测试共用此入口。
-function importDocxFromBuffer(buf){
+function importDocxFromBuffer(buf,dimMap){
+  // dimMap: {hash16:"WxH"}(Word 显示尺寸 mm,来自 core_docx_imgdims;
+  // 与 batchResource 的 media 哈希同算法对齐,顺序无关)。可为 null。
+  return Promise.resolve().then(function(){
   // mammoth 默认忽略图片且只认英文样式名:显式转换图片为 data URI,
   // 并补充中文 Word 样式名映射(标题 1/标题 2…),否则格式全部丢失
   var opts={
@@ -24,7 +27,11 @@ function importDocxFromBuffer(buf){
       });
     })
   };
-  return mammoth.convertToHtml({arrayBuffer:buf},opts).then(function(res){
+  importProgShow('解析 DOCX 结构…');
+  return new Promise(function(res){ setTimeout(res,60) }).then(function(){
+    return mammoth.convertToHtml({arrayBuffer:buf},opts);
+  }).then(function(res){
+    importProgShow('转换为 Awen 语法…');
     // wmf/emf(公式 OLE 预览)照常产出 data URI,由 Rust 批量转 4x PNG
     // (PowerShell System.Drawing,Windows 自带 GDI 可渲染图元文件);
     // 转换失败的在下方替换时兜底为 〖公式〗 文本
@@ -38,20 +45,68 @@ function importDocxFromBuffer(buf){
         var uri=mm[1];
         if(uniq[uri]===undefined){ uniq[uri]=order.length; order.push(uri) }
       }
-      document.getElementById('st-diag').textContent='导入中:资源化 '+order.length+' 张图片…';
-      return Bridge.batchResource(order,dir).then(function(refs){
+      // 分块批写(每块 200 张):进度条可见,wmf 转压分批进行
+      var CH=200, refsAll=[], origAll=[];
+      var seq=Promise.resolve();
+      for(var c0=0;c0<order.length;c0+=CH){
+        (function(c0){
+          seq=seq.then(function(){
+            var part=order.slice(c0,c0+CH);
+            importProgShow('写入图片资源 '+Math.min(c0+part.length,order.length)+'/'+order.length, Math.min(100,Math.round((c0+part.length)/Math.max(1,order.length)*90)));
+            return Bridge.batchResource(part,dir).then(function(res2){
+              var pr=typeof res2==='string'?JSON.parse(res2):res2;
+              refsAll=refsAll.concat(pr.refs||[]);
+              origAll=origAll.concat(pr.orig||[]);
+            });
+          });
+        })(c0);
+      }
+      return seq.then(function(){
         var map={};
-        order.forEach(function(u,i){ if(refs[i])map[u]=refs[i] });
-        // 单遍替换:有 ref 换 media/ 引用;wmf/emf 转换失败才落文本占位
+        order.forEach(function(u,i){ if(refsAll[i])map[u]={ref:refsAll[i],orig:origAll[i]||''} });
+        importProgShow('生成源码…',95);
+        // 单遍替换:有 ref 换 media/ 引用;wmf/emf 转换失败才落文本占位。
+        // 尺寸保真:按 ref 的内容哈希查 Word 显示尺寸(dimMap),写入命令
         src=src.replace(/@\[image "(data:image\/[^;]+;base64,[A-Za-z0-9+\/=]+)"\]/g,function(m0,u){
-          if(map[u])return '@[image "'+map[u]+'"]';
+          var ent=map[u];
+          if(ent){
+            var d=dimMap?dimMap[ent.orig]:null;
+            if(d){
+              var dm=d.split('x');
+              return '@[image "'+ent.ref+'" width '+dm[0]+'mm height '+dm[1]+'mm]';
+            }
+            return '@[image "'+ent.ref+'"]';
+          }
           if(/wmf|emf/i.test(u))return '〖公式〗';
           return m0;
         });
         return {src:src,imgs:order.length,vec:hadVec};
+        });
       });
     });
   });
+}
+// ── 导入进度条(阶段式:解析/转换无回调显示不定态,批写有真实百分比) ──
+function importProgShow(text,pct){
+  var el=document.getElementById('import-prog');
+  if(!el){
+    el=document.createElement('div');
+    el.id='import-prog';
+    el.style.cssText='position:fixed;inset:0;z-index:400;background:rgba(250,250,250,.75);display:flex;align-items:center;justify-content:center';
+    el.innerHTML='<div style="background:#fff;border:1px solid #c9cbce;border-radius:8px;box-shadow:0 8px 30px rgba(0,0,0,.18);padding:18px 22px;width:340px">'
+      +'<div id="ip-text" style="font-size:13px;color:#333;margin-bottom:10px">准备导入…</div>'
+      +'<div style="height:8px;background:#eef0f2;border-radius:4px;overflow:hidden"><div id="ip-bar" style="height:100%;width:0;background:#2f6fb3;border-radius:4px;transition:width .2s"></div></div>'
+      +'</div>';
+    document.body.appendChild(el);
+  }
+  el.querySelector('#ip-text').textContent=text;
+  var bar=el.querySelector('#ip-bar');
+  if(typeof pct==='number'){ bar.style.width=Math.max(3,pct)+'%' }
+  else{ bar.style.width='38%' }
+}
+function importProgHide(){
+  var el=document.getElementById('import-prog');
+  if(el)el.remove();
 }
 function importDocx(){
   if(typeof mammoth==='undefined'){ alert('转换库未加载(vendor/mammoth.browser.min.js 缺失)'); return }
@@ -64,7 +119,8 @@ function importDocx(){
     if(!f){ inp.remove(); return }
     var rd=new FileReader();
     rd.onload=function(){
-      importDocxFromBuffer(rd.result).then(function(r){
+      importProgShow('读取文件…');
+      importDocxFromBuffer(rd.result,null).then(function(r){
         var src=r.src;
         var name=f.name.replace(/\.docx$/i,'');
         inp.remove();
@@ -90,6 +146,8 @@ function importDocx(){
         }
         currentFilePath=null;
         updateTitle(); markClean();
+        importProgShow('渲染文档…',100);
+        setTimeout(function(){ importProgHide() },1200);
         setTimeout(function(){
           document.getElementById('st-diag').textContent='诊断 ✓';
         },1200);

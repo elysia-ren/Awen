@@ -243,7 +243,10 @@ function renderNodes(){
     var sheet=document.createElement('div');
     sheet.className='sheet';
     sheet.style.width=CFG.PAGE_W+'mm';
-    sheet.style.minHeight=CFG.PAGE_H+'mm';
+    // 纸面是物理常量:固定高度+裁切,分页误差不许把 A4 拉成长条
+    // (正确性由引擎高度预算保证;overflow hidden 让残余误差可见于页尾裁切)
+    sheet.style.height=CFG.PAGE_H+'mm';
+    sheet.style.overflow='hidden';
     sheet.style.padding=CFG.MARGIN+'mm';
     var paper=document.createElement('div');
     paper.className='paper';

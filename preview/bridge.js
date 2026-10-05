@@ -34,6 +34,20 @@ window.Bridge={
     return tauri.core.invoke('core_batch_resource',{dataUris:uris,mediaDir:mediaDir});
   },
 
+  // docx 图片显示尺寸(导入保真):Rust 直接读盘解包,返回
+  // ["hash16,Wmm,Hmm",...](hash 与 batchResource 同算法,按内容对齐);
+  // Word 里显示多大,导入后就多大
+  docxImgDims:function(path){
+    if(!tauri)return Promise.resolve([]);
+    return tauri.core.invoke('core_docx_imgdims',{path:path});
+  },
+
+  // 读文件为 base64(大文档导入 mammoth 用)
+  readFileB64:function(path){
+    if(!tauri)return Promise.reject(new Error('非桌面环境'));
+    return tauri.core.invoke('core_read_file_b64',{path:path});
+  },
+
   // 字体度量:family 的字符集区间宽表 {s,e,w}(em)
   fontWidths:function(family,chars){
     if(!tauri)return Promise.resolve(null);
