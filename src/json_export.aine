@@ -3,7 +3,7 @@
 
 fn json_escape(s: String) -> String {
     // 快路径:不含需转义字符时直返原串(逐字符拼接在长文本上是主要热点)
-    if !s.contains("\"") && !s.contains("\\") && !s.contains("\n") && !s.contains("\r") && !s.contains("\t") {
+    if !s.contains("\"") && !s.contains("\\") && !s.contains("\n") && !s.contains("\r") && !s.contains("\t") && !s.contains("\u{8}") && !s.contains("\u{c}") {
         return s
     }
     var out = ""
@@ -18,6 +18,10 @@ fn json_escape(s: String) -> String {
             out = out + "\\n"
         } else if c == "\r" {
             out = out + "\\r"
+        } else if c == "\u{8}" {
+            out = out + "\\b"
+        } else if c == "\u{c}" {
+            out = out + "\\f"
         } else if c == "\b" {
             out = out + "\\b"
         } else if c == "\f" {

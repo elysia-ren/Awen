@@ -34,3 +34,9 @@ node tests/cdp/harness.mjs "JSON.stringify({src:(window.gSrc||'').length})"
 |---|---|
 | `../parity.py` | DLL vs 解释器全语义对拍(414 块逐字段) |
 | `../fuzz-dll.py` | DLL 500 轮随机文档压测(正确指针管理:restype 必须 c_void_p) |
+
+## 测试规范(C12)
+
+- 测试写入的文档会进应用自动保存草稿(localStorage);**测完必须清理**,否则下次启动会把测试内容恢复进用户文档。
+- 清理方式:测试脚本尾部执行 `localStorage.removeItem('awen-autosave');` 或直接 DevTools 清站点数据。
+- 发布前:清 localStorage 快照,确认启动为空白文档。
